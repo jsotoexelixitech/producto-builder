@@ -1,0 +1,309 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductBranch {
+  AUTOMOVIL
+  SALUD
+  VIDA
+  PATRIMONIAL
+  INCLUSIVO
+  RCV_OBLIGATORIO
+}
+
+enum ContractCurrency {
+  VES
+  USD
+  INDEXADO
+}
+
+enum EmissionType {
+  EMISION_GARANTIZADA
+  REQUIERE_DECLARACION_SALUD
+  REQUIERE_INSPECCION
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTUARIAL_REVIEW
+  SUBMITTED_TO_SUDEASEG
+  APPROVED_ACTIVE
+  REJECTED
+}
+
+enum RenewalFrequency {
+  ANUAL
+  SEMESTRAL
+  TRIMESTRAL
+  MENSUAL
+}
+
+enum RenewalType {
+  NORMAL
+  TACITA
+  CON_AVISO
+}
+
+enum DeductibleType {
+  MONTO_FIJO
+  PORCENTAJE_SINIESTRO
+  PORCENTAJE_SUMA_ASEGURADA
+}
+
+enum DocumentType {
+  CONDICIONES_GENERALES
+  CONDICIONES_PARTICULARES
+  NOTA_TECNICA_ACTUARIAL
+  POLIZA
+  CUADRO_RECIBO
+}
+
+enum FormFieldType {
+  TEXT
+  NUMBER
+  SELECT
+  DATE
+  BOOLEAN
+}
+
+model Product {
+  id                        String           @id @default(uuid())
+  commercialName            String
+  internalCode              String           @unique
+  branch                    ProductBranch
+  currency                  ContractCurrency
+  emissionType              EmissionType
+  status                    ProductStatus    @default(DRAFT)
+  simplifiedContract        Boolean          @default(false)
+  uniformConditions         Boolean          @default(false)
+  lockedGeneralConditions   Boolean          @default(false)
+  numeroProvidenciaSudeaseg String?
+  fechaGacetaAprobacion     DateTime?
+  isImmutable               Boolean          @default(false)
+
+  // Plan SISIP
+  subPlanCode          String?
+  vigenciaInicio       DateTime?
+  vigenciaFin          DateTime?
+  allowsQuickEmission  Boolean           @default(false)
+  renewalFrequency     RenewalFrequency?
+  renewalType          RenewalType?
+  premiumGuaranteeDays Int?
+  annualClosingMonth   Int?
+
+  actuarialData      ActuarialData?
+  coverages          Coverage[]
+  exclusions         Exclusion[]
+  legalDocuments     LegalDocument[]
+  stateHistory       ProductStateHistory[]
+  formFields         FormField[]
+  commercialChannels CommercialChannel[]
+  requiredDocuments  RequiredDocument[]
+  productPlans       ProductPlan[]
+  flowStepConfigs    FlowStepConfig[]
+  sisipConfig        ProductSisipConfig?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([branch])
+}
+
+model Coverage {
+  id                String          @id @default(uuid())
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  sortOrder         Int             @default(0)
+  isBasicMandatory  Boolean         @default(false)
+  insuredSumMin     Decimal?        @db.Decimal(18, 2)
+  insuredSumMax     Decimal?        @db.Decimal(18, 2)
+  insuredSumFixed   Decimal?        @db.Decimal(18, 2)
+  deductibleType    DeductibleType?
+  deductibleValue   Decimal?        @db.Decimal(18, 4)
+  waitingPeriodDays Int             @default(0)
+
+  // Tarifa y vigencia SISIP
+  tariffPremium           Decimal?  @db.Decimal(18, 4)
+  vigenciaDesde           DateTime?
+  vigenciaHasta           DateTime?
+  dependsOnCoverageName   String?
+  coberturaInternaCode    String?
+  tarifaInternaCode       String?
+  treatmentType           String?
+  calculationService      String?
+  reinsuranceContractCode String?
+  reinsuranceContractName String?
+  reinsuranceBranchCode   String?
+
+  @@index([productId])
+}
+
+model ProductSisipConfig {
+  id                    String  @id @default(uuid())
+  productId             String  @unique
+  product               Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  ramoInternoCode       String?
+  ramoInternoName       String?
+  branchAlias1          String?
+  branchAlias2          String?
+  producerCode          String?
+  producerName          String?
+  assignToAllProducers  Boolean @default(false)
+
+  counterCotizacion     String  @default("COTIZACION")
+  counterPoliza         String  @default("POLIZA")
+  counterRecibo         String  @default("RECIBO")
+  counterSiniestro      String  @default("SINIESTRO")
+
+  maskPoliza            String?
+  maskRecibo            String?
+  maskSiniestro         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActuarialData {
+  id                     String  @id @default(uuid())
+  productId              String  @unique
+  product                Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  purePremium            Decimal @db.Decimal(18, 4)
+  administrativeExpenses Decimal @db.Decimal(8, 4)
+  commissions            Decimal @db.Decimal(8, 4)
+  profitMargin           Decimal @db.Decimal(8, 4)
+  commercialPremium      Decimal @db.Decimal(18, 4)
+  actuaryName            String
+  actuaryCedula          String
+  actuarySudeasegNumber  String
+  technicalNoteUrl       String?
+
+  ratingVariables RatingVariable[]
+}
+
+model RatingVariable {
+  id              String        @id @default(uuid())
+  actuarialDataId String
+  actuarialData   ActuarialData @relation(fields: [actuarialDataId], references: [id], onDelete: Cascade)
+  name            String
+  label           String
+  variableType    FormFieldType
+  required        Boolean       @default(true)
+  options         Json?
+  sortOrder       Int           @default(0)
+
+  @@index([actuarialDataId])
+}
+
+model Exclusion {
+  id                  String  @id @default(uuid())
+  productId           String
+  product             Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  text                String
+  sortOrder           Int     @default(0)
+  typographyHighlight Boolean @default(true)
+
+  @@index([productId])
+}
+
+model LegalDocument {
+  id                   String       @id @default(uuid())
+  productId            String
+  product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  documentType         DocumentType
+  title                String
+  content              String       @db.Text
+  isLocked             Boolean      @default(false)
+  isSimplifiedTemplate Boolean      @default(false)
+
+  @@index([productId])
+}
+
+model CommercialChannel {
+  id          String  @id @default(uuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name        String
+  channelType String
+
+  @@index([productId])
+}
+
+model FormField {
+  id        String        @id @default(uuid())
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label     String
+  fieldType FormFieldType
+  required  Boolean       @default(true)
+  options   Json?
+  sortOrder Int           @default(0)
+  stepKey   String        @default("RISK_DATA")
+
+  @@index([productId])
+}
+
+model ProductPlan {
+  id            String   @id @default(uuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  badge         String?
+  priceFactor   Decimal  @default(1) @db.Decimal(8, 4)
+  isRecommended Boolean  @default(false)
+  coverageIds   Json?
+  coverageLabels Json?
+  sortOrder     Int      @default(0)
+
+  @@index([productId])
+}
+
+model FlowStepConfig {
+  id          String  @id @default(uuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stepKey     String
+  label       String
+  shortLabel  String?
+  description String?
+  enabled     Boolean @default(true)
+  formEnabled Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  @@unique([productId, stepKey])
+  @@index([productId])
+}
+
+model RequiredDocument {
+  id          String  @id @default(uuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  documentKey String
+  label       String
+  required    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  @@index([productId])
+}
+
+model ProductStateHistory {
+  id         String         @id @default(uuid())
+  productId  String
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fromStatus ProductStatus?
+  toStatus   ProductStatus
+  comment    String?
+  changedBy  String?
+  changedAt  DateTime       @default(now())
+
+  @@index([productId])
+}

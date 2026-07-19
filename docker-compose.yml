@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: products-builder-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: insurance_product_builder
+    ports:
+      - "5432:5432"
+    volumes:
+      - products_builder_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d insurance_product_builder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  products_builder_pgdata:

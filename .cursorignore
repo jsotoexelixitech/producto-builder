@@ -1,0 +1,12 @@
+﻿# Fuente ECC — ya instalada en .cursor/; no indexar el repo completo
+ECC/
+
+# Dependencias y artefactos de build
+node_modules/
+backend/dist/
+frontend/dist/
+packages/shared/dist/
+
+# Locks y logs
+package-lock.json
+*.log

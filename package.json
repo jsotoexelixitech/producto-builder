@@ -1,0 +1,36 @@
+{
+  "name": "products-builder",
+  "version": "0.1.0",
+  "description": "Insurance product configuration engine aligned with SUDEASEG (Venezuela)",
+  "author": "Exelixi Tech",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jsotoexelixitech/products-builder.git"
+  },
+  "keywords": [
+    "insurance",
+    "sudeaseg",
+    "nestjs",
+    "react",
+    "typescript",
+    "prisma",
+    "product-configurator"
+  ],
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w packages/shared && npm run build -w backend && npm run build -w frontend",
+    "db:generate": "npm run prisma:generate -w backend",
+    "db:migrate": "npm run prisma:migrate -w backend",
+    "db:seed": "npm run prisma:seed -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
