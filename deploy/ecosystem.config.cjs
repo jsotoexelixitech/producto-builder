@@ -1,10 +1,15 @@
-/** @type {import('pm2').StartOptions[]} */
+/** @type {import('pm2').StartOptions} */
+const path = require('path');
+
+const root = path.join(__dirname, '..');
+const backendDir = path.join(root, 'backend');
+
 module.exports = {
   apps: [
     {
       name: 'producto-builder-api',
-      cwd: './backend',
-      script: 'dist/main.js',
+      cwd: backendDir,
+      script: path.join(backendDir, 'dist', 'main.js'),
       instances: 1,
       autorestart: true,
       watch: false,

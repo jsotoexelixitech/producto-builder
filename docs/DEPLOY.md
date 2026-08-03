@@ -67,8 +67,36 @@ FRONTEND_URL="http://192.168.8.120"
 
 ### Opción A — Docker (solo PostgreSQL)
 
+En servidores con **Docker Compose v1** (comando con guión):
+
+```bash
+docker-compose -f deploy/docker-compose.db.yml up -d
+```
+
+En servidores con **Docker Compose v2** (plugin):
+
 ```bash
 docker compose -f deploy/docker-compose.db.yml up -d
+```
+
+O ejecutar el script completo:
+
+```bash
+bash deploy/install-srv001.sh
+```
+
+Credenciales del contenedor (`deploy/docker-compose.db.yml`):
+
+| Variable | Valor |
+|----------|-------|
+| Usuario | `producto_builder` |
+| Contraseña | `ProductoBuilder_2026!` |
+| Base de datos | `producto_builder` |
+
+`backend/.env` debe coincidir:
+
+```env
+DATABASE_URL="postgresql://producto_builder:ProductoBuilder_2026!@127.0.0.1:5432/producto_builder?schema=public"
 ```
 
 ### Opción B — PostgreSQL instalado en el servidor
@@ -106,11 +134,19 @@ Genera:
 
 ## 5. Ejecutar con PM2
 
+**Importante:** ejecutar desde la **raíz** del repo (`~/producto-builder`), no desde `backend/`:
+
 ```bash
-npm install -g pm2
+cd ~/producto-builder
 pm2 start deploy/ecosystem.config.cjs
 pm2 save
 pm2 startup
+```
+
+O con ruta absoluta (funciona desde cualquier directorio):
+
+```bash
+pm2 start ~/producto-builder/deploy/ecosystem.config.cjs
 ```
 
 | Proceso | Puerto | Descripción |
@@ -147,7 +183,16 @@ Swagger: `http://192.168.8.120/api/docs` (si Nginx expone el backend).
 
 ---
 
-## 8. Actualizar versión
+## Troubleshooting (srv001)
+
+| Error | Causa | Solución |
+|-------|--------|----------|
+| `unknown shorthand flag: 'f'` | Docker sin plugin `compose` | Usar `docker-compose -f ...` (con guión) |
+| `P1000 Authentication failed` | `.env` con `postgres:postgres` pero BD distinta | Ajustar `DATABASE_URL` al usuario/DB real |
+| `ecosystem.config.cjs not found` | PM2 ejecutado desde `backend/` | `cd ~/producto-builder` antes de `pm2 start` |
+| Puerto 5432 ocupado | PostgreSQL ya corre en el host | Opción B: crear DB en Postgres existente, no usar Docker |
+
+---
 
 ```bash
 cd /opt/producto-builder
