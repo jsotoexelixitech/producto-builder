@@ -101,8 +101,28 @@ DATABASE_URL="postgresql://producto_builder:ProductoBuilder_2026!@127.0.0.1:5432
 
 ### Opción B — PostgreSQL nativo en srv001 (sin Docker, recomendado si Docker da permiso denegado)
 
+El usuario `postgres` **no puede leer** `~/producto-builder` (home privado). Usar pipe o `/tmp`:
+
 ```bash
-sudo -u postgres psql -f deploy/setup-db-native.sql
+cd ~/producto-builder
+cat deploy/setup-db-native.sql | sudo -u postgres psql
+```
+
+Alternativa:
+
+```bash
+cp deploy/setup-db-native.sql /tmp/setup-db-native.sql
+sudo -u postgres psql -f /tmp/setup-db-native.sql
+```
+
+O SQL inline:
+
+```bash
+sudo -u postgres psql << 'SQL'
+CREATE USER producto_builder WITH PASSWORD 'ProductoBuilder_2026!';
+CREATE DATABASE producto_builder OWNER producto_builder;
+GRANT ALL PRIVILEGES ON DATABASE producto_builder TO producto_builder;
+SQL
 ```
 
 Luego `backend/.env`:

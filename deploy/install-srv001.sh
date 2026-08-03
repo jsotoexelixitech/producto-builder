@@ -48,7 +48,8 @@ fi
 
 if [[ "$DB_STARTED" != "true" ]]; then
   echo "WARN: Docker no disponible o sin permisos."
-  echo "      Crear BD nativa: sudo -u postgres psql -f deploy/setup-db-native.sql"
+  echo "      Crear BD nativa:"
+  echo "        cat deploy/setup-db-native.sql | sudo -u postgres psql"
 fi
 
 echo "==> Esperando PostgreSQL..."

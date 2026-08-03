@@ -1,5 +1,5 @@
--- Ejecutar como superusuario PostgreSQL en srv001 (sin Docker):
---   sudo -u postgres psql -f deploy/setup-db-native.sql
+-- Ejecutar en srv001 (postgres no puede leer ~/jsoto — usar pipe):
+--   cat deploy/setup-db-native.sql | sudo -u postgres psql
 
 CREATE USER producto_builder WITH PASSWORD 'ProductoBuilder_2026!';
 
