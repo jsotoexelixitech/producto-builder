@@ -4,7 +4,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductWizardPage } from './pages/ProductWizardPage';
 import { EmissionFlowPreviewPage } from './pages/EmissionFlowPreviewPage';
+import { LoginPage } from './pages/LoginPage';
 import { SplashScreen } from './components/SplashScreen';
+import { AuthGate } from './components/AuthGate';
 import './index.css';
 
 // Este proyecto NO es una PWA. Si el navegador tiene un service worker
@@ -37,10 +39,39 @@ function Root() {
       {showSplash && <SplashScreen onFinish={finishSplash} />}
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/products/new" element={<ProductWizardPage />} />
-          <Route path="/products/:id/preview" element={<EmissionFlowPreviewPage />} />
-          <Route path="/products/:id" element={<ProductWizardPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <AuthGate>
+                <DashboardPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/products/new"
+            element={
+              <AuthGate>
+                <ProductWizardPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/products/:id/preview"
+            element={
+              <AuthGate>
+                <EmissionFlowPreviewPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/products/:id"
+            element={
+              <AuthGate>
+                <ProductWizardPage />
+              </AuthGate>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </>

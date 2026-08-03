@@ -18,7 +18,7 @@ const STEPS = [
   { id: 'actuarial', label: 'Actuarial', desc: 'Tarificación', icon: Calculator },
   { id: 'legal', label: 'Legal', desc: 'Exclusiones y documentos', icon: FileText },
   { id: 'emission', label: 'Flujo emisión', desc: 'Pasos y formularios', icon: Route },
-  { id: 'review', label: 'Revisión', desc: 'SUDEASEG', icon: Scale },
+  { id: 'review', label: 'Activación', desc: 'Publicar producto', icon: Scale },
 ] as const;
 
 interface StepperProps {

@@ -18,6 +18,7 @@ import { Badge, statusBadgeVariant } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { BRANCH_META, DEFAULT_DOCUMENTS_BY_BRANCH, STATUS_LABELS } from '@/lib/constants';
+import { FIELD_LIMITS } from '@/lib/field-limits';
 import { buildFlowPreviewContext } from '@/lib/emission-flow';
 import { cn } from '@/lib/utils';
 
@@ -103,7 +104,7 @@ export function DashboardPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-300 [text-wrap:pretty]">
               Cada producto define sus propios datos, documentos y pasos. RCV, patrimonial,
-              vida, salud o cualquier ramo — todo configurable, sin depender de SISIP ni SIS2000.
+              vida, salud o cualquier ramo.
             </p>
             <div className="brand-accent-bar mt-5" />
           </div>
@@ -164,6 +165,7 @@ export function DashboardPage() {
             <div className="relative w-full lg:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                maxLength={FIELD_LIMITS.dashboard.search}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar producto..."

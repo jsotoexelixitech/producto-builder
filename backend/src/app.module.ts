@@ -1,4 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard, RolesGuard } from './common/guards/jwt-auth.guard';
+import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { CoveragesModule } from './coverages/coverages.module';
@@ -12,6 +16,8 @@ import { ProductPlansModule } from './product-plans/product-plans.module';
 @Module({
   imports: [
     PrismaModule,
+    AuthModule,
+    HealthModule,
     ProductsModule,
     CoveragesModule,
     ActuarialModule,
@@ -20,6 +26,10 @@ import { ProductPlansModule } from './product-plans/product-plans.module';
     SisipModule,
     EmissionConfigModule,
     ProductPlansModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

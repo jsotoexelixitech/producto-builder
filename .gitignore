@@ -39,5 +39,8 @@ ECC/
 .cursor/
 ecc-install.json
 
+# Clon local del repo anterior (Jorge) — deprecado; usar backend/ del monorepo
+server-api/
+
 # Cursor local cache
 .cursor/ecc/

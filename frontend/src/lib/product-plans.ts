@@ -1,5 +1,50 @@
 import type { Coverage, Product, ProductPlan } from '@/types/product';
 
+export function planCoverageTariff(
+  plan: ProductPlan,
+  coverage: Coverage,
+): number {
+  const id = coverage.id;
+  if (id && plan.coverageTariffs?.[id] != null) {
+    return Number(plan.coverageTariffs[id]);
+  }
+  return Number(coverage.tariffPremium ?? 0);
+}
+
+export function calculatePlanPremiumTotal(plan: ProductPlan, coverages: Coverage[] = []): number {
+  const idSet = new Set(plan.coverageIds ?? []);
+  return coverages
+    .filter((c) => c.id && idSet.has(c.id))
+    .reduce((sum, c) => sum + planCoverageTariff(plan, c), 0);
+}
+
+export function resolvePlanDisplayPrice(
+  plan: ProductPlan,
+  product: Product,
+): number {
+  const fromCoverages = calculatePlanPremiumTotal(plan, product.coverages ?? []);
+  if (fromCoverages > 0) return fromCoverages;
+
+  const base = product.actuarialData?.commercialPremium
+    ? Number(product.actuarialData.commercialPremium)
+    : 0;
+  const factor = Number(plan.priceFactor ?? 1);
+  if (base > 0 && factor > 0 && factor <= 5) {
+    return base * factor;
+  }
+  return factor > 0 ? factor : base;
+}
+
+export function plansWithCalculatedPremiums(
+  plans: ProductPlan[],
+  coverages: Coverage[],
+): ProductPlan[] {
+  return plans.map((plan) => ({
+    ...plan,
+    priceFactor: calculatePlanPremiumTotal(plan, coverages),
+  }));
+}
+
 export function resolvePlanCoverageLabels(
   plan: ProductPlan,
   coverages: Coverage[] = [],
@@ -41,6 +86,28 @@ export function syncPlansWithCoverages(
         .filter((n): n is string => !!n),
     };
   });
+}
+
+const PLAN_INACTIVE_PREFIX = '__INACTIVE__';
+
+export function decodePlanFromApi(plan: ProductPlan): ProductPlan {
+  const desc = plan.description ?? '';
+  if (desc.startsWith(PLAN_INACTIVE_PREFIX)) {
+    return {
+      ...plan,
+      isActive: false,
+      description: desc.slice(PLAN_INACTIVE_PREFIX.length) || null,
+    };
+  }
+  return { ...plan, isActive: plan.isActive ?? true };
+}
+
+export function encodePlanDescription(plan: ProductPlan): string | undefined {
+  const base = (plan.description ?? '').replace(/^__INACTIVE__/, '');
+  if (plan.isActive === false) {
+    return `${PLAN_INACTIVE_PREFIX}${base}`;
+  }
+  return base || undefined;
 }
 
 export function sanitizePlansForSave(

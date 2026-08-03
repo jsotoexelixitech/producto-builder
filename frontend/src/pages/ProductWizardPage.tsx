@@ -36,6 +36,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Stepper, STEPS } from '@/components/wizard/Stepper';
 import { EmissionConfigStep } from '@/components/wizard/EmissionConfigStep';
 import { PlansStep } from '@/components/wizard/PlansStep';
+import { CoveragesStep } from '@/components/wizard/CoveragesStep';
+import { ActivationSummary } from '@/components/wizard/ActivationSummary';
+import { WizardStickyAlert } from '@/components/wizard/WizardStickyAlert';
 import { ExclusionHtmlPreview } from '@/components/legal/ExclusionPreview';
 import { AppShell } from '@/components/layout/AppShell';
 import { Alert } from '@/components/ui/alert';
@@ -46,12 +49,17 @@ import {
 } from '@/lib/constants';
 import {
   generateDefaultInternalCode,
+  normalizeActuarySudeasegNumber,
   normalizeInternalCode,
+  prepareActuarialForSubmit,
   prepareCoreFormForSubmit,
+  validateActuarialForm,
   validateCoreForm,
   type CoreFormInput,
 } from '@/lib/product-form';
-import { sanitizePlansForSave, syncPlansWithCoverages } from '@/lib/product-plans';
+import { formatCedulaInput, normalizeCedula } from '@/lib/cedula';
+import { sanitizePlansForSave, syncPlansWithCoverages, plansWithCalculatedPremiums, decodePlanFromApi, encodePlanDescription } from '@/lib/product-plans';
+import { clampInt, clampPercent, clampText, FIELD_LIMITS } from '@/lib/field-limits';
 
 type CoreForm = CoreFormInput;
 
@@ -87,6 +95,19 @@ function buildDefaultDocuments(branch: ProductBranch): RequiredDocument[] {
   }));
 }
 
+function normalizeDocumentKey(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Z0-9_-]/g, '')
+    .slice(0, 60);
+}
+
+function isCatalogDocumentKey(key: string): boolean {
+  return DOCUMENT_CATALOG.some((d) => d.key === key);
+}
+
 export function ProductWizardPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -112,10 +133,15 @@ export function ProductWizardPage() {
   const [emissionFormFields, setEmissionFormFields] = useState<ProductFormField[]>([]);
   const [productPlans, setProductPlans] = useState<ProductPlan[]>([]);
   const [docsTouched, setDocsTouched] = useState(false);
+  const [customDocLabel, setCustomDocLabel] = useState('');
+  const [customDocKey, setCustomDocKey] = useState('');
   const [violations, setViolations] = useState<GuardrailViolation[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CoreForm, string>>>({});
+  const [actuarialFieldErrors, setActuarialFieldErrors] = useState<
+    Partial<Record<'actuaryName' | 'actuaryCedula' | 'actuarySudeasegNumber', string>>
+  >({});
 
   const coreForm = useForm<CoreForm>({
     defaultValues: {
@@ -151,7 +177,7 @@ export function ProductWizardPage() {
     actuaryName: '',
     actuaryCedula: '',
     actuarySudeasegNumber: '',
-    technicalNoteUrl: '' as string | undefined,
+    technicalNoteUrl: '',
     ratingVariables: [
       { name: 'edad', label: 'Edad del asegurado', variableType: 'NUMBER' },
     ] as RatingVariable[],
@@ -183,7 +209,9 @@ export function ProductWizardPage() {
     }
     if (p.flowStepConfigs?.length) setEmissionFlowSteps(p.flowStepConfigs);
     if (p.formFields?.length) setEmissionFormFields(p.formFields);
-    if (p.productPlans?.length) setProductPlans(p.productPlans);
+    if (p.productPlans?.length) {
+      setProductPlans(p.productPlans.map(decodePlanFromApi));
+    }
     if (p.actuarialData) {
       setActuarial({
         purePremium: Number(p.actuarialData.purePremium),
@@ -193,7 +221,7 @@ export function ProductWizardPage() {
         actuaryName: p.actuarialData.actuaryName,
         actuaryCedula: p.actuarialData.actuaryCedula,
         actuarySudeasegNumber: p.actuarialData.actuarySudeasegNumber,
-        technicalNoteUrl: p.actuarialData.technicalNoteUrl,
+        technicalNoteUrl: p.actuarialData.technicalNoteUrl ?? '',
         ratingVariables: p.actuarialData.ratingVariables ?? [],
       });
     }
@@ -290,11 +318,16 @@ export function ProductWizardPage() {
       }
       if (!pid) throw new Error('Producto no creado');
       if (step === 1) {
+        if (coverages.length === 0) {
+          setError('Agrega al menos una cobertura en la tabla antes de continuar.');
+          return;
+        }
         const sanitized = coverages.map((c, i) => ({
           name: c.name,
           description: c.description,
           sortOrder: c.sortOrder ?? i,
           isBasicMandatory: c.isBasicMandatory,
+          insuredSumMin: c.insuredSumMin != null ? Number(c.insuredSumMin) : undefined,
           insuredSumFixed:
             c.insuredSumFixed != null
               ? Number(c.insuredSumFixed)
@@ -317,14 +350,17 @@ export function ProductWizardPage() {
         }
       }
       if (step === 2) {
-        const plansToSave = sanitizePlansForSave(productPlans, coverages);
+        const plansToSave = plansWithCalculatedPremiums(
+          sanitizePlansForSave(productPlans, coverages),
+          coverages,
+        );
         await api.upsertProductPlans(
           pid,
           plansToSave.map((p, i) => ({
             name: p.name,
-            description: p.description ?? undefined,
+            description: encodePlanDescription(p),
             badge: p.badge ?? undefined,
-            priceFactor: p.priceFactor ?? 1,
+            priceFactor: p.priceFactor ?? 0,
             isRecommended: p.isRecommended ?? false,
             coverageIds: p.coverageIds ?? [],
             sortOrder: p.sortOrder ?? i,
@@ -333,16 +369,24 @@ export function ProductWizardPage() {
         setProductPlans(plansToSave);
       }
       if (step === 3) {
+        const actuarialPayload = prepareActuarialForSubmit(actuarial);
+        const validation = validateActuarialForm(actuarialPayload);
+        if (!validation.valid) {
+          setActuarialFieldErrors(validation.fieldErrors);
+          setError(validation.message ?? 'Revisa los datos actuariales.');
+          return;
+        }
+        setActuarialFieldErrors({});
         await api.upsertActuarial(pid, {
-          purePremium: Number(actuarial.purePremium),
-          administrativeExpenses: Number(actuarial.administrativeExpenses),
-          commissions: Number(actuarial.commissions),
-          profitMargin: Number(actuarial.profitMargin),
-          actuaryName: actuarial.actuaryName,
-          actuaryCedula: actuarial.actuaryCedula,
-          actuarySudeasegNumber: actuarial.actuarySudeasegNumber,
-          technicalNoteUrl: actuarial.technicalNoteUrl || undefined,
-          ratingVariables: actuarial.ratingVariables.map((v, i) => ({
+          purePremium: Number(actuarialPayload.purePremium),
+          administrativeExpenses: Number(actuarialPayload.administrativeExpenses),
+          commissions: Number(actuarialPayload.commissions),
+          profitMargin: Number(actuarialPayload.profitMargin),
+          actuaryName: actuarialPayload.actuaryName,
+          actuaryCedula: actuarialPayload.actuaryCedula,
+          actuarySudeasegNumber: actuarialPayload.actuarySudeasegNumber,
+          technicalNoteUrl: actuarialPayload.technicalNoteUrl || undefined,
+          ratingVariables: (actuarialPayload.ratingVariables ?? []).map((v, i) => ({
             name: v.name,
             label: v.label,
             variableType: v.variableType,
@@ -427,10 +471,26 @@ export function ProductWizardPage() {
     { icon: Calculator, title: 'Actuarial y tarificación', desc: 'Prima pura, recargos y registro del actuario' },
     { icon: FileText, title: 'Documental legal', desc: 'Exclusiones Art. 68 y documentos requeridos' },
     { icon: Route, title: 'Flujo de emisión', desc: 'Pasos del flujo y formularios por etapa' },
-    { icon: Scale, title: 'Revisión SUDEASEG', desc: 'Validación regulatoria y transición de estado' },
+    { icon: Scale, title: 'Activación del producto', desc: 'Verificación final y publicación en catálogo' },
   ][step];
 
+  const actuarialStickyMessage =
+    step === 3
+      ? [
+          error,
+          ...Object.entries(actuarialFieldErrors).map(
+            ([key, msg]) =>
+              `${key === 'actuaryName' ? 'Nombre del actuario' : key === 'actuaryCedula' ? 'Cédula del actuario' : key === 'actuarySudeasegNumber' ? 'Registro SUDEASEG' : key}: ${msg}`,
+          ),
+        ]
+          .filter(Boolean)
+          .join('. ')
+      : '';
+
+  const showTopError = error && step !== 3;
+
   const StepIcon = stepMeta.icon;
+  const emissionActiveCount = emissionFlowSteps.filter((s) => s.enabled !== false).length;
 
   return (
     <AppShell
@@ -474,7 +534,7 @@ export function ProductWizardPage() {
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Revisa las validaciones antes de enviar a SUDEASEG
+              Revisa las validaciones antes de activar el producto
             </p>
           )}
         </div>
@@ -500,7 +560,17 @@ export function ProductWizardPage() {
               <Stepper current={step} />
             </div>
 
-            {error && <Alert variant="error">{error}</Alert>}
+            {showTopError && <Alert variant="error">{error}</Alert>}
+
+            {step === 3 && actuarialStickyMessage && (
+              <WizardStickyAlert
+                message={actuarialStickyMessage}
+                onDismiss={() => {
+                  setError('');
+                  setActuarialFieldErrors({});
+                }}
+              />
+            )}
 
             <Card className="surface-card step-enter overflow-hidden border-0 shadow-none">
               <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
@@ -533,10 +603,11 @@ export function ProductWizardPage() {
                     <FormField
                       label="Nombre comercial"
                       span={2}
-                      hint="Mínimo 3 caracteres. Visible para clientes y canales."
+                      hint="Mínimo 3 caracteres, máximo 200. Visible para clientes y canales."
                       error={fieldErrors.commercialName}
                     >
                       <Input
+                        maxLength={FIELD_LIMITS.product.commercialName}
                         {...coreForm.register('commercialName', {
                           onChange: () => {
                             if (fieldErrors.commercialName) {
@@ -549,10 +620,11 @@ export function ProductWizardPage() {
                     </FormField>
                     <FormField
                       label="Código interno"
-                      hint={productId ? 'No editable tras crear el producto.' : 'Mayúsculas, números y guiones. Se genera automáticamente.'}
+                      hint={productId ? 'No editable tras crear el producto.' : 'Mayúsculas, números y guiones. Máximo 50 caracteres.'}
                       error={fieldErrors.internalCode}
                     >
                       <Input
+                        maxLength={FIELD_LIMITS.product.internalCode}
                         value={coreForm.watch('internalCode')}
                         onChange={(e) => {
                           const normalized = normalizeInternalCode(e.target.value);
@@ -566,8 +638,12 @@ export function ProductWizardPage() {
                         className="font-mono uppercase"
                       />
                     </FormField>
-                    <FormField label="Código de variante / sub-plan" hint="Diferencia planes dentro del mismo producto.">
-                      <Input {...coreForm.register('subPlanCode')} placeholder="COND1" />
+                    <FormField label="Código de variante / sub-plan" hint="Máximo 50 caracteres. Diferencia planes dentro del mismo producto.">
+                      <Input
+                        maxLength={FIELD_LIMITS.product.subPlanCode}
+                        {...coreForm.register('subPlanCode')}
+                        placeholder="COND1"
+                      />
                     </FormField>
                     <FormField label="Ramo SUDEASEG">
                       <Select
@@ -650,8 +726,13 @@ export function ProductWizardPage() {
                         </SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Período garantía de prima" hint="Días de gracia para el pago de prima.">
-                      <Input type="number" {...coreForm.register('premiumGuaranteeDays', { valueAsNumber: true })} />
+                    <FormField label="Período garantía de prima" hint="Días de gracia (0–365).">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={FIELD_LIMITS.product.premiumGuaranteeDays}
+                        {...coreForm.register('premiumGuaranteeDays', { valueAsNumber: true })}
+                      />
                     </FormField>
                     <FormField label="Mes de cierre anual">
                       <Select
@@ -681,155 +762,7 @@ export function ProductWizardPage() {
             )}
 
             {step === 1 && (
-              <div className="space-y-5">
-                <p className="text-sm text-muted-foreground">
-                  Define cada cobertura con sus sumas, primas y vigencias. Puedes agregar tantas como necesites.
-                </p>
-                {coverages.map((c, i) => {
-                  const upd = (patch: Partial<Coverage>) => {
-                    const next = [...coverages];
-                    next[i] = { ...c, ...patch };
-                    setCoverages(next);
-                  };
-                  return (
-                    <div key={i} className="coverage-card">
-                      <div className="coverage-card-header">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                            {i + 1}
-                          </span>
-                          <div>
-                            <p className="text-sm font-semibold">{c.name || 'Cobertura sin nombre'}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {c.isBasicMandatory ? 'Básica obligatoria' : 'Cobertura accesoria'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-1.5 text-xs font-medium">
-                            <input
-                              type="checkbox"
-                              className="h-3.5 w-3.5 accent-primary"
-                              checked={!!c.isBasicMandatory}
-                              onChange={(e) => upd({ isBasicMandatory: e.target.checked })}
-                            />
-                            Básica obligatoria
-                          </label>
-                          {coverages.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => setCoverages(coverages.filter((_, idx) => idx !== i))}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Eliminar
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-5 p-5">
-                        <FormGrid>
-                          <FormField label="Nombre de la cobertura" span={2}>
-                            <Input value={c.name} onChange={(e) => upd({ name: e.target.value })} />
-                          </FormField>
-                          <FormField label="Suma asegurada">
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={c.insuredSumFixed ?? c.insuredSumMin ?? ''}
-                              onChange={(e) =>
-                                upd({
-                                  insuredSumFixed:
-                                    e.target.value === '' ? undefined : Number(e.target.value),
-                                  insuredSumMin: undefined,
-                                  insuredSumMax: undefined,
-                                })
-                              }
-                            />
-                          </FormField>
-                          <FormField label="Prima de la cobertura">
-                            <Input
-                              type="number"
-                              placeholder="0.00"
-                              value={c.tariffPremium ?? ''}
-                              onChange={(e) => upd({ tariffPremium: Number(e.target.value) })}
-                            />
-                          </FormField>
-                          <FormField label="Carencia (días)">
-                            <Input
-                              type="number"
-                              value={c.waitingPeriodDays ?? 0}
-                              onChange={(e) => upd({ waitingPeriodDays: Number(e.target.value) })}
-                            />
-                          </FormField>
-                          <FormField label="Depende de otra cobertura" span={2} hint="La cobertura solo aplica si la seleccionada está activa.">
-                            <Select
-                              value={c.dependsOnCoverageName ?? '__none__'}
-                              onValueChange={(v) =>
-                                upd({ dependsOnCoverageName: v === '__none__' ? undefined : v })
-                              }
-                            >
-                              <SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Ninguna</SelectItem>
-                                {coverages
-                                  .filter((other, idx) => idx !== i && other.name)
-                                  .map((other) => (
-                                    <SelectItem key={other.name} value={other.name}>
-                                      {other.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </FormField>
-                        </FormGrid>
-
-                        <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 p-4">
-                          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Reaseguro (opcional)
-                          </p>
-                          <FormGrid>
-                            <FormField label="Código de contrato">
-                              <Input
-                                value={c.reinsuranceContractCode ?? ''}
-                                onChange={(e) => upd({ reinsuranceContractCode: e.target.value })}
-                              />
-                            </FormField>
-                            <FormField label="Nombre del contrato">
-                              <Input
-                                value={c.reinsuranceContractName ?? ''}
-                                onChange={(e) => upd({ reinsuranceContractName: e.target.value })}
-                              />
-                            </FormField>
-                            <FormField label="Ramo de reaseguro" span={2}>
-                              <Input
-                                value={c.reinsuranceBranchCode ?? ''}
-                                onChange={(e) => upd({ reinsuranceBranchCode: e.target.value })}
-                              />
-                            </FormField>
-                          </FormGrid>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <Button
-                  variant="outline"
-                  className="w-full border-dashed sm:w-auto"
-                  onClick={() =>
-                    setCoverages([
-                      ...coverages,
-                      { name: 'Cobertura accesoria', isBasicMandatory: false, waitingPeriodDays: 0, insuredSumFixed: undefined },
-                    ])
-                  }
-                >
-                  <Plus className="h-4 w-4" />
-                  Agregar cobertura
-                </Button>
-              </div>
+              <CoveragesStep coverages={coverages} onCoveragesChange={setCoverages} />
             )}
 
             {step === 2 && (
@@ -860,11 +793,14 @@ export function ProductWizardPage() {
                     <FormField label="Gastos administrativos (%)" hint="Porcentaje sobre prima pura.">
                       <Input
                         type="number"
+                        min={0}
+                        max={FIELD_LIMITS.actuarial.percentMax}
+                        step={0.01}
                         value={actuarial.administrativeExpenses}
                         onChange={(e) =>
                           setActuarial({
                             ...actuarial,
-                            administrativeExpenses: Number(e.target.value),
+                            administrativeExpenses: clampPercent(Number(e.target.value)),
                           })
                         }
                       />
@@ -872,18 +808,30 @@ export function ProductWizardPage() {
                     <FormField label="Comisiones (%)">
                       <Input
                         type="number"
+                        min={0}
+                        max={FIELD_LIMITS.actuarial.percentMax}
+                        step={0.01}
                         value={actuarial.commissions}
                         onChange={(e) =>
-                          setActuarial({ ...actuarial, commissions: Number(e.target.value) })
+                          setActuarial({
+                            ...actuarial,
+                            commissions: clampPercent(Number(e.target.value)),
+                          })
                         }
                       />
                     </FormField>
                     <FormField label="Utilidad (%)">
                       <Input
                         type="number"
+                        min={0}
+                        max={FIELD_LIMITS.actuarial.percentMax}
+                        step={0.01}
                         value={actuarial.profitMargin}
                         onChange={(e) =>
-                          setActuarial({ ...actuarial, profitMargin: Number(e.target.value) })
+                          setActuarial({
+                            ...actuarial,
+                            profitMargin: clampPercent(Number(e.target.value)),
+                          })
                         }
                       />
                     </FormField>
@@ -919,31 +867,56 @@ export function ProductWizardPage() {
                   icon={Shield}
                 >
                   <FormGrid>
-                    <FormField label="Nombre del actuario" span={2} hint="Mínimo 3 caracteres.">
+                    <FormField label="Nombre del actuario" span={2} hint="Mínimo 3, máximo 150 caracteres." error={actuarialFieldErrors.actuaryName}>
                       <Input
+                        maxLength={FIELD_LIMITS.actuarial.actuaryName}
                         value={actuarial.actuaryName}
-                        onChange={(e) =>
-                          setActuarial({ ...actuarial, actuaryName: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setActuarial({ ...actuarial, actuaryName: e.target.value });
+                          if (actuarialFieldErrors.actuaryName) {
+                            setActuarialFieldErrors((prev) => ({ ...prev, actuaryName: undefined }));
+                          }
+                        }}
                       />
                     </FormField>
-                    <FormField label="Cédula de identidad" hint="Mínimo 5 caracteres.">
+                    <FormField label="Cédula de identidad" hint="Formato V-12345678 (V, E, J, G o P)." error={actuarialFieldErrors.actuaryCedula}>
                       <Input
+                        maxLength={FIELD_LIMITS.actuarial.actuaryCedula}
                         value={actuarial.actuaryCedula}
-                        onChange={(e) =>
-                          setActuarial({ ...actuarial, actuaryCedula: e.target.value })
-                        }
-                      />
-                    </FormField>
-                    <FormField label="Registro SUDEASEG" hint="Solo mayúsculas, números y guiones (ej. ACT-1234).">
-                      <Input
-                        value={actuarial.actuarySudeasegNumber}
-                        onChange={(e) =>
+                        placeholder="V-12345678"
+                        onChange={(e) => {
                           setActuarial({
                             ...actuarial,
-                            actuarySudeasegNumber: e.target.value,
-                          })
+                            actuaryCedula: formatCedulaInput(e.target.value),
+                          });
+                          if (actuarialFieldErrors.actuaryCedula) {
+                            setActuarialFieldErrors((prev) => ({ ...prev, actuaryCedula: undefined }));
+                          }
+                        }}
+                        onBlur={() =>
+                          setActuarial((prev) => ({
+                            ...prev,
+                            actuaryCedula: normalizeCedula(prev.actuaryCedula),
+                          }))
                         }
+                      />
+                    </FormField>
+                    <FormField label="Registro SUDEASEG" hint="Mayúsculas, números y guiones. Máximo 50 (ej. ACT-2024-001)." error={actuarialFieldErrors.actuarySudeasegNumber}>
+                      <Input
+                        maxLength={FIELD_LIMITS.actuarial.actuarySudeasegNumber}
+                        value={actuarial.actuarySudeasegNumber}
+                        onChange={(e) => {
+                          setActuarial({
+                            ...actuarial,
+                            actuarySudeasegNumber: normalizeActuarySudeasegNumber(e.target.value),
+                          });
+                          if (actuarialFieldErrors.actuarySudeasegNumber) {
+                            setActuarialFieldErrors((prev) => ({
+                              ...prev,
+                              actuarySudeasegNumber: undefined,
+                            }));
+                          }
+                        }}
                       />
                     </FormField>
                   </FormGrid>
@@ -965,10 +938,14 @@ export function ProductWizardPage() {
                     >
                       <FormField label={`Exclusión ${i + 1}`}>
                         <Textarea
+                          maxLength={FIELD_LIMITS.legal.exclusionText}
                           value={ex.text}
                           onChange={(e) => {
                             const next = [...exclusions];
-                            next[i] = { ...ex, text: e.target.value };
+                            next[i] = {
+                              ...ex,
+                              text: clampText(e.target.value, FIELD_LIMITS.legal.exclusionText),
+                            };
                             setExclusions(next);
                           }}
                         />
@@ -1128,6 +1105,102 @@ export function ProductWizardPage() {
                     );
                   })}
                 </div>
+
+                <div className="mt-6 rounded-xl border border-dashed border-border/70 bg-muted/10 p-4">
+                  <h3 className="text-sm font-semibold">Agregar documento personalizado</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Si necesitas un recaudo que no está en el catálogo, créalo aquí con un
+                    identificador único.
+                  </p>
+                  <FormGrid className="mt-4">
+                    <FormField label="Identificador (clave)" hint="Mayúsculas, números y guiones. Ej. CARTA_SOLVENCIA">
+                      <Input
+                        maxLength={60}
+                        value={customDocKey}
+                        placeholder="CARTA_SOLVENCIA"
+                        className="font-mono uppercase"
+                        onChange={(e) =>
+                          setCustomDocKey(normalizeDocumentKey(e.target.value))
+                        }
+                      />
+                    </FormField>
+                    <FormField label="Nombre visible" hint="Texto que verá el cliente.">
+                      <Input
+                        maxLength={120}
+                        value={customDocLabel}
+                        placeholder="Carta de solvencia"
+                        onChange={(e) => setCustomDocLabel(e.target.value)}
+                      />
+                    </FormField>
+                  </FormGrid>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    disabled={
+                      customDocLabel.trim().length < 2 ||
+                      normalizeDocumentKey(customDocKey).length < 2 ||
+                      requiredDocs.some(
+                        (d) => d.documentKey === normalizeDocumentKey(customDocKey),
+                      )
+                    }
+                    onClick={() => {
+                      const key = normalizeDocumentKey(customDocKey);
+                      const label = customDocLabel.trim();
+                      if (key.length < 2 || label.length < 2) return;
+                      setDocsTouched(true);
+                      setRequiredDocs((prev) => [
+                        ...prev,
+                        {
+                          documentKey: key,
+                          label,
+                          required: true,
+                          sortOrder: prev.length,
+                        },
+                      ]);
+                      setCustomDocKey('');
+                      setCustomDocLabel('');
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar documento
+                  </Button>
+
+                  {requiredDocs.some((d) => !isCatalogDocumentKey(d.documentKey)) && (
+                    <ul className="mt-4 space-y-2">
+                      {requiredDocs
+                        .filter((d) => !isCatalogDocumentKey(d.documentKey))
+                        .map((d) => (
+                          <li
+                            key={d.documentKey}
+                            className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2 text-sm"
+                          >
+                            <span>
+                              <strong>{d.label}</strong>
+                              <span className="ml-2 font-mono text-xs text-muted-foreground">
+                                {d.documentKey}
+                              </span>
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              onClick={() => {
+                                setDocsTouched(true);
+                                setRequiredDocs((prev) =>
+                                  prev.filter((x) => x.documentKey !== d.documentKey),
+                                );
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
               </SectionPanel>
               </div>
             )}
@@ -1137,9 +1210,10 @@ export function ProductWizardPage() {
                 flowSteps={emissionFlowSteps}
                 formFields={emissionFormFields}
                 branch={branch}
-                plans={productPlans}
+                plans={productPlans.filter((p) => p.isActive !== false)}
                 requiredDocuments={requiredDocs}
                 coverages={coverages}
+                ratingVariables={actuarial.ratingVariables}
                 onFlowStepsChange={setEmissionFlowSteps}
                 onFormFieldsChange={setEmissionFormFields}
               />
@@ -1147,6 +1221,17 @@ export function ProductWizardPage() {
 
             {step === 6 && (
               <div className="space-y-6">
+                <ActivationSummary
+                  product={product}
+                  commercialName={coreForm.watch('commercialName')}
+                  branch={branch}
+                  internalCode={coreForm.watch('internalCode')}
+                  coverages={coverages}
+                  plans={productPlans}
+                  requiredDocuments={requiredDocs}
+                  emissionStepCount={emissionActiveCount}
+                  commercialPremium={commercialPremium}
+                />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-border/60 bg-muted/20 p-5">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1172,7 +1257,8 @@ export function ProductWizardPage() {
 
                 {violations.length === 0 ? (
                   <Alert variant="success">
-                    Sin violaciones detectadas. El producto está listo para avanzar en el flujo de aprobación.
+                    Sin violaciones detectadas. El producto está listo para activarse en el
+                    catálogo comercial.
                   </Alert>
                 ) : (
                   <div className="space-y-2">
@@ -1186,8 +1272,8 @@ export function ProductWizardPage() {
 
                 {productId && (
                   <SectionPanel
-                    title="Acciones de envío"
-                    description="Transiciona el producto al siguiente estado del flujo regulatorio."
+                    title="Acciones de activación"
+                    description="Publica el producto o envíalo a revisión interna antes de ponerlo a disposición del cliente."
                     icon={Scale}
                   >
                     <div className="flex flex-wrap gap-3">
@@ -1212,7 +1298,7 @@ export function ProductWizardPage() {
                           }
                         }}
                       >
-                        Enviar a SUDEASEG
+                        Activar producto
                       </Button>
                     </div>
                   </SectionPanel>

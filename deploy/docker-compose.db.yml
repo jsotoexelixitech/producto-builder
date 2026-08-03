@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: producto-builder-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: producto_builder
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ProductoBuilder_2026!}
+      POSTGRES_DB: producto_builder
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - producto_builder_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U producto_builder -d producto_builder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  producto_builder_pgdata:

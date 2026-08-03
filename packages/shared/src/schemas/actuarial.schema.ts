@@ -22,7 +22,10 @@ export const actuarialDataSchema = z
       .min(4)
       .regex(/^[A-Z0-9-]+$/, 'Número de registro SUDEASEG inválido'),
     technicalNoteUrl: z.string().url().optional().or(z.literal('')),
-    ratingVariables: z.array(ratingVariableSchema).default([]),
+    ratingVariables: z.preprocess(
+      (val) => (val == null ? [] : val),
+      z.array(ratingVariableSchema),
+    ),
   })
   .refine(
     (data) =>

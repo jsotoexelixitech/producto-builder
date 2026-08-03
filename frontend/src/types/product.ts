@@ -165,6 +165,10 @@ export interface ProductPlan {
   coverageIds?: string[] | null;
   coverageLabels?: string[] | null;
   sortOrder?: number;
+  /** Tarifa por cobertura en este plan (id → prima). Si falta, usa la prima del paso Coberturas. */
+  coverageTariffs?: Record<string, number>;
+  /** false = plan visible en wizard pero no ofrecido al cliente */
+  isActive?: boolean;
 }
 
 export interface RequiredDocument {

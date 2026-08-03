@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { buildFlowPreviewContext } from '@/lib/emission-flow';
-import { enrichPlansWithCoverages } from '@/lib/product-plans';
+import { enrichPlansWithCoverages, resolvePlanDisplayPrice } from '@/lib/product-plans';
 import type { FormField as ProductFormField } from '@/types/product';
 import type { Product } from '@/types/product';
 import { AppShell } from '@/components/layout/AppShell';
@@ -60,19 +60,19 @@ export function EmissionFlowPreviewPage() {
   const stepId = currentStep?.id;
 
   const plans = useMemo(() => {
-    const base = product?.actuarialData?.commercialPremium
-      ? Number(product.actuarialData.commercialPremium)
-      : 100;
     if (ctx?.plans?.length && product) {
       const enriched = enrichPlansWithCoverages(ctx.plans, product);
       return enriched.map((p) => ({
         name: p.name,
         badge: p.badge ?? 'Plan',
-        price: base * Number(p.priceFactor ?? 1),
+        price: resolvePlanDisplayPrice(p, product),
         isRecommended: p.isRecommended,
         coverages: p.coverageLabels ?? [],
       }));
     }
+    const base = product?.actuarialData?.commercialPremium
+      ? Number(product.actuarialData.commercialPremium)
+      : 100;
     const names = ['Plan Básico', 'Plan Estándar', 'Plan Premium'];
     return names.map((name, i) => ({
       name,

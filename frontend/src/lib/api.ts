@@ -13,6 +13,13 @@ import type {
   RequiredDocument,
   SisipConfig,
 } from '@/types/product';
+import {
+  authHeaders,
+  clearAuthSession,
+  setAuthSession,
+  type AuthUser,
+  type LoginResponse,
+} from '@/lib/auth';
 
 const BASE = '/api';
 
@@ -26,16 +33,44 @@ function formatApiErrors(messages: string[]): string {
       'El código interno solo admite mayúsculas, números, guiones y guiones bajos.',
     'internalCode must match /^[A-Z0-9_-]+$/ regular expression.':
       'El código interno solo admite mayúsculas, números, guiones y guiones bajos.',
+    'actuaryName must be longer than or equal to 3 characters':
+      'El nombre del actuario debe tener al menos 3 caracteres.',
+    'actuaryCedula must be longer than or equal to 5 characters':
+      'La cédula del actuario debe tener al menos 5 caracteres.',
+    'actuarySudeasegNumber must match /^[A-Z0-9-]+$/ regular expression':
+      'El registro SUDEASEG solo admite mayúsculas, números y guiones (ej. ACT-2024-001).',
+    'actuarySudeasegNumber must match /^[A-Z0-9-]+$/ regular expression.':
+      'El registro SUDEASEG solo admite mayúsculas, números y guiones (ej. ACT-2024-001).',
+    'ratingVariables must be an array':
+      'Las variables de tarificación deben enviarse como arreglo (puede estar vacío).',
+    'ratingVariables should not be null':
+      'Las variables de tarificación no pueden ser null; usa [] si no hay variables.',
   };
 
-  return messages.map((m) => map[m] ?? m).join(' ');
+  return messages
+    .map((m) => {
+      if (m.includes('ratingVariables') && m.includes('null')) {
+        return 'Variables de tarificación: envía un arreglo (puede estar vacío), no null.';
+      }
+      return map[m] ?? m;
+    })
+    .join(' ');
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+      ...init?.headers,
+    },
   });
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    clearAuthSession();
+    window.location.assign('/login');
+    throw new Error('Sesión expirada. Inicia sesión de nuevo.');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     const msg = err.message;
@@ -56,6 +91,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: async (email: string, password: string) => {
+    const res = await fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Credenciales inválidas' }));
+      throw new Error(typeof err.message === 'string' ? err.message : 'Credenciales inválidas');
+    }
+    const data = (await res.json()) as LoginResponse;
+    setAuthSession(data);
+    return data;
+  },
+  logout: () => {
+    clearAuthSession();
+    window.location.assign('/login');
+  },
+  me: () => request<AuthUser>('/auth/me'),
   listProducts: () => request<Product[]>('/products'),
   getProduct: (id: string) => request<Product>(`/products/${id}`),
   createProduct: (body: Partial<Product>) =>

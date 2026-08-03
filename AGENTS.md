@@ -1,6 +1,6 @@
 # Products Builder
 
-Monorepo de configuración de productos de seguros. Repositorio: [jsotoexelixitech/products-builder](https://github.com/jsotoexelixitech/products-builder).
+Monorepo de configuración de productos de seguros. Repositorio: [jsotoexelixitech/producto-builder](https://github.com/jsotoexelixitech/producto-builder).
 
 Proyecto con **ECC** (Everything Claude Code) instalado para Cursor. La fuente vive en `./ECC/` (no versionada); la configuración activa está en `./.cursor/`.
 

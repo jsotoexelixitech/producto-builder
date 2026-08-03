@@ -15,6 +15,7 @@ import type {
   FormField,
   ProductBranch,
   ProductPlan,
+  RatingVariable,
   RequiredDocument,
 } from '@/types/product';
 import { SectionPanel } from '@/components/ui/section-panel';
@@ -23,6 +24,7 @@ import { Input, Textarea } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ToggleField } from '@/components/ui/toggle-field';
 import { GuideBanner } from '@/components/flow/GuideBanner';
+import { Alert } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -31,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { clampText, FIELD_LIMITS } from '@/lib/field-limits';
 import {
   canDisableFlowStep,
   fieldsForStep,
@@ -56,6 +59,7 @@ interface EmissionConfigStepProps {
   plans: ProductPlan[];
   requiredDocuments: RequiredDocument[];
   coverages: Coverage[];
+  ratingVariables: RatingVariable[];
   onFlowStepsChange: (steps: FlowStepConfig[]) => void;
   onFormFieldsChange: (fields: FormField[]) => void;
 }
@@ -139,7 +143,7 @@ function StepLinkedFeatures({
             ? formFieldCount > 0
               ? `${formFieldCount} campo(s) personalizado(s) en el formulario de abajo.`
               : 'Activa el formulario personalizado abajo o se usarán los campos estándar.'
-            : 'Sin formulario personalizado: el paso usará los campos estándar de cliente.'}
+            : 'Sin formulario personalizado: el paso usará los campos estándar de cliente (tomador, RIF, representante, teléfono y correo).'}
         </p>
         {labels && (
           <div className="flex flex-wrap gap-2">
@@ -270,6 +274,88 @@ function StepLinkedFeatures({
   );
 }
 
+function WizardBuildPanel({
+  stepKey,
+  stepLabel,
+  formFields,
+  coverages,
+  ratingVariables,
+  onFormFieldsChange,
+}: {
+  stepKey: string;
+  stepLabel: string;
+  formFields: FormField[];
+  coverages: Coverage[];
+  ratingVariables: RatingVariable[];
+  onFormFieldsChange: (fields: FormField[]) => void;
+}) {
+  function appendField(partial: Partial<FormField>) {
+    onFormFieldsChange([
+      ...formFields,
+      {
+        label: partial.label ?? 'Campo',
+        fieldType: partial.fieldType ?? 'TEXT',
+        required: partial.required ?? true,
+        stepKey,
+        sortOrder: fieldsForStep(formFields, stepKey).length,
+        options: partial.options,
+      },
+    ]);
+  }
+
+  const hasCatalog =
+    coverages.length > 0 || ratingVariables.length > 0;
+
+  if (!hasCatalog) return null;
+
+  return (
+    <div className="rounded-lg border border-dashed border-primary/30 bg-primary/[0.04] p-4">
+      <p className="text-sm font-semibold text-foreground">
+        Armar paso con datos del wizard
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Agrega al formulario personalizado coberturas o variables de tarificación ya
+        configuradas en pasos anteriores.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {coverages.map((c) => (
+          <Button
+            key={c.id ?? c.name}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              appendField({
+                label: c.name,
+                fieldType: 'NUMBER',
+              })
+            }
+          >
+            + Cobertura: {c.name}
+          </Button>
+        ))}
+        {ratingVariables.map((v) => (
+          <Button
+            key={v.name}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              appendField({
+                label: v.label,
+                fieldType: v.variableType === 'SELECT' ? 'SELECT' : v.variableType === 'NUMBER' ? 'NUMBER' : 'TEXT',
+                options: v.options,
+              })
+            }
+          >
+            + Variable: {v.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StepFormEditor({
   stepKey,
   stepLabel,
@@ -297,11 +383,12 @@ function StepFormEditor({
         >
           <FormFieldWrap label="Etiqueta del campo">
             <Input
+              maxLength={FIELD_LIMITS.emission.formFieldLabel}
               value={field.label}
               onChange={(e) =>
                 onFormFieldsChange(
                   updateFieldAtStep(formFields, stepKey, fieldIndex, {
-                    label: e.target.value,
+                    label: clampText(e.target.value, FIELD_LIMITS.emission.formFieldLabel),
                   }),
                 )
               }
@@ -378,9 +465,11 @@ export function EmissionConfigStep({
   plans,
   requiredDocuments,
   coverages,
+  ratingVariables,
   onFlowStepsChange,
   onFormFieldsChange,
 }: EmissionConfigStepProps) {
+  const [activeTab, setActiveTab] = useState(flowSteps[0]?.stepKey ?? '');
   const [expandedContent, setExpandedContent] = useState<Record<string, boolean>>({});
   const [expandedForms, setExpandedForms] = useState<Record<string, boolean>>({});
 
@@ -409,6 +498,25 @@ export function EmissionConfigStep({
   }
 
   const activeCount = flowSteps.filter((s) => s.enabled !== false).length;
+  const tabIndex = Math.max(
+    0,
+    flowSteps.findIndex((s) => s.stepKey === activeTab),
+  );
+  const step = flowSteps[tabIndex] ?? flowSteps[0];
+  const i = tabIndex;
+
+  if (!step) {
+    return null;
+  }
+
+  const active = step.enabled !== false;
+  const formCapable = isFormCapableStep(step.stepKey);
+  const formEnabled = isFormEnabledForStep(step);
+  const canDisable = canDisableFlowStep(step.stepKey);
+  const contentExpanded = isContentExpanded(step.stepKey, active);
+  const formExpanded = isFormExpanded(step.stepKey, active, formEnabled);
+  const stepFields = fieldsForStep(formFields, step.stepKey);
+  const featureHint = FLOW_STEP_FEATURE_HINTS[step.stepKey];
 
   return (
     <div className="space-y-6">
@@ -418,228 +526,255 @@ export function EmissionConfigStep({
         estándar). En cliente y riesgo puedes activar además un formulario personalizado.
       </GuideBanner>
 
+      <Alert variant="warning">
+        Los pasos del flujo son un catálogo predefinido (cliente, riesgo, planes, documentos,
+        etc.). Puedes activarlos, renombrarlos y añadir campos, pero no crear pasos con un
+        identificador nuevo desde aquí.
+      </Alert>
+
       <SectionPanel
         icon={Route}
         title="Pasos del flujo"
-        description={`${activeCount} de ${flowSteps.length} pasos activos. Desactiva los que no apliquen a este producto.`}
+        description={`${activeCount} de ${flowSteps.length} pasos activos. Elige una pestaña para configurar.`}
       >
-        <div className="space-y-4">
-          {flowSteps.map((step, i) => {
-            const active = step.enabled !== false;
-            const formCapable = isFormCapableStep(step.stepKey);
-            const formEnabled = isFormEnabledForStep(step);
-            const canDisable = canDisableFlowStep(step.stepKey);
-            const contentExpanded = isContentExpanded(step.stepKey, active);
-            const formExpanded = isFormExpanded(step.stepKey, active, formEnabled);
-            const stepFields = fieldsForStep(formFields, step.stepKey);
-            const featureHint = FLOW_STEP_FEATURE_HINTS[step.stepKey];
-
+        <div className="mb-4 flex gap-1 overflow-x-auto border-b border-border/60 pb-1">
+          {flowSteps.map((s, idx) => {
+            const on = s.stepKey === step.stepKey;
+            const enabled = s.enabled !== false;
             return (
-              <div
-                key={step.stepKey}
+              <button
+                key={s.stepKey}
+                type="button"
+                onClick={() => setActiveTab(s.stepKey)}
                 className={cn(
-                  'overflow-hidden rounded-xl border transition-colors',
-                  active
-                    ? 'border-border/60 bg-card shadow-sm'
-                    : 'border-dashed border-border/50 bg-muted/10',
+                  'shrink-0 rounded-t-lg px-3 py-2 text-left text-xs font-semibold transition-colors sm:text-sm',
+                  on
+                    ? 'border border-b-0 border-border/60 bg-card text-primary'
+                    : 'text-muted-foreground hover:bg-muted/40',
+                  !enabled && 'opacity-50',
                 )}
               >
-                <div className="space-y-3 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                          active
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground',
-                        )}
-                      >
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{step.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          <code className="font-mono">{step.stepKey}</code>
-                          {formCapable && active && formEnabled && stepFields.length > 0 && (
-                            <span> · {stepFields.length} campo(s) personalizado(s)</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <ToggleField
-                      id={`step-enabled-${step.stepKey}`}
-                      label={active ? 'Paso activo' : 'Paso desactivado'}
-                      description={
-                        canDisable
-                          ? 'No aparecerá en el flujo del cliente'
-                          : 'Paso obligatorio del flujo'
-                      }
-                      checked={active}
-                      disabled={!canDisable}
-                      onChange={(v) => {
-                        const next = [...flowSteps];
-                        next[i] = { ...step, enabled: v };
-                        onFlowStepsChange(next);
-                        if (v) {
-                          setExpandedContent((prev) => ({ ...prev, [step.stepKey]: true }));
-                        }
-                      }}
-                      className="w-full sm:w-auto sm:min-w-[220px]"
-                    />
-                  </div>
-
-                  {active && (
-                    <FormGrid>
-                      <FormFieldWrap label="Nombre del paso">
-                        <Input
-                          value={step.label}
-                          onChange={(e) => {
-                            const next = [...flowSteps];
-                            next[i] = { ...step, label: e.target.value };
-                            onFlowStepsChange(next);
-                          }}
-                        />
-                      </FormFieldWrap>
-                      <FormFieldWrap label="Etiqueta corta">
-                        <Input
-                          value={step.shortLabel ?? ''}
-                          onChange={(e) => {
-                            const next = [...flowSteps];
-                            next[i] = { ...step, shortLabel: e.target.value };
-                            onFlowStepsChange(next);
-                          }}
-                        />
-                      </FormFieldWrap>
-                    </FormGrid>
-                  )}
-
-                  {active && formCapable && (
-                    <ToggleField
-                      id={`step-form-${step.stepKey}`}
-                      label="Incluir formulario personalizado"
-                      description="Desmarca para usar solo los campos estándar o el contenido preconfigurado del paso"
-                      checked={formEnabled}
-                      onChange={(v) => {
-                        const next = [...flowSteps];
-                        next[i] = { ...step, formEnabled: v };
-                        onFlowStepsChange(next);
-                        setExpandedContent((prev) => ({ ...prev, [step.stepKey]: true }));
-                        if (v) {
-                          setExpandedForms((prev) => ({ ...prev, [step.stepKey]: true }));
-                        }
-                      }}
-                    />
-                  )}
-
-                  {!active && canDisable && (
-                    <p className="text-xs text-muted-foreground">
-                      Este paso está desactivado. Actívalo si lo necesitas para este producto.
-                    </p>
-                  )}
-                </div>
-
-                {active && (
-                  <div className="border-t border-border/60 bg-muted/[0.04]">
-                    <button
-                      type="button"
-                      onClick={() => toggleContentExpanded(step.stepKey)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/20"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Layers className="h-4 w-4 text-foreground/70" />
-                        <span className="text-sm font-semibold text-foreground">
-                          Contenido del paso
-                        </span>
-                        {featureHint?.title && (
-                          <span className="hidden text-xs text-muted-foreground sm:inline">
-                            · {featureHint.title}
-                          </span>
-                        )}
-                      </div>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
-                          contentExpanded && 'rotate-180',
-                        )}
-                      />
-                    </button>
-
-                    {contentExpanded && (
-                      <div className="space-y-4 border-t border-border/40 px-4 pb-4 pt-3">
-                        <FormFieldWrap
-                          label="Descripción visible para el cliente"
-                          hint="Aparece bajo el título del paso en la vista previa del flujo"
-                        >
-                          <Textarea
-                            rows={2}
-                            value={step.description ?? ''}
-                            placeholder={
-                              featureHint?.description ??
-                              'Instrucciones o contexto para el solicitante en este paso'
-                            }
-                            onChange={(e) => {
-                              const next = [...flowSteps];
-                              next[i] = { ...step, description: e.target.value };
-                              onFlowStepsChange(next);
-                            }}
-                          />
-                        </FormFieldWrap>
-
-                        <StepLinkedFeatures
-                          stepKey={step.stepKey}
-                          branch={branch}
-                          formEnabled={formEnabled}
-                          formFieldCount={stepFields.length}
-                          plans={plans}
-                          requiredDocuments={requiredDocuments}
-                          coverages={coverages}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {active && formCapable && formEnabled && (
-                  <div className="border-t border-primary/15 bg-primary/[0.03]">
-                    <button
-                      type="button"
-                      onClick={() => toggleFormExpanded(step.stepKey)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-primary/5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FormInput className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-semibold text-foreground">
-                          Formulario personalizado
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          · {stepFields.length} campo(s)
-                        </span>
-                      </div>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
-                          formExpanded && 'rotate-180',
-                        )}
-                      />
-                    </button>
-
-                    {formExpanded && (
-                      <div className="border-t border-primary/10 px-4 pb-4 pt-3">
-                        <StepFormEditor
-                          stepKey={step.stepKey}
-                          stepLabel={step.label}
-                          formFields={formFields}
-                          onFormFieldsChange={onFormFieldsChange}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                <span className="block truncate max-w-[8rem] sm:max-w-[10rem]">
+                  {idx + 1}. {s.shortLabel ?? s.label}
+                </span>
+              </button>
             );
           })}
+        </div>
+
+        <div
+          className={cn(
+            'overflow-hidden rounded-xl border transition-colors',
+            active
+              ? 'border-border/60 bg-card shadow-sm'
+              : 'border-dashed border-border/50 bg-muted/10',
+          )}
+        >
+          <div className="space-y-3 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{step.label}</p>
+                <p className="text-xs text-muted-foreground">
+                  <code className="font-mono">{step.stepKey}</code>
+                  {formCapable && active && formEnabled && stepFields.length > 0 && (
+                    <span> · {stepFields.length} campo(s) personalizado(s)</span>
+                  )}
+                </p>
+              </div>
+
+              <ToggleField
+                id={`step-enabled-${step.stepKey}`}
+                label={active ? 'Paso activo' : 'Paso desactivado'}
+                description={
+                  canDisable
+                    ? 'No aparecerá en el flujo del cliente'
+                    : 'Paso obligatorio del flujo'
+                }
+                checked={active}
+                disabled={!canDisable}
+                onChange={(v) => {
+                  const next = [...flowSteps];
+                  next[i] = { ...step, enabled: v };
+                  onFlowStepsChange(next);
+                  if (v) {
+                    setExpandedContent((prev) => ({ ...prev, [step.stepKey]: true }));
+                  }
+                }}
+                className="w-full sm:w-auto sm:min-w-[220px]"
+              />
+            </div>
+
+            {active && (
+              <FormGrid>
+                <FormFieldWrap label="Nombre del paso">
+                  <Input
+                    maxLength={FIELD_LIMITS.emission.flowStepLabel}
+                    value={step.label}
+                    onChange={(e) => {
+                      const next = [...flowSteps];
+                      next[i] = {
+                        ...step,
+                        label: clampText(e.target.value, FIELD_LIMITS.emission.flowStepLabel),
+                      };
+                      onFlowStepsChange(next);
+                    }}
+                  />
+                </FormFieldWrap>
+                <FormFieldWrap label="Etiqueta corta">
+                  <Input
+                    maxLength={FIELD_LIMITS.emission.flowStepShortLabel}
+                    value={step.shortLabel ?? ''}
+                    onChange={(e) => {
+                      const next = [...flowSteps];
+                      next[i] = {
+                        ...step,
+                        shortLabel: clampText(
+                          e.target.value,
+                          FIELD_LIMITS.emission.flowStepShortLabel,
+                        ),
+                      };
+                      onFlowStepsChange(next);
+                    }}
+                  />
+                </FormFieldWrap>
+              </FormGrid>
+            )}
+
+            {active && formCapable && (
+              <ToggleField
+                id={`step-form-${step.stepKey}`}
+                label="Incluir formulario personalizado"
+                description="Desmarca para usar campos estándar del catálogo o el contenido ya definido en pasos anteriores (planes, documentos, etc.)"
+                checked={formEnabled}
+                onChange={(v) => {
+                  const next = [...flowSteps];
+                  next[i] = { ...step, formEnabled: v };
+                  onFlowStepsChange(next);
+                  setExpandedContent((prev) => ({ ...prev, [step.stepKey]: true }));
+                  if (v) {
+                    setExpandedForms((prev) => ({ ...prev, [step.stepKey]: true }));
+                  }
+                }}
+              />
+            )}
+
+            {!active && canDisable && (
+              <p className="text-xs text-muted-foreground">
+                Este paso está desactivado. Actívalo si lo necesitas para este producto.
+              </p>
+            )}
+          </div>
+
+          {active && (
+            <div className="border-t border-border/60 bg-muted/[0.04]">
+              <button
+                type="button"
+                onClick={() => toggleContentExpanded(step.stepKey)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/20"
+              >
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-foreground/70" />
+                  <span className="text-sm font-semibold text-foreground">Contenido del paso</span>
+                  {featureHint?.title && (
+                    <span className="hidden text-xs text-muted-foreground sm:inline">
+                      · {featureHint.title}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+                    contentExpanded && 'rotate-180',
+                  )}
+                />
+              </button>
+
+              {contentExpanded && (
+                <div className="space-y-4 border-t border-border/40 px-4 pb-4 pt-3">
+                  <FormFieldWrap
+                    label="Descripción visible para el cliente"
+                    hint="Aparece bajo el título del paso en la vista previa del flujo"
+                  >
+                    <Textarea
+                      rows={2}
+                      maxLength={FIELD_LIMITS.emission.flowStepDescription}
+                      value={step.description ?? ''}
+                      placeholder={
+                        featureHint?.description ??
+                        'Instrucciones o contexto para el solicitante en este paso'
+                      }
+                      onChange={(e) => {
+                        const next = [...flowSteps];
+                        next[i] = {
+                          ...step,
+                          description: clampText(
+                            e.target.value,
+                            FIELD_LIMITS.emission.flowStepDescription,
+                          ),
+                        };
+                        onFlowStepsChange(next);
+                      }}
+                    />
+                  </FormFieldWrap>
+
+                  <StepLinkedFeatures
+                    stepKey={step.stepKey}
+                    branch={branch}
+                    formEnabled={formEnabled}
+                    formFieldCount={stepFields.length}
+                    plans={plans}
+                    requiredDocuments={requiredDocuments}
+                    coverages={coverages}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {active && formCapable && formEnabled && (
+            <div className="border-t border-primary/15 bg-primary/[0.03]">
+              <button
+                type="button"
+                onClick={() => toggleFormExpanded(step.stepKey)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-primary/5"
+              >
+                <div className="flex items-center gap-2">
+                  <FormInput className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">
+                    Formulario personalizado
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    · {stepFields.length} campo(s)
+                  </span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+                    formExpanded && 'rotate-180',
+                  )}
+                />
+              </button>
+
+              {formExpanded && (
+                <div className="space-y-4 border-t border-primary/10 px-4 pb-4 pt-3">
+                  <WizardBuildPanel
+                    stepKey={step.stepKey}
+                    stepLabel={step.label}
+                    formFields={formFields}
+                    coverages={coverages}
+                    ratingVariables={ratingVariables}
+                    onFormFieldsChange={onFormFieldsChange}
+                  />
+                  <StepFormEditor
+                    stepKey={step.stepKey}
+                    stepLabel={step.label}
+                    formFields={formFields}
+                    onFormFieldsChange={onFormFieldsChange}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </SectionPanel>
     </div>

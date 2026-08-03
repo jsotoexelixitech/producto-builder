@@ -1,8 +1,26 @@
-import { PrismaClient, ProductBranch, ProductStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import {
+  PrismaClient,
+  ProductBranch,
+  ProductStatus,
+  UserRole,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const adminPassword = await bcrypt.hash('admin123', 10);
+  await prisma.user.upsert({
+    where: { email: 'admin@local.test' },
+    update: {},
+    create: {
+      email: 'admin@local.test',
+      passwordHash: adminPassword,
+      fullName: 'Administrador',
+      role: UserRole.ADMIN,
+    },
+  });
+
   const product = await prisma.product.upsert({
     where: { internalCode: 'RCV-DEMO-001' },
     update: {},
@@ -66,7 +84,10 @@ async function main() {
     },
   });
 
-  console.log('Seed OK:', product.id);
+  console.log('Seed OK:', {
+    admin: 'admin@local.test / admin123',
+    productId: product.id,
+  });
 }
 
 main()

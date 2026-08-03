@@ -1,6 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Eye, Layers, Plus, Shield } from 'lucide-react';
+import { Eye, Layers, LogOut, Plus, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
+import { Button } from '@/components/ui/button';
 
 const NAV = [
   { href: '/', label: 'Productos', icon: Layers, match: (p: string) => p === '/' },
@@ -10,6 +13,7 @@ const NAV = [
 export function AppSidebar() {
   const { pathname } = useLocation();
   const isPreview = pathname.includes('/preview');
+  const user = getStoredUser();
 
   return (
     <aside className="app-sidebar">
@@ -47,10 +51,23 @@ export function AppSidebar() {
         )}
       </nav>
 
-      <div className="app-sidebar-footer">
-        <p className="text-[11px] leading-relaxed text-slate-500">
-          Sistema independiente. SISIP/SIS2000 solo como referencia de datos.
-        </p>
+      <div className="app-sidebar-footer space-y-3">
+        {user && (
+          <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
+            <p className="truncate text-xs font-medium text-slate-200">{user.fullName}</p>
+            <p className="truncate text-[10px] text-slate-400">{user.email}</p>
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-slate-400 hover:text-white"
+          onClick={() => api.logout()}
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
+        </Button>
       </div>
     </aside>
   );
