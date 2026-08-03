@@ -99,7 +99,19 @@ Credenciales del contenedor (`deploy/docker-compose.db.yml`):
 DATABASE_URL="postgresql://producto_builder:ProductoBuilder_2026!@127.0.0.1:5432/producto_builder?schema=public"
 ```
 
-### Opción B — PostgreSQL instalado en el servidor
+### Opción B — PostgreSQL nativo en srv001 (sin Docker, recomendado si Docker da permiso denegado)
+
+```bash
+sudo -u postgres psql -f deploy/setup-db-native.sql
+```
+
+Luego `backend/.env`:
+
+```env
+DATABASE_URL="postgresql://producto_builder:ProductoBuilder_2026!@127.0.0.1:5432/producto_builder?schema=public"
+```
+
+### Opción C — PostgreSQL ya instalado (manual)
 
 ```sql
 CREATE DATABASE producto_builder;
@@ -188,9 +200,9 @@ Swagger: `http://192.168.8.120/api/docs` (si Nginx expone el backend).
 | Error | Causa | Solución |
 |-------|--------|----------|
 | `unknown shorthand flag: 'f'` | Docker sin plugin `compose` | Usar `docker-compose -f ...` (con guión) |
-| `P1000 Authentication failed` | `.env` con `postgres:postgres` pero BD distinta | Ajustar `DATABASE_URL` al usuario/DB real |
-| `ecosystem.config.cjs not found` | PM2 ejecutado desde `backend/` | `cd ~/producto-builder` antes de `pm2 start` |
-| Puerto 5432 ocupado | PostgreSQL ya corre en el host | Opción B: crear DB en Postgres existente, no usar Docker |
+| `Permission denied` (Docker) | Usuario sin acceso al socket docker | `sudo docker-compose ...` o usar Postgres nativo (ver abajo) |
+| `P1000 Authentication failed` | BD/usuario no creados (Docker no levantó) | `sudo -u postgres psql -f deploy/setup-db-native.sql` |
+| `Script not found: .../dist/main.js` | Nest compila a `dist/src/main.js` | Actualizar repo (`git pull`) — PM2 ya corregido |
 
 ---
 

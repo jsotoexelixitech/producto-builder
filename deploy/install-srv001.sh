@@ -28,15 +28,27 @@ EOF
   echo "==> Revisa backend/.env (DATABASE_URL, JWT_SECRET)"
 fi
 
-# ── 3. PostgreSQL Docker ───────────────────────────────────────────────────
+# ── 3. PostgreSQL ───────────────────────────────────────────────────────────
 COMPOSE_FILE="$ROOT/deploy/docker-compose.db.yml"
+DB_STARTED=false
+
 if command -v docker-compose >/dev/null 2>&1; then
-  docker-compose -f "$COMPOSE_FILE" up -d
+  if docker-compose -f "$COMPOSE_FILE" up -d 2>/dev/null; then
+    DB_STARTED=true
+  elif sudo docker-compose -f "$COMPOSE_FILE" up -d 2>/dev/null; then
+    DB_STARTED=true
+  fi
 elif docker compose version >/dev/null 2>&1; then
-  docker compose -f "$COMPOSE_FILE" up -d
-else
-  echo "WARN: Docker Compose no encontrado. Usa PostgreSQL ya instalado en el servidor."
-  echo "      Crea DB/usuario y ajusta DATABASE_URL en backend/.env"
+  if docker compose -f "$COMPOSE_FILE" up -d 2>/dev/null; then
+    DB_STARTED=true
+  elif sudo docker compose -f "$COMPOSE_FILE" up -d 2>/dev/null; then
+    DB_STARTED=true
+  fi
+fi
+
+if [[ "$DB_STARTED" != "true" ]]; then
+  echo "WARN: Docker no disponible o sin permisos."
+  echo "      Crear BD nativa: sudo -u postgres psql -f deploy/setup-db-native.sql"
 fi
 
 echo "==> Esperando PostgreSQL..."
