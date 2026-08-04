@@ -20,6 +20,7 @@ import {
   type AuthUser,
   type LoginResponse,
 } from '@/lib/auth';
+import { isExelixiCatalogPublicFlow } from '@/lib/exelixi-catalog-flow';
 
 const BASE = '/api';
 
@@ -66,7 +67,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
-  if (res.status === 401 && !path.startsWith('/auth/')) {
+  if (res.status === 401 && !path.startsWith('/auth/') && !isExelixiCatalogPublicFlow()) {
     clearAuthSession();
     window.location.assign('/login');
     throw new Error('Sesión expirada. Inicia sesión de nuevo.');

@@ -20,6 +20,7 @@ import {
   type OcrFields,
 } from '@/lib/emission-live';
 import { emitPolicy, quote, uploadOcrDocument, type EmitResult } from '@/lib/emission-bridge-api';
+import { clearOcrHandoff, isExelixiCatalogPublicFlow, readOcrHandoff } from '@/lib/exelixi-catalog-flow';
 import { enrichPlansWithCoverages, resolvePlanDisplayPrice } from '@/lib/product-plans';
 import type { Product, ProductPlan } from '@/types/product';
 import { EmissionShell } from '@/components/emission/EmissionShell';
@@ -60,14 +61,28 @@ export function EmissionLivePage() {
     setLoading(true);
     setError(null);
     try {
-      const p = await api.getProduct(id);
+      const handoff = readOcrHandoff(id);
+      const p = handoff?.product
+        ? (handoff.product as unknown as Product)
+        : await api.getProduct(id);
       setProduct(p);
       const docs = resolveEmissionDocuments(p);
       const initial: Record<string, DocStatus> = {};
       docs.forEach((d) => {
-        initial[d.ocrType] = 'idle';
+        initial[d.ocrType] =
+          handoff?.ocrData?.[d.ocrType] ? 'done' : 'idle';
       });
       setDocStatus(initial);
+
+      if (handoff?.ocrData && Object.keys(handoff.ocrData).length > 0) {
+        setOcrData(handoff.ocrData as Partial<Record<OcrDocType, OcrFields>>);
+        setForm(buildFormFromOcr(handoff.ocrData as Partial<Record<OcrDocType, OcrFields>>));
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('step') === 'datos' || isExelixiCatalogPublicFlow()) {
+          setStep('datos');
+          clearOcrHandoff();
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar producto');
     } finally {

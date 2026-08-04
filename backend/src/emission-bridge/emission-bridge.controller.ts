@@ -24,18 +24,21 @@ export class EmissionBridgeController {
   constructor(private readonly bridge: EmissionBridgeService) {}
 
   @Post('quote')
+  @Public()
   @ApiOperation({ summary: 'Cotizar vía nest-api product-emission' })
   quote(@Body() dto: QuoteBridgeDto) {
     return this.bridge.quote(dto);
   }
 
   @Post('validate')
+  @Public()
   @ApiOperation({ summary: 'Validar producto/plan antes de emitir' })
   validate(@Body() dto: QuoteBridgeDto) {
     return this.bridge.validate(dto);
   }
 
   @Post('emit')
+  @Public()
   @ApiOperation({
     summary: 'Emitir póliza genérica (simula pago si EMISION_GARANTIZADA)',
   })
@@ -44,6 +47,7 @@ export class EmissionBridgeController {
   }
 
   @Post('ocr/upload')
+  @Public()
   @ApiOperation({ summary: 'Proxy OCR → modulo-ocr/documents/upload' })
   @UseInterceptors(
     FileInterceptor('file', {
