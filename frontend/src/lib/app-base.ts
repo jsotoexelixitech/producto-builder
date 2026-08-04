@@ -4,8 +4,12 @@ export function normalizedBase(): string {
   return base.endsWith('/') ? base : `${base}/`;
 }
 
-/** Prefijo de API REST bajo el mismo base path (Apache → producto-builder-api). */
+/** Prefijo público de la API (Apache). En cierrelmds: `/producto-builder-api`. */
 export function moduleApiBase(): string {
+  const fromEnv = import.meta.env.VITE_API_PUBLIC_BASE?.trim().replace(/\/$/, '');
+  if (fromEnv) {
+    return fromEnv.startsWith('/') ? fromEnv : `/${fromEnv}`;
+  }
   return `${normalizedBase()}api`.replace(/\/{2,}/g, '/');
 }
 

@@ -9,9 +9,10 @@ cd "$ROOT"
 echo "==> git pull"
 git pull origin main
 
-echo "==> npm install + build (VITE_APP_BASE=/producto-builder/ para cierrelmds)"
+echo "==> npm install + build (cierrelmds: SPA + API con prefijos separados)"
 npm install
 export VITE_APP_BASE=/producto-builder/
+export VITE_API_PUBLIC_BASE=/producto-builder-api
 npm run build
 
 echo "==> PM2 producto-builder-api + producto-builder-web"
@@ -29,5 +30,5 @@ echo "    sudo nano /etc/apache2/sites-available/cierrelmds.exelixitech.com-le-s
 echo "    (pegar deploy/apache-cierrelmds-producto-builder.conf)"
 echo "    sudo apache2ctl configtest && sudo systemctl reload apache2"
 echo ""
-echo "    Health API: curl -s http://127.0.0.1:3015/api/health"
-echo "    Web:        curl -sI http://127.0.0.1:5215/producto-builder/emitir | head -3"
+echo "    Health API: curl -s https://cierrelmds.exelixitech.com/producto-builder-api/health"
+echo "    Web:        curl -sI https://cierrelmds.exelixitech.com/producto-builder/emitir | head -3"
