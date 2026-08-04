@@ -24,6 +24,8 @@ export class ProductsService {
     return this.prisma.product.findMany({
       include: {
         coverages: { orderBy: { sortOrder: 'asc' } },
+        productPlans: { orderBy: { sortOrder: 'asc' } },
+        requiredDocuments: { orderBy: { sortOrder: 'asc' } },
         actuarialData: true,
         sisipConfig: true,
         _count: { select: { exclusions: true, stateHistory: true } },
