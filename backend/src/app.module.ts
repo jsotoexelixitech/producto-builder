@@ -12,6 +12,7 @@ import { WorkflowModule } from './workflow/workflow.module';
 import { SisipModule } from './sisip/sisip.module';
 import { EmissionConfigModule } from './emission-config/emission-config.module';
 import { ProductPlansModule } from './product-plans/product-plans.module';
+import { EmissionBridgeModule } from './emission-bridge/emission-bridge.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ProductPlansModule } from './product-plans/product-plans.module';
     SisipModule,
     EmissionConfigModule,
     ProductPlansModule,
+    EmissionBridgeModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

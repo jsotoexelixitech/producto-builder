@@ -1,0 +1,336 @@
+/**
+ * Identidad Exélixi — solo flujo /emitir (emisión genérica product-builder).
+ * No afecta el resto de Product Builder ni módulos La Mundial.
+ * Colores: manual corporativo + logotipo (navy #091133, naranja #F27121, cyan #00AEEF).
+ */
+
+.exelixi-flow {
+  --exelixi-navy: #091133;
+  --exelixi-navy-deep: #050a30;
+  --exelixi-navy-mid: #0f1a5a;
+  --exelixi-orange: #f27121;
+  --exelixi-orange-hover: #e06518;
+  --exelixi-cyan: #00aeef;
+  --exelixi-bg: #eef1f8;
+  --exelixi-surface: #ffffff;
+  --exelixi-border: rgba(9, 17, 51, 0.1);
+  --exelixi-text: #091133;
+  --exelixi-text-muted: #5c6478;
+
+  min-height: 100vh;
+  background-color: var(--exelixi-bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 174, 239, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(242, 113, 33, 0.06), transparent),
+    linear-gradient(180deg, #dfe4f0 0%, var(--exelixi-bg) 28%, var(--exelixi-bg) 100%);
+  color: var(--exelixi-text);
+}
+
+.exelixi-flow-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: linear-gradient(135deg, var(--exelixi-navy-deep) 0%, var(--exelixi-navy) 55%, var(--exelixi-navy-mid) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px -8px rgba(5, 10, 48, 0.45);
+}
+
+.exelixi-flow-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='52' viewBox='0 0 60 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 17.32v34.64L30 69.28 0 51.96V17.32L30 0z' fill='none' stroke='%23ffffff' stroke-opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 72px 62px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.exelixi-flow-logo {
+  height: 2.25rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.exelixi-flow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 174, 239, 0.35);
+  background: rgba(0, 174, 239, 0.12);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.exelixi-flow-nav-link {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  transition: color 0.15s;
+}
+
+.exelixi-flow-nav-link:hover {
+  color: #fff;
+}
+
+.exelixi-flow-nav-link-active {
+  color: var(--exelixi-orange);
+}
+
+.exelixi-flow-main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+}
+
+@media (min-width: 640px) {
+  .exelixi-flow-main {
+    padding: 2rem 1.5rem 4rem;
+  }
+}
+
+.exelixi-hero {
+  border-radius: 1.25rem;
+  border: 1px solid var(--exelixi-border);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.88) 100%
+  );
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 16px 40px -16px rgba(9, 17, 51, 0.12);
+  padding: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .exelixi-hero {
+    padding: 1.75rem 2rem;
+  }
+}
+
+.exelixi-hero-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--exelixi-navy);
+}
+
+.exelixi-hero-accent {
+  color: var(--exelixi-orange);
+}
+
+.exelixi-card {
+  border-radius: 1rem;
+  border: 1px solid var(--exelixi-border);
+  background: var(--exelixi-surface);
+  box-shadow: 0 8px 24px -12px rgba(9, 17, 51, 0.1);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.exelixi-card:hover {
+  border-color: rgba(242, 113, 33, 0.35);
+  box-shadow: 0 16px 36px -14px rgba(9, 17, 51, 0.16);
+}
+
+.exelixi-card-selected {
+  border-color: var(--exelixi-orange);
+  background: linear-gradient(180deg, rgba(242, 113, 33, 0.06) 0%, #fff 100%);
+  box-shadow: 0 0 0 2px rgba(242, 113, 33, 0.2);
+}
+
+.exelixi-chip {
+  border-radius: 9999px;
+  border: 1px solid var(--exelixi-border);
+  background: var(--exelixi-surface);
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--exelixi-text-muted);
+  transition: all 0.15s;
+}
+
+.exelixi-chip:hover {
+  border-color: rgba(242, 113, 33, 0.4);
+  color: var(--exelixi-navy);
+}
+
+.exelixi-chip-active {
+  border-color: var(--exelixi-orange);
+  background: var(--exelixi-orange);
+  color: #fff;
+}
+
+.exelixi-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: none;
+  background: linear-gradient(135deg, var(--exelixi-orange) 0%, #e06518 100%);
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 8px 20px -6px rgba(242, 113, 33, 0.55);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.exelixi-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -8px rgba(242, 113, 33, 0.65);
+}
+
+.exelixi-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exelixi-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(9, 17, 51, 0.18);
+  background: #fff;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--exelixi-navy);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.exelixi-btn-outline:hover:not(:disabled) {
+  border-color: var(--exelixi-orange);
+  background: rgba(242, 113, 33, 0.05);
+}
+
+.exelixi-step-pill {
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.exelixi-step-pill-active {
+  background: rgba(242, 113, 33, 0.15);
+  color: var(--exelixi-orange);
+}
+
+.exelixi-step-pill-done {
+  background: rgba(0, 174, 239, 0.12);
+  color: #0284c7;
+}
+
+.exelixi-step-pill-pending {
+  background: rgba(9, 17, 51, 0.06);
+  color: var(--exelixi-text-muted);
+}
+
+.exelixi-price {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--exelixi-orange);
+}
+
+.exelixi-panel {
+  border-radius: 1rem;
+  border: 1px solid var(--exelixi-border);
+  background: var(--exelixi-surface);
+  padding: 1.25rem 1.5rem;
+}
+
+.exelixi-footer-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  border-top: 1px solid var(--exelixi-border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  padding: 1rem 1.25rem;
+}
+
+.exelixi-input {
+  width: 100%;
+  border-radius: 0.625rem;
+  border: 1px solid var(--exelixi-border);
+  background: #fff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--exelixi-text);
+}
+
+.exelixi-input:focus {
+  outline: none;
+  border-color: var(--exelixi-cyan);
+  box-shadow: 0 0 0 3px rgba(0, 174, 239, 0.2);
+}
+
+.exelixi-upload-zone {
+  display: flex;
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.875rem;
+  border: 2px dashed rgba(9, 17, 51, 0.15);
+  padding: 2rem 1rem;
+  font-size: 0.875rem;
+  color: var(--exelixi-text-muted);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.exelixi-upload-zone:hover {
+  border-color: var(--exelixi-orange);
+  background: rgba(242, 113, 33, 0.04);
+}
+
+.exelixi-success-icon {
+  display: flex;
+  height: 5rem;
+  width: 5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(0, 174, 239, 0.15), rgba(242, 113, 33, 0.12));
+}
+
+.exelixi-quote-banner {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 174, 239, 0.25);
+  background: rgba(0, 174, 239, 0.08);
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: #0369a1;
+}
+
+.exelixi-badge-ready {
+  border-radius: 9999px;
+  background: rgba(0, 174, 239, 0.12);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #0284c7;
+}
+
+.exelixi-badge-draft {
+  border-radius: 9999px;
+  background: rgba(9, 17, 51, 0.08);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--exelixi-text-muted);
+}

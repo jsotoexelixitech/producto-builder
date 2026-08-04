@@ -4,6 +4,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductWizardPage } from './pages/ProductWizardPage';
 import { EmissionFlowPreviewPage } from './pages/EmissionFlowPreviewPage';
+import { EmissionLauncherPage } from './pages/EmissionLauncherPage';
+import { EmissionLivePage } from './pages/EmissionLivePage';
 import { LoginPage } from './pages/LoginPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
@@ -53,6 +55,22 @@ function Root() {
             element={
               <AuthGate>
                 <ProductWizardPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/emitir"
+            element={
+              <AuthGate>
+                <EmissionLauncherPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/emitir/:productId"
+            element={
+              <AuthGate>
+                <EmissionLivePage />
               </AuthGate>
             }
           />

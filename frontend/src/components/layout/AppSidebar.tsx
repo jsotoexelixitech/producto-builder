@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Eye, Layers, LogOut, Plus, Shield } from 'lucide-react';
+import { Eye, Layers, LogOut, Plus, Rocket, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
@@ -7,11 +7,18 @@ import { Button } from '@/components/ui/button';
 
 const NAV = [
   { href: '/', label: 'Productos', icon: Layers, match: (p: string) => p === '/' },
+  {
+    href: '/emitir',
+    label: 'Emitir · Exélixi',
+    icon: Rocket,
+    match: (p: string) => p.startsWith('/emitir'),
+    accent: true,
+  },
   { href: '/products/new', label: 'Nuevo producto', icon: Plus, match: (p: string) => p.startsWith('/products/new') },
 ];
 
 export function AppSidebar() {
-  const { pathname } = useLocation();
+  const pathname = useLocation().pathname;
   const isPreview = pathname.includes('/preview');
   const user = getStoredUser();
 
@@ -29,13 +36,17 @@ export function AppSidebar() {
 
       <nav className="app-sidebar-nav">
         <p className="app-sidebar-section">Configuración</p>
-        {NAV.map(({ href, label, icon: Icon, match }) => (
+        {NAV.map(({ href, label, icon: Icon, match, accent }) => (
           <Link
             key={href}
             to={href}
-            className={cn('app-sidebar-link', match(pathname) && !isPreview && 'app-sidebar-link-active')}
+            className={cn(
+              'app-sidebar-link',
+              match(pathname) && !isPreview && 'app-sidebar-link-active',
+              accent && match(pathname) && !isPreview && 'border-l-2 border-[#f27121] pl-[calc(0.75rem-2px)]',
+            )}
           >
-            <Icon className="h-4 w-4 shrink-0" />
+            <Icon className={cn('h-4 w-4 shrink-0', accent && match(pathname) && 'text-[#f27121]')} />
             {label}
           </Link>
         ))}
