@@ -5,7 +5,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
+const appBase = process.env.VITE_APP_BASE ?? '/';
+
 export default defineConfig({
+  base: appBase,
   plugins: [react()],
   resolve: {
     alias: { '@': resolve(__dirname, './src') },
@@ -31,6 +34,11 @@ export default defineConfig({
     port: 5215,
     allowedHosts: true,
     proxy: {
+      [`${appBase.replace(/\/$/, '')}/api`]: {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(new RegExp(`^${appBase.replace(/\/$/, '')}/api`), '/api'),
+      },
       '/api': { target: 'http://127.0.0.1:3001', changeOrigin: true },
     },
   },

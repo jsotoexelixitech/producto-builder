@@ -36,10 +36,12 @@ function Root() {
     setShowSplash(false);
   }
 
+  const routerBasename = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') || undefined;
+
   return (
     <>
       {showSplash && <SplashScreen onFinish={finishSplash} />}
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route

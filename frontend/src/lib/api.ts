@@ -21,8 +21,9 @@ import {
   type LoginResponse,
 } from '@/lib/auth';
 import { isExelixiCatalogPublicFlow } from '@/lib/exelixi-catalog-flow';
+import { moduleApiBase } from '@/lib/app-base';
 
-const BASE = '/api';
+const BASE = moduleApiBase();
 
 function formatApiErrors(messages: string[]): string {
   const map: Record<string, string> = {

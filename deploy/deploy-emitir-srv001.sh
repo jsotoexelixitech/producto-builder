@@ -9,8 +9,9 @@ cd "$ROOT"
 echo "==> git pull"
 git pull origin main
 
-echo "==> npm install + build"
+echo "==> npm install + build (VITE_APP_BASE=/producto-builder/ para cierrelmds)"
 npm install
+export VITE_APP_BASE=/producto-builder/
 npm run build
 
 echo "==> PM2 producto-builder-api + producto-builder-web"
@@ -20,13 +21,13 @@ pm2 save
 
 echo ""
 echo "==> URLs del flujo Exélixi (emisión genérica)"
-echo "    Directo PM2:  http://192.168.8.120:5215/emitir"
-echo "    Tras Apache:  http://192.168.8.120/emitir"
+echo "    cierrelmds:   https://cierrelmds.exelixitech.com/producto-builder/emitir"
+echo "    Directo PM2:  http://192.168.8.120:5215/producto-builder/emitir"
 echo ""
-echo "    Si /emitir da 404 en :80, habilitar Apache:"
-echo "    sudo cp deploy/apache-producto-builder.conf /etc/apache2/sites-available/producto-builder.conf"
-echo "    sudo a2enmod proxy proxy_http && sudo a2ensite producto-builder.conf"
+echo "    Si /producto-builder/ da 404 en cierrelmds, añadir al VHost SSL:"
+echo "    sudo nano /etc/apache2/sites-available/cierrelmds.exelixitech.com-le-ssl.conf"
+echo "    (pegar deploy/apache-cierrelmds-producto-builder.conf)"
 echo "    sudo apache2ctl configtest && sudo systemctl reload apache2"
 echo ""
-echo "    Health API: curl -s http://127.0.0.1:3001/api/health"
-echo "    Web:        curl -sI http://127.0.0.1:5215/emitir | head -3"
+echo "    Health API: curl -s http://127.0.0.1:3015/api/health"
+echo "    Web:        curl -sI http://127.0.0.1:5215/producto-builder/emitir | head -3"

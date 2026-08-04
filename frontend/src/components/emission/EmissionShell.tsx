@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { publicAsset } from '@/lib/app-base';
 import '@/styles/exelixi-emission.css';
 
 interface EmissionShellProps {
@@ -30,7 +31,7 @@ export function EmissionShell({
           <div className="flex min-w-0 items-center gap-4">
             <Link to="/emitir" className="shrink-0">
               <img
-                src="/branding/exelixi-logo-color.png"
+                src={publicAsset('branding/exelixi-logo-color.png')}
                 alt="Exélixi technology"
                 className="exelixi-flow-logo"
                 draggable={false}

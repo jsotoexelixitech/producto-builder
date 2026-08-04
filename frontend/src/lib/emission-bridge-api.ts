@@ -2,8 +2,9 @@ import { authHeaders } from '@/lib/auth';
 import type { EmissionFormData } from '@/lib/emission-live';
 import { buildRiskData, resolvePolicyTemplate } from '@/lib/emission-live';
 import type { Product } from '@/types/product';
+import { moduleApiBase } from '@/lib/app-base';
 
-const BASE = '/api/emission';
+const BASE = `${moduleApiBase()}/emission`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
