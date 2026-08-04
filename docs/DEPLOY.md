@@ -184,7 +184,28 @@ pm2 start ~/producto-builder/deploy/ecosystem.config.cjs
 | Proceso | Puerto | Descripción |
 |---------|--------|-------------|
 | `producto-builder-api` | 3001 | API REST |
-| `producto-builder-web` | 5173 | Preview estático (solo dev interno) |
+| `producto-builder-web` | 5215 | SPA (vite preview — rutas `/emitir`, etc.) |
+
+Para producción con Nginx o Apache, proxy `/` → `:5215` y `/api/` → `:3001`.  
+Ver `deploy/apache-producto-builder.conf`.
+
+### Flujo emisión Exélixi (`/emitir`)
+
+| URL | Cuándo |
+|-----|--------|
+| http://192.168.8.120:5215/emitir | Siempre (PM2 directo) |
+| http://192.168.8.120/emitir | Tras configurar Apache (FallbackResource o proxy) |
+
+Deploy rápido: `bash deploy/deploy-emitir-srv001.sh`
+
+Variables en `backend/.env` para emisión:
+
+```env
+NEST_API_URL=http://127.0.0.1:3002
+NEST_API_KEY=<NEST_ADMIN_TOKEN>
+OCR_API_URL=http://127.0.0.1:4001
+PRODUCT_BUILDER_PUBLIC_URL=http://192.168.8.120
+```
 
 Para producción con Nginx, servir `frontend/dist` y hacer proxy de `/api` a `:3001`.
 
