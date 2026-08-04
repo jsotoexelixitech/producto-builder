@@ -18,7 +18,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api');
+  const apiPrefix = (process.env.API_GLOBAL_PREFIX ?? 'producto-builder-api').replace(/^\/|\/$/g, '');
+
+  app.setGlobalPrefix(apiPrefix);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -36,12 +38,12 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup(`${apiPrefix}/docs`, app, document);
 
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
-  console.log(`Producto Builder API en http://localhost:${port}/api`);
-  console.log(`Swagger en http://localhost:${port}/api/docs`);
+  console.log(`Producto Builder API en http://localhost:${port}/${apiPrefix}`);
+  console.log(`Swagger en http://localhost:${port}/${apiPrefix}/docs`);
 }
 
 void bootstrap();

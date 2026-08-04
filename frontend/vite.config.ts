@@ -26,7 +26,7 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
-      '/api': { target: 'http://localhost:3001', changeOrigin: true },
+      '/producto-builder-api': { target: 'http://localhost:3001', changeOrigin: true },
     },
   },
   preview: {
@@ -34,12 +34,7 @@ export default defineConfig({
     port: 5215,
     allowedHosts: true,
     proxy: {
-      [`${appBase.replace(/\/$/, '')}/api`]: {
-        target: 'http://127.0.0.1:3001',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(new RegExp(`^${appBase.replace(/\/$/, '')}/api`), '/api'),
-      },
-      '/api': { target: 'http://127.0.0.1:3001', changeOrigin: true },
+      '/producto-builder-api': { target: 'http://127.0.0.1:3001', changeOrigin: true },
     },
   },
 });

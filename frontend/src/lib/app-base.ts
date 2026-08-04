@@ -10,7 +10,7 @@ export function moduleApiBase(): string {
   if (fromEnv) {
     return fromEnv.startsWith('/') ? fromEnv : `/${fromEnv}`;
   }
-  return `${normalizedBase()}api`.replace(/\/{2,}/g, '/');
+  return '/producto-builder-api';
 }
 
 /** Ruta de un archivo en `public/` respetando el prefijo de despliegue. */

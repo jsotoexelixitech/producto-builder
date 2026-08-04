@@ -24,11 +24,12 @@ export class EmissionBridgeService {
       /\/$/,
       '',
     );
+    const apiPrefix = (process.env.API_GLOBAL_PREFIX ?? 'producto-builder-api').replace(/^\/|\/$/g, '');
     const pbPublic =
       process.env.PRODUCT_BUILDER_PUBLIC_URL ??
       process.env.FRONTEND_URL ??
       'http://localhost:5173';
-    this.publicDocBase = `${pbPublic.replace(/\/$/, '')}/api/emission/documents`;
+    this.publicDocBase = `${pbPublic.replace(/\/$/, '')}/${apiPrefix}/emission/documents`;
   }
 
   private nestHeaders(): Record<string, string> {
