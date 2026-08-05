@@ -95,10 +95,24 @@ export class ProductPlansService {
 
     const coverageIds = new Set(product.coverages.map((c) => c.id));
 
-    const sanitizedPlans = plans.map((plan) => ({
-      ...plan,
-      coverageIds: (plan.coverageIds ?? []).filter((id) => coverageIds.has(id)),
-    }));
+    const sanitizedPlans = plans.map((plan) => {
+      const priceFactor = Number(plan.priceFactor ?? 1);
+      if (!Number.isFinite(priceFactor) || priceFactor < 0) {
+        throw new BadRequestException(
+          `El plan "${plan.name}" tiene una prima/factor inválido (${plan.priceFactor}).`,
+        );
+      }
+      if (priceFactor >= 1e14) {
+        throw new BadRequestException(
+          `El plan "${plan.name}" tiene una prima demasiado grande (${priceFactor}). Revisa las tarifas de coberturas.`,
+        );
+      }
+      return {
+        ...plan,
+        priceFactor,
+        coverageIds: (plan.coverageIds ?? []).filter((id) => coverageIds.has(id)),
+      };
+    });
 
     for (const plan of sanitizedPlans) {
       for (const id of plan.coverageIds ?? []) {
@@ -120,7 +134,7 @@ export class ProductPlansService {
             name: p.name,
             description: p.description ?? null,
             badge: p.badge ?? null,
-            priceFactor: p.priceFactor ?? 1,
+            priceFactor: p.priceFactor,
             isRecommended: p.isRecommended ?? false,
             coverageIds: p.coverageIds ?? [],
             coverageLabels: this.resolveCoverageLabels(

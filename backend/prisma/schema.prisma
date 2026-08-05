@@ -280,7 +280,8 @@ model ProductPlan {
   name          String
   description   String?
   badge         String?
-  priceFactor   Decimal  @default(1) @db.Decimal(8, 4)
+  /** Prima total del plan (o factor legacy). Decimal amplio: antes Decimal(8,4) desbordaba primas > 9999. */
+  priceFactor   Decimal  @default(1) @db.Decimal(18, 4)
   isRecommended Boolean  @default(false)
   coverageIds   Json?
   coverageLabels Json?
