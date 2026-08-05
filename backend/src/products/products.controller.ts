@@ -9,7 +9,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import {
+  CreateProductDto,
+  SetCatalogVisibilityDto,
+  UpdateProductDto,
+} from './dto/product.dto';
 import { ProductMutableGuard } from '../common/guards/product-mutable.guard';
 
 @Controller('products')
@@ -35,6 +39,15 @@ export class ProductsController {
   @UseGuards(ProductMutableGuard)
   update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     return this.productsService.update(id, dto);
+  }
+
+  /** Sin ProductMutableGuard: la visibilidad en catálogo no altera el producto regulatorio. */
+  @Patch(':id/catalog-visibility')
+  setCatalogVisibility(
+    @Param('id') id: string,
+    @Body() dto: SetCatalogVisibilityDto,
+  ) {
+    return this.productsService.setCatalogVisibility(id, dto.visible);
   }
 
   @Delete(':id')

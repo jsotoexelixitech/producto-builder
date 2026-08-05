@@ -105,6 +105,8 @@ model Product {
   numeroProvidenciaSudeaseg String?
   fechaGacetaAprobacion     DateTime?
   isImmutable               Boolean          @default(false)
+  /** Visible en el catálogo de emisión (activar/desactivar sin borrar). */
+  catalogVisible            Boolean          @default(true)
 
   // Plan SISIP
   subPlanCode          String?

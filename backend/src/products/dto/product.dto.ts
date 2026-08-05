@@ -97,6 +97,11 @@ export class UpdateProductDto extends PlanFieldsDto {
   emissionType?: EmissionType;
 }
 
+export class SetCatalogVisibilityDto {
+  @IsBoolean()
+  visible!: boolean;
+}
+
 export class TransitionStatusDto {
   @IsEnum(ProductStatus)
   toStatus!: ProductStatus;

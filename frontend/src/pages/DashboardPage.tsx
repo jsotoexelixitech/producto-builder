@@ -59,17 +59,27 @@ export function DashboardPage() {
     }
   }
 
-  async function handleHide(p: Product) {
+  async function handleToggleCatalog(p: Product) {
+    const currentlyVisible = p.catalogVisible !== false;
+    const nextVisible = !currentlyVisible;
     const ok = window.confirm(
-      `¿Ocultar "${p.commercialName}" del catálogo de emisión? Pasará a estado Rechazado; podrás reabrirlo como borrador cuando quieras.`,
+      nextVisible
+        ? `¿Activar "${p.commercialName}"? Volverá a aparecer en el catálogo de emisión.`
+        : `¿Desactivar "${p.commercialName}"? Dejará de verse en el catálogo de emisión; no se borra y podrás reactivarlo.`,
     );
     if (!ok) return;
     setBusyProductId(p.id);
     try {
-      const updated = await api.transition(p.id, 'REJECTED', 'Ocultado del catálogo desde el dashboard');
-      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: updated.status } : x)));
+      const updated = await api.setCatalogVisibility(p.id, nextVisible);
+      setProducts((prev) =>
+        prev.map((x) =>
+          x.id === p.id
+            ? { ...x, catalogVisible: updated.catalogVisible ?? nextVisible }
+            : x,
+        ),
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error ocultando el producto');
+      setError(e instanceof Error ? e.message : 'Error al cambiar la visibilidad');
     } finally {
       setBusyProductId(null);
     }
@@ -303,9 +313,14 @@ export function DashboardPage() {
                     <div className={cn('branch-medallion', meta.color, 'ring-1', meta.ring)}>
                       <Icon className="h-5 w-5" />
                     </div>
-                    <Badge variant={statusBadgeVariant(p.status)}>
-                      {STATUS_LABELS[p.status] ?? p.status}
-                    </Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {p.catalogVisible === false && (
+                        <Badge variant="rejected">Desactivado</Badge>
+                      )}
+                      <Badge variant={statusBadgeVariant(p.status)}>
+                        {STATUS_LABELS[p.status] ?? p.status}
+                      </Badge>
+                    </div>
                   </div>
 
                   <h3 className="mt-3 truncate font-semibold tracking-tight">{p.commercialName}</h3>
@@ -334,20 +349,30 @@ export function DashboardPage() {
                         Ver flujo
                       </Link>
                     </Button>
-                    {p.isImmutable ? (
-                      p.status === 'SUBMITTED_TO_SUDEASEG' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busyProductId === p.id}
-                          onClick={() => handleHide(p)}
-                          title="Ocultar del catálogo de emisión (pasa a Rechazado)"
-                          className="shrink-0 px-2.5 text-amber-700 border-amber-300 hover:bg-amber-50"
-                        >
-                          <EyeOff className="h-3.5 w-3.5" />
-                        </Button>
-                      )
-                    ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busyProductId === p.id}
+                      onClick={() => handleToggleCatalog(p)}
+                      title={
+                        p.catalogVisible === false
+                          ? 'Activar en catálogo de emisión'
+                          : 'Desactivar (ocultar del catálogo de emisión)'
+                      }
+                      className={cn(
+                        'shrink-0 px-2.5',
+                        p.catalogVisible === false
+                          ? 'text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                          : 'text-amber-700 border-amber-300 hover:bg-amber-50',
+                      )}
+                    >
+                      {p.catalogVisible === false ? (
+                        <Eye className="h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                    {!p.isImmutable && (
                       <Button
                         variant="outline"
                         size="sm"

@@ -30,6 +30,8 @@ export interface Product {
   numeroProvidenciaSudeaseg?: string | null;
   fechaGacetaAprobacion?: string | null;
   isImmutable: boolean;
+  /** false = desactivado: no aparece en el catálogo de emisión (se puede reactivar). */
+  catalogVisible?: boolean;
   subPlanCode?: string | null;
   vigenciaInicio?: string | null;
   vigenciaFin?: string | null;

@@ -186,6 +186,11 @@ export const api = {
     ),
   deleteProduct: (id: string) =>
     request<{ id?: string }>(`/products/${id}`, { method: 'DELETE' }),
+  setCatalogVisibility: (id: string, visible: boolean) =>
+    request<Product>(`/products/${id}/catalog-visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visible }),
+    }),
   transition: (id: string, toStatus: string, comment?: string) =>
     request<Product>(`/products/${id}/workflow/transition`, {
       method: 'POST',

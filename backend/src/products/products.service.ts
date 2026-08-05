@@ -88,6 +88,16 @@ export class ProductsService {
     });
   }
 
+  /** Activa/desactiva el producto en el catálogo de emisión (cualquier estado). */
+  async setCatalogVisibility(id: string, visible: boolean) {
+    const product = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    return this.prisma.product.update({
+      where: { id },
+      data: { catalogVisible: visible },
+    });
+  }
+
   async remove(id: string) {
     const product = await this.findOne(id);
     if (
