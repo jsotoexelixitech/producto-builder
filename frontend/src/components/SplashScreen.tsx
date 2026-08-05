@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ShieldCheck, Sparkles } from 'lucide-react';
+import { publicAsset } from '@/lib/app-base';
 
 const VISIBLE_MS = 2600;
 const FADE_MS = 700;
@@ -195,7 +196,7 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
 
           {/* Isotipo */}
           <img
-            src="/logo-isotipo-transparente.png"
+            src={publicAsset('logo-isotipo-transparente.png')}
             alt="La Mundial de Seguros"
             draggable={false}
             className="relative w-[104px] sm:w-[128px] h-auto select-none"
