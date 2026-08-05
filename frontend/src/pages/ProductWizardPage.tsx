@@ -139,6 +139,8 @@ export function ProductWizardPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CoreForm, string>>>({});
+  const [providenciaNumero, setProvidenciaNumero] = useState('');
+  const [providenciaFecha, setProvidenciaFecha] = useState('');
   const [actuarialFieldErrors, setActuarialFieldErrors] = useState<
     Partial<Record<'actuaryName' | 'actuaryCedula' | 'actuarySudeasegNumber', string>>
   >({});
@@ -1273,33 +1275,108 @@ export function ProductWizardPage() {
                 {productId && (
                   <SectionPanel
                     title="Acciones de activación"
-                    description="Publica el producto o envíalo a revisión interna antes de ponerlo a disposición del cliente."
+                    description="El flujo regulatorio avanza paso a paso: Borrador → Revisión actuarial → SUDEASEG → Aprobado. El producto ya es emitible en el catálogo desde borrador."
                     icon={Scale}
                   >
-                    <div className="flex flex-wrap gap-3">
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={async () => {
-                          await api.transition(productId, 'ACTUARIAL_REVIEW');
-                          await loadProduct(productId);
-                        }}
-                      >
-                        Enviar a revisión actuarial
-                      </Button>
-                      <Button
-                        size="lg"
-                        onClick={async () => {
-                          try {
-                            await api.transition(productId, 'SUBMITTED_TO_SUDEASEG');
-                            await loadProduct(productId);
-                          } catch (e) {
-                            setError(e instanceof Error ? e.message : 'Error');
-                          }
-                        }}
-                      >
-                        Activar producto
-                      </Button>
+                    <div className="flex flex-wrap items-end gap-3">
+                      {(product?.status ?? 'DRAFT') === 'DRAFT' && (
+                        <Button
+                          size="lg"
+                          onClick={async () => {
+                            try {
+                              await api.transition(productId, 'ACTUARIAL_REVIEW');
+                              await loadProduct(productId);
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : 'Error');
+                            }
+                          }}
+                        >
+                          Enviar a revisión actuarial
+                        </Button>
+                      )}
+                      {product?.status === 'ACTUARIAL_REVIEW' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            onClick={async () => {
+                              try {
+                                await api.transition(productId, 'DRAFT');
+                                await loadProduct(productId);
+                              } catch (e) {
+                                setError(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            Devolver a borrador
+                          </Button>
+                          <Button
+                            size="lg"
+                            onClick={async () => {
+                              try {
+                                await api.transition(productId, 'SUBMITTED_TO_SUDEASEG');
+                                await loadProduct(productId);
+                              } catch (e) {
+                                setError(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            Enviar a SUDEASEG
+                          </Button>
+                        </>
+                      )}
+                      {product?.status === 'SUBMITTED_TO_SUDEASEG' && (
+                        <>
+                          <FormField label="N° providencia SUDEASEG">
+                            <Input
+                              value={providenciaNumero}
+                              onChange={(e) => setProvidenciaNumero(e.target.value)}
+                              placeholder="FSAA-1-1-0000-2026"
+                            />
+                          </FormField>
+                          <FormField label="Fecha Gaceta de aprobación">
+                            <Input
+                              type="date"
+                              value={providenciaFecha}
+                              onChange={(e) => setProvidenciaFecha(e.target.value)}
+                            />
+                          </FormField>
+                          <Button
+                            size="lg"
+                            disabled={!providenciaNumero.trim() || !providenciaFecha}
+                            onClick={async () => {
+                              try {
+                                await api.approve(productId, providenciaNumero.trim(), providenciaFecha);
+                                await loadProduct(productId);
+                              } catch (e) {
+                                setError(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            Activar producto (providencia)
+                          </Button>
+                        </>
+                      )}
+                      {product?.status === 'APPROVED_ACTIVE' && (
+                        <Alert variant="success">
+                          Producto aprobado y activo — es inmutable; para cambios crea una nueva versión.
+                        </Alert>
+                      )}
+                      {product?.status === 'REJECTED' && (
+                        <Button
+                          size="lg"
+                          onClick={async () => {
+                            try {
+                              await api.transition(productId, 'DRAFT');
+                              await loadProduct(productId);
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : 'Error');
+                            }
+                          }}
+                        >
+                          Reabrir como borrador
+                        </Button>
+                      )}
                     </div>
                   </SectionPanel>
                 )}
