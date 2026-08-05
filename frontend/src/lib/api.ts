@@ -184,6 +184,8 @@ export const api = {
     request<{ valid: boolean; violations: GuardrailViolation[] }>(
       `/products/${id}/workflow/validate-submission`,
     ),
+  deleteProduct: (id: string) =>
+    request<{ id?: string }>(`/products/${id}`, { method: 'DELETE' }),
   transition: (id: string, toStatus: string, comment?: string) =>
     request<Product>(`/products/${id}/workflow/transition`, {
       method: 'POST',

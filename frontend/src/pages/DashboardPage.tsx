@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Eye,
+  EyeOff,
   FileCheck2,
   Layers,
   Plus,
@@ -9,6 +10,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Product, ProductBranch } from '@/types/product';
@@ -39,6 +41,39 @@ export function DashboardPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [branchFilter, setBranchFilter] = useState<ProductBranch | 'ALL'>('ALL');
+  const [busyProductId, setBusyProductId] = useState<string | null>(null);
+
+  async function handleDelete(p: Product) {
+    const ok = window.confirm(
+      `¿Eliminar "${p.commercialName}"? Se borran sus coberturas, planes y configuración. Esta acción no se puede deshacer.`,
+    );
+    if (!ok) return;
+    setBusyProductId(p.id);
+    try {
+      await api.deleteProduct(p.id);
+      setProducts((prev) => prev.filter((x) => x.id !== p.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error eliminando el producto');
+    } finally {
+      setBusyProductId(null);
+    }
+  }
+
+  async function handleHide(p: Product) {
+    const ok = window.confirm(
+      `¿Ocultar "${p.commercialName}" del catálogo de emisión? Pasará a estado Rechazado; podrás reabrirlo como borrador cuando quieras.`,
+    );
+    if (!ok) return;
+    setBusyProductId(p.id);
+    try {
+      const updated = await api.transition(p.id, 'REJECTED', 'Ocultado del catálogo desde el dashboard');
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: updated.status } : x)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error ocultando el producto');
+    } finally {
+      setBusyProductId(null);
+    }
+  }
 
   useEffect(() => {
     api
@@ -299,6 +334,31 @@ export function DashboardPage() {
                         Ver flujo
                       </Link>
                     </Button>
+                    {p.isImmutable ? (
+                      p.status === 'SUBMITTED_TO_SUDEASEG' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busyProductId === p.id}
+                          onClick={() => handleHide(p)}
+                          title="Ocultar del catálogo de emisión (pasa a Rechazado)"
+                          className="shrink-0 px-2.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                        >
+                          <EyeOff className="h-3.5 w-3.5" />
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busyProductId === p.id}
+                        onClick={() => handleDelete(p)}
+                        title="Eliminar producto"
+                        className="shrink-0 px-2.5 text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </article>
               );
