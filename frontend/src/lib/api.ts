@@ -21,7 +21,7 @@ import {
   type LoginResponse,
 } from '@/lib/auth';
 import { isExelixiCatalogPublicFlow } from '@/lib/exelixi-catalog-flow';
-import { moduleApiBase } from '@/lib/app-base';
+import { appRoute, moduleApiBase } from '@/lib/app-base';
 
 const BASE = moduleApiBase();
 
@@ -70,7 +70,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (res.status === 401 && !path.startsWith('/auth/') && !isExelixiCatalogPublicFlow()) {
     clearAuthSession();
-    window.location.assign('/login');
+    window.location.assign(appRoute('/login'));
     throw new Error('Sesión expirada. Inicia sesión de nuevo.');
   }
   if (!res.ok) {
@@ -109,7 +109,7 @@ export const api = {
   },
   logout: () => {
     clearAuthSession();
-    window.location.assign('/login');
+    window.location.assign(appRoute('/login'));
   },
   me: () => request<AuthUser>('/auth/me'),
   listProducts: () => request<Product[]>('/products'),

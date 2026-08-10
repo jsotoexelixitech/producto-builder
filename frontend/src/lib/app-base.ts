@@ -18,3 +18,9 @@ export function publicAsset(path: string): string {
   const clean = path.replace(/^\//, '');
   return `${normalizedBase()}${clean}`;
 }
+
+/** Ruta interna del SPA respetando `VITE_APP_BASE` (ej. `/producto-builder/login`). */
+export function appRoute(path: string): string {
+  const clean = path.startsWith('/') ? path.slice(1) : path;
+  return `${normalizedBase()}${clean}`.replace(/\/{2,}/g, '/');
+}
