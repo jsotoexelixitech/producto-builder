@@ -27,6 +27,12 @@ if ('serviceWorker' in navigator) {
 
 const SPLASH_KEY = 'ipb:splash-seen';
 
+/** Resuelto una vez al cargar el bundle — evita basename vacío en navegación interna. */
+const ROUTER_BASENAME = (() => {
+  const base = routerBase();
+  return base === '/' ? undefined : base;
+})();
+
 function Root() {
   const [showSplash, setShowSplash] = useState(
     () => sessionStorage.getItem(SPLASH_KEY) !== '1',
@@ -37,13 +43,12 @@ function Root() {
     setShowSplash(false);
   }
 
-  const basename = routerBase();
-  const routerBasename = basename === '/' ? undefined : basename;
+  const basename = ROUTER_BASENAME;
 
   return (
     <>
       {showSplash && <SplashScreen onFinish={finishSplash} />}
-      <BrowserRouter basename={routerBasename}>
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
