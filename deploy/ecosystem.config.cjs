@@ -58,7 +58,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
-        VITE_APP_BASE: '/producto-builder',
+        VITE_APP_BASE: '/producto-builder/',
         VITE_API_PUBLIC_BASE: '/producto-builder-api',
       },
     },

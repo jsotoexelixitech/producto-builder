@@ -1,6 +1,6 @@
-import { StrictMode, useState } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductWizardPage } from './pages/ProductWizardPage';
 import { EmissionFlowPreviewPage } from './pages/EmissionFlowPreviewPage';
@@ -9,13 +9,9 @@ import { EmissionLivePage } from './pages/EmissionLivePage';
 import { LoginPage } from './pages/LoginPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
-import { routerBase } from './lib/app-base';
+import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
 import './index.css';
 
-// Este proyecto NO es una PWA. Si el navegador tiene un service worker
-// registrado por otra app en el mismo puerto (p. ej. el módulo OCR), ese SW
-// intercepta y sirve contenido cacheado viejo. Lo desregistramos y limpiamos
-// cachés para garantizar que siempre se sirva la versión actual.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then((regs) => {
     regs.forEach((reg) => reg.unregister());
@@ -25,13 +21,22 @@ if ('serviceWorker' in navigator) {
   }
 }
 
+ensureTrailingSlashOnRoot();
+
 const SPLASH_KEY = 'ipb:splash-seen';
 
-/** Resuelto una vez al cargar el bundle — evita basename vacío en navegación interna. */
 const ROUTER_BASENAME = (() => {
   const base = routerBase();
   return base === '/' ? undefined : base;
 })();
+
+function TrailingSlashOnRoot() {
+  const location = useLocation();
+  useEffect(() => {
+    ensureTrailingSlashOnRoot();
+  }, [location.pathname, location.search, location.hash]);
+  return null;
+}
 
 function Root() {
   const [showSplash, setShowSplash] = useState(
@@ -43,12 +48,11 @@ function Root() {
     setShowSplash(false);
   }
 
-  const basename = ROUTER_BASENAME;
-
   return (
     <>
       {showSplash && <SplashScreen onFinish={finishSplash} />}
-      <BrowserRouter basename={basename}>
+      <BrowserRouter basename={ROUTER_BASENAME}>
+        <TrailingSlashOnRoot />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route

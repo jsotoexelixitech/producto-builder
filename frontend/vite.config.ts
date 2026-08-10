@@ -2,62 +2,53 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
-import type { IncomingMessage } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-/** Base pública canónica: `/producto-builder` (sin barra final en la URL). */
-function canonicalBase(raw: string | undefined): string {
-  const base = (raw ?? '/producto-builder').trim() || '/';
+/** Base Vite siempre con `/` final — igual que Apache ProxyPass /producto-builder/ */
+function normalizeAppBase(raw: string | undefined): string {
+  const base = (raw ?? '/producto-builder/').trim() || '/';
   if (base === '/') return '/';
-  return base.replace(/\/+$/, '');
+  return base.endsWith('/') ? base : `${base}/`;
 }
 
-/** Vite exige `base` con `/` final para assets en subpath. */
-function viteAssetBase(canonical: string): string {
-  if (canonical === '/') return '/';
-  return `${canonical}/`;
-}
+const appBase = normalizeAppBase(process.env.VITE_APP_BASE);
 
-const publicBase = canonicalBase(process.env.VITE_APP_BASE);
-const assetBase = viteAssetBase(publicBase);
-
-/**
- * Sirve el SPA en `/producto-builder` sin forzar redirect visible a `/producto-builder/`.
- * Rewrite interno → el navegador conserva la URL sin barra final.
- */
-function subpathRootRewrite(canonical: string, asset: string): Plugin {
-  if (canonical === '/') {
-    return { name: 'subpath-root-rewrite' };
+/** Redirige /producto-builder → /producto-builder/ (URL canónica en cierrelmds). */
+function subpathTrailingSlash(base: string): Plugin {
+  const withoutSlash = base.replace(/\/$/, '');
+  if (!withoutSlash || base === '/') {
+    return { name: 'subpath-trailing-slash' };
   }
 
-  const rewrite = (req: IncomingMessage, _res: unknown, next: () => void) => {
+  const redirect = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const url = req.url ?? '';
     const pathOnly = url.split('?')[0]?.split('#')[0] ?? '';
-    if (pathOnly !== canonical) {
+    if (pathOnly !== withoutSlash) {
       next();
       return;
     }
     const qIndex = url.indexOf('?');
     const suffix = qIndex >= 0 ? url.slice(qIndex) : '';
-    req.url = `${asset}${suffix}`;
-    next();
+    res.writeHead(301, { Location: `${base}${suffix}` });
+    res.end();
   };
 
   return {
-    name: 'subpath-root-rewrite',
+    name: 'subpath-trailing-slash',
     configureServer(server) {
-      server.middlewares.use(rewrite);
+      server.middlewares.use(redirect);
     },
     configurePreviewServer(server) {
-      server.middlewares.use(rewrite);
+      server.middlewares.use(redirect);
     },
   };
 }
 
 export default defineConfig({
-  base: assetBase,
-  plugins: [react(), subpathRootRewrite(publicBase, assetBase)],
+  base: appBase,
+  plugins: [react(), subpathTrailingSlash(appBase)],
   resolve: {
     alias: { '@': resolve(__dirname, './src') },
   },

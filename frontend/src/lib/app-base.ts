@@ -1,25 +1,22 @@
-/** Prefijo de despliegue en cierrelmds (sin barra final). */
-export const DEPLOY_BASE = '/producto-builder';
+/** Prefijo Apache + Vite: `/producto-builder/` (con barra final). */
+export const DEPLOY_BASE = '/producto-builder/';
 
-/** Base del router: sin barra final (React Router). Ej. `/producto-builder`. */
+/** Base del router (React Router basename, sin barra final). */
 export function routerBase(): string {
   const fromBuild = import.meta.env.BASE_URL ?? '/';
   if (fromBuild !== '/' && fromBuild !== './') {
     return fromBuild.replace(/\/+$/, '') || '/';
   }
-
-  // Fallback: build sin prefijo embebido pero servido bajo /producto-builder
   if (typeof window !== 'undefined') {
     const p = window.location.pathname;
-    if (p === DEPLOY_BASE || p.startsWith(`${DEPLOY_BASE}/`)) {
-      return DEPLOY_BASE;
+    if (p === '/producto-builder' || p.startsWith('/producto-builder/')) {
+      return '/producto-builder';
     }
   }
-
   return '/';
 }
 
-/** Base para assets/rutas: con barra final. Ej. `/producto-builder/`. */
+/** Base con barra final para assets y window.location. */
 export function normalizedBase(): string {
   const base = routerBase();
   return base === '/' ? '/' : `${base}/`;
@@ -34,20 +31,27 @@ export function moduleApiBase(): string {
   return '/producto-builder-api';
 }
 
-/** Ruta de un archivo en `public/` respetando el prefijo de despliegue. */
 export function publicAsset(path: string): string {
   const clean = path.replace(/^\//, '');
   return `${normalizedBase()}${clean}`;
 }
 
-/** Ruta interna del SPA respetando el prefijo (ej. `/producto-builder/login`). */
+/** Ruta absoluta del SPA (ej. `/producto-builder/login`). */
 export function appRoute(path: string): string {
   const clean = path.startsWith('/') ? path.slice(1) : path;
   return `${normalizedBase()}${clean}`.replace(/\/{2,}/g, '/');
 }
 
-/** Path relativo al router (para `<Link to={...}>`). */
-export function appPath(path: string): string {
-  const clean = path.startsWith('/') ? path : `/${path}`;
-  return clean;
+/** Fuerza barra final en la raíz del módulo (/producto-builder/). */
+export function ensureTrailingSlashOnRoot(): void {
+  if (typeof window === 'undefined') return;
+  const root = normalizedBase();
+  const rootNoSlash = root.replace(/\/$/, '');
+  if (window.location.pathname === rootNoSlash) {
+    window.history.replaceState(
+      null,
+      '',
+      `${root}${window.location.search}${window.location.hash}`,
+    );
+  }
 }
