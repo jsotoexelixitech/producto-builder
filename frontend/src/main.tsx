@@ -9,7 +9,7 @@ import { EmissionLivePage } from './pages/EmissionLivePage';
 import { LoginPage } from './pages/LoginPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
-import { normalizedBase } from './lib/app-base';
+import { routerBase } from './lib/app-base';
 import './index.css';
 
 // Este proyecto NO es una PWA. Si el navegador tiene un service worker
@@ -27,11 +27,6 @@ if ('serviceWorker' in navigator) {
 
 const SPLASH_KEY = 'ipb:splash-seen';
 
-const basePath = normalizedBase().replace(/\/$/, '');
-if (basePath && window.location.pathname === basePath) {
-  window.location.replace(`${normalizedBase()}${window.location.search}${window.location.hash}`);
-}
-
 function Root() {
   const [showSplash, setShowSplash] = useState(
     () => sessionStorage.getItem(SPLASH_KEY) !== '1',
@@ -42,7 +37,8 @@ function Root() {
     setShowSplash(false);
   }
 
-  const routerBasename = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') || undefined;
+  const basename = routerBase();
+  const routerBasename = basename === '/' ? undefined : basename;
 
   return (
     <>

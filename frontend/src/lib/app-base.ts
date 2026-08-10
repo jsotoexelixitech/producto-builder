@@ -1,7 +1,14 @@
-/** Base normalizada del SPA (Vite `base`). Ej. `/` o `/producto-builder/`. */
-export function normalizedBase(): string {
+/** Base del router: sin barra final (React Router). Ej. `/producto-builder`. */
+export function routerBase(): string {
   const base = import.meta.env.BASE_URL ?? '/';
-  return base.endsWith('/') ? base : `${base}/`;
+  if (base === '/') return '/';
+  return base.replace(/\/+$/, '');
+}
+
+/** Base para assets/rutas: con barra final. Ej. `/producto-builder/`. */
+export function normalizedBase(): string {
+  const base = routerBase();
+  return base === '/' ? '/' : `${base}/`;
 }
 
 /** Prefijo público de la API (Apache). En cierrelmds: `/producto-builder-api`. */
