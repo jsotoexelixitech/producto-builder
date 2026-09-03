@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const steps: Array<{ name: string; run: () => Promise<unknown> }> = [
+const steps = [
   { name: 'Product (sin relaciones)', run: () => prisma.product.findMany({ take: 3 }) },
   {
     name: '+ coverages',
