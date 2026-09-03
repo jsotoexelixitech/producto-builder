@@ -1,0 +1,57 @@
+-- Columnas que pudieron faltar en tablas creadas antes vía db push (CREATE IF NOT EXISTS no las añade).
+
+-- ProductPlan
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "description" TEXT;
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "badge" TEXT;
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "isRecommended" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "coverageIds" JSONB;
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "coverageLabels" JSONB;
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "assignedChannel" TEXT;
+ALTER TABLE "ProductPlan" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0;
+
+-- ProductSisipConfig
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "ramoInternoCode" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "ramoInternoName" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "branchAlias1" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "branchAlias2" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "producerCode" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "producerName" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "assignToAllProducers" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "counterCotizacion" TEXT NOT NULL DEFAULT 'COTIZACION';
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "counterPoliza" TEXT NOT NULL DEFAULT 'POLIZA';
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "counterRecibo" TEXT NOT NULL DEFAULT 'RECIBO';
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "counterSiniestro" TEXT NOT NULL DEFAULT 'SINIESTRO';
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "maskPoliza" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "maskRecibo" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "maskSiniestro" TEXT;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "ProductSisipConfig" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- FlowStepConfig
+ALTER TABLE "FlowStepConfig" ADD COLUMN IF NOT EXISTS "shortLabel" TEXT;
+ALTER TABLE "FlowStepConfig" ADD COLUMN IF NOT EXISTS "description" TEXT;
+ALTER TABLE "FlowStepConfig" ADD COLUMN IF NOT EXISTS "enabled" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "FlowStepConfig" ADD COLUMN IF NOT EXISTS "formEnabled" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "FlowStepConfig" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0;
+
+-- RequiredDocument
+ALTER TABLE "RequiredDocument" ADD COLUMN IF NOT EXISTS "required" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "RequiredDocument" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0;
+
+-- Coverage (CORE + minuta)
+ALTER TABLE "Coverage" ADD COLUMN IF NOT EXISTS "premiumCalculationType" "PremiumCalculationType" NOT NULL DEFAULT 'PRIMA_FIJA';
+ALTER TABLE "Coverage" ADD COLUMN IF NOT EXISTS "tariffRate" DECIMAL(8,4);
+ALTER TABLE "Coverage" ADD COLUMN IF NOT EXISTS "subLimitPercent" DECIMAL(8,4);
+ALTER TABLE "Coverage" ADD COLUMN IF NOT EXISTS "accountingCode" TEXT;
+
+-- Product (CORE)
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "subBranchCode" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "subBranchName" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "coreProductCode" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "coreSyncedAt" TIMESTAMP(3);
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "coreSyncStatus" "CoreSyncStatus";
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "coreSyncError" TEXT;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "catalogVisible" BOOLEAN NOT NULL DEFAULT true;
+
+-- Precisión priceFactor (idempotente)
+ALTER TABLE "ProductPlan" ALTER COLUMN "priceFactor" TYPE DECIMAL(18,4);
