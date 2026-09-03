@@ -145,6 +145,10 @@ export function sanitizePlansForSave(
       .filter((n): n is string => !!n),
   }));
 }
+export function activeProductPlans(plans: ProductPlan[] = []): ProductPlan[] {
+  return plans.filter((p) => p.isActive !== false);
+}
+
 export function enrichPlansWithCoverages(
   plans: ProductPlan[],
   product: Product,

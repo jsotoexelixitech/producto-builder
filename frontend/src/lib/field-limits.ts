@@ -25,6 +25,7 @@ export const FIELD_LIMITS = {
     name: 120,
     badge: 40,
     description: 300,
+    assignedChannelName: 200,
   },
   legal: {
     exclusionText: 2000,

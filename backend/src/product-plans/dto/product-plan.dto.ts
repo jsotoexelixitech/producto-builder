@@ -47,6 +47,7 @@ export class ProductPlanDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   assignedChannel?: string;
 }
 

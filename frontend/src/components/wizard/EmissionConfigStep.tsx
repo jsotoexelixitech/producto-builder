@@ -49,6 +49,7 @@ import {
   FLOW_STEP_FEATURE_HINTS,
 } from '@/lib/flow-step-features';
 import { resolvePlanCoverageLabels } from '@/lib/product-plans';
+import { labelAssignedChannel } from '@/lib/plan-channels';
 
 const FIELD_TYPES = ['TEXT', 'NUMBER', 'SELECT', 'DATE', 'BOOLEAN'] as const;
 
@@ -214,6 +215,8 @@ function StepLinkedFeatures({
                 {coverageLabels.length > 0
                   ? `${coverageLabels.length} cobertura(s): ${coverageLabels.join(', ')}`
                   : 'Sin coberturas vinculadas'}
+                {' · '}
+                {labelAssignedChannel(plan.assignedChannel)}
               </p>
             </div>
           );

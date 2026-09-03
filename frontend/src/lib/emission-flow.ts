@@ -1,4 +1,5 @@
 import type { Product, ProductBranch, RequiredDocument, FormField, ProductPlan } from '@/types/product';
+import { activeProductPlans } from '@/lib/product-plans';
 import { currencySymbol } from '@/lib/core-catalog';
 import { BRANCH_META, DEFAULT_DOCUMENTS_BY_BRANCH, DOCUMENT_CATALOG } from '@/lib/constants';
 import { groupFieldsByStep, isFormEnabledForStep } from '@/lib/emission-form-steps';
@@ -374,7 +375,7 @@ export function buildFlowPreviewContext(product: Product): FlowPreviewContext {
       if (!riskFormEnabled) grouped.RISK_DATA = [];
       return grouped;
     })(),
-    plans: product.productPlans ?? [],
+    plans: activeProductPlans(product.productPlans ?? []),
     summaryLines: buildSummaryLines(product),
     totalEstimate: estimateTotal(product),
     paymentBlockedReason,

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pencil, Plus, Power, Trash2 } from 'lucide-react';
-import type { Coverage, ProductPlan } from '@/types/product';
+import type { CommercialChannel, Coverage, ProductPlan } from '@/types/product';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField, FormGrid } from '@/components/ui/form-field';
@@ -8,7 +8,21 @@ import { SectionPanel } from '@/components/ui/section-panel';
 import { ToggleField } from '@/components/ui/toggle-field';
 import { GuideBanner } from '@/components/flow/GuideBanner';
 import { Alert } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { clampText, FIELD_LIMITS } from '@/lib/field-limits';
+import {
+  channelPickerOptions,
+  formatAssignedChannel,
+  labelAssignedChannel,
+  parseAssignedChannel,
+  PLAN_CHANNEL_TYPES,
+} from '@/lib/plan-channels';
 import {
   calculatePlanPremiumTotal,
   planCoverageTariff,
@@ -26,6 +40,7 @@ function emptyDraft(): ProductPlan {
     coverageLabels: [],
     coverageTariffs: {},
     isActive: true,
+    assignedChannel: null,
   };
 }
 
@@ -36,13 +51,28 @@ function formatPremium(value: number) {
 interface PlansStepProps {
   plans: ProductPlan[];
   coverages: Coverage[];
+  commercialChannels?: CommercialChannel[];
   onPlansChange: (plans: ProductPlan[]) => void;
 }
 
-export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
+export function PlansStep({
+  plans,
+  coverages,
+  commercialChannels = [],
+  onPlansChange,
+}: PlansStepProps) {
   const selectableCoverages = coverages.filter((c) => c.id && c.name);
   const [draft, setDraft] = useState<ProductPlan>(emptyDraft());
+  const [channelType, setChannelType] = useState<string>('PUBLIC');
+  const [channelName, setChannelName] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  const channelSuggestions = useMemo(
+    () => channelPickerOptions(commercialChannels),
+    [commercialChannels],
+  );
+
+  const channelRestricted = channelType !== 'PUBLIC';
 
   const draftPremium = useMemo(
     () => calculatePlanPremiumTotal(draft, selectableCoverages),
@@ -53,7 +83,15 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
 
   function resetDraft() {
     setDraft(emptyDraft());
+    setChannelType('PUBLIC');
+    setChannelName('');
     setEditingIndex(null);
+  }
+
+  function applyChannelToDraft(type: string, name: string) {
+    setChannelType(type);
+    setChannelName(name);
+    patchDraft({ assignedChannel: formatAssignedChannel(type, name) });
   }
 
   function patchDraft(patch: Partial<ProductPlan>) {
@@ -106,6 +144,7 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
       name: clampText(name, FIELD_LIMITS.plan.name),
       badge: draft.badge ? clampText(draft.badge, FIELD_LIMITS.plan.badge) : undefined,
       priceFactor: calculatePlanPremiumTotal(draft, selectableCoverages),
+      assignedChannel: formatAssignedChannel(channelType, channelName),
     };
 
     if (editingIndex != null) {
@@ -129,9 +168,13 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
 
   function handleEdit(index: number) {
     setEditingIndex(index);
+    const plan = plans[index];
+    const parsed = parseAssignedChannel(plan.assignedChannel);
+    setChannelType(parsed.type);
+    setChannelName(parsed.name);
     setDraft({
-      ...plans[index],
-      coverageTariffs: { ...(plans[index].coverageTariffs ?? {}) },
+      ...plan,
+      coverageTariffs: { ...(plan.coverageTariffs ?? {}) },
     });
   }
 
@@ -150,13 +193,16 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
   }
 
   const canSubmit =
-    draft.name.trim().length >= 2 && (draft.coverageIds?.length ?? 0) > 0;
+    draft.name.trim().length >= 2 &&
+    (draft.coverageIds?.length ?? 0) > 0 &&
+    (!channelRestricted || channelName.trim().length >= 2);
 
   return (
     <div className="space-y-6">
       <GuideBanner>
         Define los <strong>planes comerciales</strong> con un formulario y agrégalos a la tabla.
-        Puedes ajustar la <strong>tarifa por cobertura</strong> en cada plan.
+        Puedes asignar cada plan a un <strong>corredor, corretaje, canal o punto</strong> exclusivo,
+        o dejarlo disponible para todos los canales.
       </GuideBanner>
 
       {selectableCoverages.length === 0 ? (
@@ -212,6 +258,64 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
                   onChange={(v) => patchDraft({ isRecommended: v })}
                 />
               </FormField>
+              <FormField
+                label="Asignación comercial"
+                hint="Restringe el plan a un corredor, corretaje, canal o punto específico."
+              >
+                <Select
+                  value={channelType}
+                  onValueChange={(value) => {
+                    applyChannelToDraft(value, channelName);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_CHANNEL_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {channelRestricted && (
+                <FormField
+                  label="Nombre / código"
+                  hint="Ej. corredor, red o sucursal que verá solo este plan."
+                >
+                  {channelSuggestions.length > 0 ? (
+                    <Select
+                      value={channelName || undefined}
+                      onValueChange={(value) => applyChannelToDraft(channelType, value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona o escribe abajo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {channelSuggestions.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                  <Input
+                    className={channelSuggestions.length > 0 ? 'mt-2' : undefined}
+                    maxLength={FIELD_LIMITS.plan.assignedChannelName}
+                    value={channelName}
+                    placeholder="Nombre del corredor, corretaje o canal"
+                    onChange={(e) =>
+                      applyChannelToDraft(
+                        channelType,
+                        clampText(e.target.value, FIELD_LIMITS.plan.assignedChannelName),
+                      )
+                    }
+                  />
+                </FormField>
+              )}
             </FormGrid>
 
             <SectionPanel
@@ -294,12 +398,13 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="w-full min-w-[920px] text-left text-sm">
                   <thead className="bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3 font-semibold">#</th>
                       <th className="px-4 py-3 font-semibold">Plan</th>
                       <th className="px-4 py-3 font-semibold">Tag</th>
+                      <th className="px-4 py-3 font-semibold">Asignación</th>
                       <th className="px-4 py-3 font-semibold">Prima</th>
                       <th className="px-4 py-3 font-semibold">Coberturas</th>
                       <th className="px-4 py-3 font-semibold">Estado</th>
@@ -331,6 +436,9 @@ export function PlansStep({ plans, coverages, onPlansChange }: PlansStepProps) {
                             )}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">{plan.badge ?? '—'}</td>
+                          <td className="max-w-[12rem] px-4 py-3 text-xs text-muted-foreground">
+                            {labelAssignedChannel(plan.assignedChannel)}
+                          </td>
                           <td className="px-4 py-3 tabular-nums">{formatPremium(premium)}</td>
                           <td className="px-4 py-3 tabular-nums">
                             {plan.coverageIds?.length ?? 0}

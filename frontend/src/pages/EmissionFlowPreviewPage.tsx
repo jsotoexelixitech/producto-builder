@@ -13,7 +13,12 @@ import {
 import { api } from '@/lib/api';
 import { buildFlowPreviewContext } from '@/lib/emission-flow';
 import { currencySymbol } from '@/lib/core-catalog';
-import { enrichPlansWithCoverages, resolvePlanDisplayPrice } from '@/lib/product-plans';
+import { labelAssignedChannel } from '@/lib/plan-channels';
+import {
+  activeProductPlans,
+  enrichPlansWithCoverages,
+  resolvePlanDisplayPrice,
+} from '@/lib/product-plans';
 import type { FormField as ProductFormField } from '@/types/product';
 import type { Product } from '@/types/product';
 import { AppShell } from '@/components/layout/AppShell';
@@ -33,7 +38,7 @@ export function EmissionFlowPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [selectedPlan, setSelectedPlan] = useState(1);
+  const [selectedPlan, setSelectedPlan] = useState(0);
 
   const load = useCallback(async (pid: string) => {
     setLoading(true);
@@ -61,28 +66,23 @@ export function EmissionFlowPreviewPage() {
   const stepId = currentStep?.id;
 
   const plans = useMemo(() => {
-    if (ctx?.plans?.length && product) {
-      const enriched = enrichPlansWithCoverages(ctx.plans, product);
-      return enriched.map((p) => ({
-        name: p.name,
-        badge: p.badge ?? 'Plan',
-        price: resolvePlanDisplayPrice(p, product),
-        isRecommended: p.isRecommended,
-        coverages: p.coverageLabels ?? [],
-      }));
-    }
-    const base = product?.actuarialData?.commercialPremium
-      ? Number(product.actuarialData.commercialPremium)
-      : 100;
-    const names = ['Plan Básico', 'Plan Estándar', 'Plan Premium'];
-    return names.map((name, i) => ({
-      name,
-      badge: i === 0 ? 'Esencial' : i === 1 ? 'Recomendado' : 'Completo',
-      price: base * (0.85 + i * 0.15),
-      isRecommended: i === 1,
-      coverages: product?.coverages?.slice(0, 3).map((c) => c.name) ?? [],
+    if (!product) return [];
+    const configured = activeProductPlans(product.productPlans ?? []);
+    if (configured.length === 0) return [];
+    const enriched = enrichPlansWithCoverages(configured, product);
+    return enriched.map((p) => ({
+      name: p.name,
+      badge: p.badge ?? 'Plan',
+      price: resolvePlanDisplayPrice(p, product),
+      isRecommended: p.isRecommended,
+      coverages: p.coverageLabels ?? [],
+      assignedChannel: p.assignedChannel,
     }));
-  }, [product, ctx]);
+  }, [product]);
+
+  useEffect(() => {
+    setSelectedPlan(0);
+  }, [plans.length, product?.id]);
 
   function goNext() {
     if (!ctx) return;
@@ -236,38 +236,50 @@ export function EmissionFlowPreviewPage() {
 
               {stepId === 'PLANS_COVERAGES' && (
                 <>
-                  <div className="plan-card-grid">
-                    {plans.map((plan, i) => (
-                      <button
-                        key={plan.name}
-                        type="button"
-                        onClick={() => setSelectedPlan(i)}
-                        className={cn(
-                          'plan-card text-left',
-                          selectedPlan === i && 'plan-card-selected',
-                        )}
-                      >
-                        <Badge className="border-border text-[10px]">
-                          {plan.badge}
-                        </Badge>
-                        <p className="mt-2 font-semibold">{plan.name}</p>
-                        <p className="mt-1 text-lg font-bold text-primary tabular-nums">
-                          {currencySymbol(product.currency)}{' '}
-                          {plan.price.toFixed(2)}
-                        </p>
-                        <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                          {(plan.coverages ?? []).map((c) => (
-                            <li key={c} className="flex items-center gap-1.5">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                              {c}
-                            </li>
-                          ))}
-                        </ul>
-                      </button>
-                    ))}
-                  </div>
+                  {plans.length === 0 ? (
+                    <Alert variant="warning">
+                      Este producto no tiene planes activos guardados. Configúralos en el paso
+                      «Planes comerciales» del wizard y pulsa «Guardar y continuar» antes de
+                      abrir la vista previa.
+                    </Alert>
+                  ) : (
+                    <div className="plan-card-grid">
+                      {plans.map((plan, i) => (
+                        <button
+                          key={`${plan.name}-${i}`}
+                          type="button"
+                          onClick={() => setSelectedPlan(i)}
+                          className={cn(
+                            'plan-card text-left',
+                            selectedPlan === i && 'plan-card-selected',
+                          )}
+                        >
+                          <Badge className="border-border text-[10px]">
+                            {plan.badge}
+                          </Badge>
+                          <p className="mt-2 font-semibold">{plan.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {labelAssignedChannel(plan.assignedChannel)}
+                          </p>
+                          <p className="mt-1 text-lg font-bold text-primary tabular-nums">
+                            {currencySymbol(product.currency)}{' '}
+                            {plan.price.toFixed(2)}
+                          </p>
+                          <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                            {(plan.coverages ?? []).map((c) => (
+                              <li key={c} className="flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                {c}
+                              </li>
+                            ))}
+                          </ul>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <GuideBanner>
-                    El pago no se solicita aquí. El cliente elige plan y avanza a documentos y firma.
+                    Solo se muestran los planes activos guardados en el producto. El pago no se
+                    solicita aquí: el cliente elige plan y avanza a documentos y firma.
                   </GuideBanner>
                 </>
               )}

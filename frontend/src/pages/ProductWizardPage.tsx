@@ -399,6 +399,7 @@ export function ProductWizardPage() {
             priceFactor: p.priceFactor ?? 0,
             isRecommended: p.isRecommended ?? false,
             coverageIds: p.coverageIds ?? [],
+            assignedChannel: p.assignedChannel ?? undefined,
             sortOrder: p.sortOrder ?? i,
           })),
         );
@@ -840,6 +841,7 @@ export function ProductWizardPage() {
               <PlansStep
                 plans={productPlans}
                 coverages={coverages}
+                commercialChannels={product?.commercialChannels}
                 onPlansChange={setProductPlans}
               />
             )}
