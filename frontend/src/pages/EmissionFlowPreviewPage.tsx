@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { buildFlowPreviewContext } from '@/lib/emission-flow';
+import { currencySymbol } from '@/lib/core-catalog';
 import { enrichPlansWithCoverages, resolvePlanDisplayPrice } from '@/lib/product-plans';
 import type { FormField as ProductFormField } from '@/types/product';
 import type { Product } from '@/types/product';
@@ -251,7 +252,7 @@ export function EmissionFlowPreviewPage() {
                         </Badge>
                         <p className="mt-2 font-semibold">{plan.name}</p>
                         <p className="mt-1 text-lg font-bold text-primary tabular-nums">
-                          {product.currency === 'USD' ? 'US$' : 'Bs.'}{' '}
+                          {currencySymbol(product.currency)}{' '}
                           {plan.price.toFixed(2)}
                         </p>
                         <ul className="mt-3 space-y-1 text-xs text-muted-foreground">

@@ -1,4 +1,5 @@
 import type { Product, ProductBranch, RequiredDocument, FormField, ProductPlan } from '@/types/product';
+import { currencySymbol } from '@/lib/core-catalog';
 import { BRANCH_META, DEFAULT_DOCUMENTS_BY_BRANCH, DOCUMENT_CATALOG } from '@/lib/constants';
 import { groupFieldsByStep, isFormEnabledForStep } from '@/lib/emission-form-steps';
 
@@ -259,7 +260,7 @@ function buildSummaryLines(product: Product): SummaryLine[] {
   if (premium != null) {
     lines.push({
       label: 'Prima comercial',
-      value: `${product.currency === 'USD' ? 'US$' : 'Bs.'} ${Number(premium).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+      value: `${currencySymbol(product.currency)} ${Number(premium).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
       highlight: true,
     });
   }
@@ -270,7 +271,7 @@ function buildSummaryLines(product: Product): SummaryLine[] {
 function estimateTotal(product: Product): string {
   const premium = product.actuarialData?.commercialPremium;
   if (premium == null) return 'Por calcular';
-  const symbol = product.currency === 'USD' ? 'US$' : 'Bs.';
+  const symbol = currencySymbol(product.currency);
   return `${symbol} ${Number(premium).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
 }
 

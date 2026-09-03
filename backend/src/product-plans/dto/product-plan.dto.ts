@@ -44,6 +44,10 @@ export class ProductPlanDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  assignedChannel?: string;
 }
 
 export class UpsertProductPlansDto {

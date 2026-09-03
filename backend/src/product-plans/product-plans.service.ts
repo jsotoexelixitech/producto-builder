@@ -7,17 +7,7 @@ import { Prisma, ProductBranch } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductPlanDto } from './dto/product-plan.dto';
 
-function defaultPlansForBranch(branch: ProductBranch) {
-  const plans = [
-    { name: 'Plan Básico', badge: 'Esencial', priceFactor: 0.85, isRecommended: false, sortOrder: 0 },
-    { name: 'Plan Estándar', badge: 'Recomendado', priceFactor: 1, isRecommended: true, sortOrder: 1 },
-    { name: 'Plan Premium', badge: 'Completo', priceFactor: 1.15, isRecommended: false, sortOrder: 2 },
-  ];
-  if (branch === 'RCV_OBLIGATORIO') {
-    return [plans[0]];
-  }
-  return plans;
-}
+
 
 @Injectable()
 export class ProductPlansService {
@@ -42,41 +32,34 @@ export class ProductPlansService {
     });
     if (!product) throw new NotFoundException('Producto no encontrado');
 
-    const hasPlans = product.productPlans.length > 0;
-    const plans = hasPlans
-      ? product.productPlans.map((p) => {
-          const storedIds = (p.coverageIds as string[] | null) ?? [];
-          const validIds = storedIds.filter((id) =>
-            product.coverages.some((c) => c.id === id),
-          );
-          const labelsFromNames = (p.coverageLabels as string[] | null) ?? [];
-          const remappedIds = validIds.length
-            ? validIds
-            : labelsFromNames
-                .map((name) => product.coverages.find((c) => c.name === name)?.id)
-                .filter((id): id is string => !!id);
+    const plans = product.productPlans.map((p) => {
+      const storedIds = (p.coverageIds as string[] | null) ?? [];
+      const validIds = storedIds.filter((id) =>
+        product.coverages.some((c) => c.id === id),
+      );
+      const labelsFromNames = (p.coverageLabels as string[] | null) ?? [];
+      const remappedIds = validIds.length
+        ? validIds
+        : labelsFromNames
+            .map((name) => product.coverages.find((c) => c.name === name)?.id)
+            .filter((id): id is string => !!id);
 
-          return {
-            name: p.name,
-            description: p.description,
-            badge: p.badge,
-            priceFactor: Number(p.priceFactor),
-            isRecommended: p.isRecommended,
-            coverageIds: remappedIds,
-            coverageLabels: remappedIds.length
-              ? remappedIds
-                  .map((id) => product.coverages.find((c) => c.id === id)?.name)
-                  .filter((n): n is string => !!n)
-              : labelsFromNames,
-            sortOrder: p.sortOrder,
-          };
-        })
-      : defaultPlansForBranch(product.branch).map((p) => ({
-          ...p,
-          description: 'Plan comercial configurable',
-          coverageIds: product.coverages.slice(0, 3).map((c) => c.id),
-          coverageLabels: product.coverages.slice(0, 3).map((c) => c.name),
-        }));
+      return {
+        name: p.name,
+        description: p.description,
+        badge: p.badge,
+        priceFactor: Number(p.priceFactor),
+        isRecommended: p.isRecommended,
+        assignedChannel: p.assignedChannel,
+        coverageIds: remappedIds,
+        coverageLabels: remappedIds.length
+          ? remappedIds
+              .map((id) => product.coverages.find((c) => c.id === id)?.name)
+              .filter((n): n is string => !!n)
+          : labelsFromNames,
+        sortOrder: p.sortOrder,
+      };
+    });
 
     return {
       productId,
@@ -136,6 +119,7 @@ export class ProductPlansService {
             badge: p.badge ?? null,
             priceFactor: p.priceFactor,
             isRecommended: p.isRecommended ?? false,
+            assignedChannel: p.assignedChannel ?? null,
             coverageIds: p.coverageIds ?? [],
             coverageLabels: this.resolveCoverageLabels(
               p.coverageIds,

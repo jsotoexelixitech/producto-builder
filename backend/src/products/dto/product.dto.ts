@@ -23,6 +23,16 @@ import {
 export class PlanFieldsDto {
   @IsOptional()
   @IsString()
+  @MaxLength(30)
+  subBranchCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  subBranchName?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(50)
   subPlanCode?: string;
 

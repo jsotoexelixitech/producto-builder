@@ -5,11 +5,21 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
-import { DeductibleType } from '@prisma/client';
+import {
+  ContractCurrency,
+  EmissionType,
+  PremiumCalculationType,
+  ProductBranch,
+  ProductStatus,
+  RenewalFrequency,
+  RenewalType,
+  DeductibleType,
+} from '@prisma/client';
 
 export class CreateCoverageDto {
   @IsString()
@@ -61,9 +71,30 @@ export class CreateCoverageDto {
   waitingPeriodDays?: number;
 
   @IsOptional()
+  @IsEnum(PremiumCalculationType)
+  premiumCalculationType?: PremiumCalculationType;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   tariffPremium?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  tariffRate?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  subLimitPercent?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  accountingCode?: string;
 
   @IsOptional()
   @IsString()

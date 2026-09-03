@@ -16,6 +16,10 @@ export type ProductBranch =
 export type RenewalFrequency = 'ANUAL' | 'SEMESTRAL' | 'TRIMESTRAL' | 'MENSUAL';
 export type RenewalType = 'NORMAL' | 'TACITA' | 'CON_AVISO';
 
+export type CoreSyncStatus = 'PENDING' | 'SYNCED' | 'FAILED';
+
+export type PremiumCalculationType = 'PRIMA_FIJA' | 'TASA_PORCENTUAL';
+
 export interface Product {
   id: string;
   commercialName: string;
@@ -40,6 +44,12 @@ export interface Product {
   renewalType?: RenewalType | null;
   premiumGuaranteeDays?: number | null;
   annualClosingMonth?: number | null;
+  subBranchCode?: string | null;
+  subBranchName?: string | null;
+  coreProductCode?: string | null;
+  coreSyncedAt?: string | null;
+  coreSyncStatus?: CoreSyncStatus | null;
+  coreSyncError?: string | null;
   coverages?: Coverage[];
   actuarialData?: ActuarialData | null;
   exclusions?: Exclusion[];
@@ -66,7 +76,11 @@ export interface Coverage {
   deductibleType?: string;
   deductibleValue?: number;
   waitingPeriodDays?: number;
+  premiumCalculationType?: PremiumCalculationType;
   tariffPremium?: number;
+  tariffRate?: number;
+  subLimitPercent?: number;
+  accountingCode?: string;
   vigenciaDesde?: string;
   vigenciaHasta?: string;
   dependsOnCoverageName?: string;
@@ -171,6 +185,7 @@ export interface ProductPlan {
   coverageTariffs?: Record<string, number>;
   /** false = plan visible en wizard pero no ofrecido al cliente */
   isActive?: boolean;
+  assignedChannel?: string | null;
 }
 
 export interface RequiredDocument {

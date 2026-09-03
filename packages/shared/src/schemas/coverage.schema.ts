@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { DeductibleType } from '../enums';
+import { DeductibleType, PremiumCalculationType } from '../enums';
+
+const premiumCalcEnum = z.enum([
+  PremiumCalculationType.PRIMA_FIJA,
+  PremiumCalculationType.TASA_PORCENTUAL,
+]);
 
 const deductibleEnum = z.enum([
   DeductibleType.MONTO_FIJO,
@@ -19,7 +24,11 @@ export const coverageSchema = z
     deductibleType: deductibleEnum.optional(),
     deductibleValue: z.number().nonnegative().optional(),
     waitingPeriodDays: z.number().int().min(0).default(0),
+    premiumCalculationType: premiumCalcEnum.default(PremiumCalculationType.PRIMA_FIJA),
     tariffPremium: z.number().nonnegative().optional(),
+    tariffRate: z.number().min(0).max(100).optional(),
+    subLimitPercent: z.number().min(0).max(100).optional(),
+    accountingCode: z.string().max(30).optional(),
     vigenciaDesde: z.string().date().optional(),
     vigenciaHasta: z.string().date().optional(),
     dependsOnCoverageName: z.string().max(150).optional(),

@@ -205,4 +205,40 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ numeroProvidenciaSudeaseg, fechaGacetaAprobacion }),
     }),
+  listCoreSubBranches: (branch: string) =>
+    request<import('@/lib/core-catalog').CoreSubBranch[]>(
+      `/core/subramos?branch=${encodeURIComponent(branch)}`,
+    ),
+  listCoreCoverages: (branch: string, subBranchCode?: string) => {
+    const qs = new URLSearchParams({ branch });
+    if (subBranchCode) qs.set('subBranchCode', subBranchCode);
+    return request<import('@/lib/core-catalog').CoreCoverageCatalogItem[]>(
+      `/core/coverages?${qs}`,
+    );
+  },
+  createCoreCoverage: (body: {
+    branch: string;
+    subBranchCode?: string;
+    name: string;
+    code?: string;
+    accountingCode?: string;
+  }) =>
+    request<import('@/lib/core-catalog').CoreCoverageCatalogItem>('/core/coverages', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  listCoreProducts: (branch?: string) =>
+    request<import('@/lib/core-catalog').CoreProductSummary[]>(
+      branch ? `/core/products?branch=${encodeURIComponent(branch)}` : '/core/products',
+    ),
+  importCoreProduct: (coreCode: string) =>
+    request<{ imported: boolean; product: Product; coreCode: string }>(
+      '/core/products/import',
+      { method: 'POST', body: JSON.stringify({ coreCode }) },
+    ),
+  syncProductToCore: (productId: string) =>
+    request<{ ok: boolean; coreCode: string; product: Product; remote: boolean }>(
+      `/core/products/${productId}/sync`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
 };

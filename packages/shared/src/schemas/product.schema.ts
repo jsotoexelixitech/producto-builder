@@ -20,6 +20,7 @@ const branchEnum = z.enum([
 const currencyEnum = z.enum([
   ContractCurrency.VES,
   ContractCurrency.USD,
+  ContractCurrency.EUR,
   ContractCurrency.INDEXADO,
 ]);
 
@@ -43,6 +44,8 @@ const renewalTypeEnum = z.enum([
 ]);
 
 const planFieldsSchema = z.object({
+  subBranchCode: z.string().max(30).optional(),
+  subBranchName: z.string().max(150).optional(),
   subPlanCode: z.string().max(50).optional(),
   vigenciaInicio: z.string().date().optional(),
   vigenciaFin: z.string().date().optional(),

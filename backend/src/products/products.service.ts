@@ -116,6 +116,8 @@ export class ProductsService {
     if (dto.commercialName != null) data.commercialName = dto.commercialName;
     if (dto.currency != null) data.currency = dto.currency;
     if (dto.emissionType != null) data.emissionType = dto.emissionType;
+    if (dto.subBranchCode !== undefined) data.subBranchCode = dto.subBranchCode || null;
+    if (dto.subBranchName !== undefined) data.subBranchName = dto.subBranchName || null;
     if (dto.subPlanCode !== undefined) data.subPlanCode = dto.subPlanCode || null;
     if (dto.allowsQuickEmission !== undefined) data.allowsQuickEmission = dto.allowsQuickEmission;
     if (dto.renewalFrequency !== undefined) data.renewalFrequency = dto.renewalFrequency;

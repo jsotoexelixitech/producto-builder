@@ -11,9 +11,24 @@ export type ProductBranch = (typeof ProductBranch)[keyof typeof ProductBranch];
 export const ContractCurrency = {
   VES: 'VES',
   USD: 'USD',
+  EUR: 'EUR',
   INDEXADO: 'INDEXADO',
 } as const;
 export type ContractCurrency = (typeof ContractCurrency)[keyof typeof ContractCurrency];
+
+export const PremiumCalculationType = {
+  PRIMA_FIJA: 'PRIMA_FIJA',
+  TASA_PORCENTUAL: 'TASA_PORCENTUAL',
+} as const;
+export type PremiumCalculationType =
+  (typeof PremiumCalculationType)[keyof typeof PremiumCalculationType];
+
+export const CoreSyncStatus = {
+  PENDING: 'PENDING',
+  SYNCED: 'SYNCED',
+  FAILED: 'FAILED',
+} as const;
+export type CoreSyncStatus = (typeof CoreSyncStatus)[keyof typeof CoreSyncStatus];
 
 export const EmissionType = {
   EMISION_GARANTIZADA: 'EMISION_GARANTIZADA',

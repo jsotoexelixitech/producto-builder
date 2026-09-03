@@ -10,6 +10,7 @@ import {
   Loader2,
   Shield,
 } from 'lucide-react';
+import { currencySymbol } from '@/lib/core-catalog';
 import { api } from '@/lib/api';
 import {
   branchHasVehicle,
@@ -360,7 +361,7 @@ export function EmissionLivePage() {
                       )}
                     </div>
                     <p className="exelixi-price mt-2">
-                      {product.currency === 'USD' ? 'US$' : 'Bs.'}{' '}
+                      {currencySymbol(product.currency)}{' '}
                       {price.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
                     </p>
                     <ul className="mt-3 space-y-1 text-xs text-[var(--exelixi-text-muted)]">
@@ -378,7 +379,7 @@ export function EmissionLivePage() {
               <p className="font-bold">Cotización confirmada</p>
               <p>
                 Plan {quotePreview.planName}:{' '}
-                {quotePreview.moneda === 'USD' ? 'US$' : 'Bs.'}{' '}
+                {currencySymbol(quotePreview.moneda)}{' '}
                 {quotePreview.primaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
               </p>
             </div>
@@ -403,7 +404,7 @@ export function EmissionLivePage() {
           </div>
           {selectedPlan && quotePreview && (
             <p className="exelixi-price text-center">
-              {quotePreview.moneda === 'USD' ? 'US$' : 'Bs.'}{' '}
+              {currencySymbol(quotePreview.moneda)}{' '}
               {quotePreview.primaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
             </p>
           )}
@@ -441,7 +442,7 @@ export function EmissionLivePage() {
             {emitResult.primaTotal != null && (
               <Row
                 label="Prima"
-                value={`${emitResult.moneda === 'USD' ? 'US$' : 'Bs.'} ${emitResult.primaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                value={`${currencySymbol(emitResult.moneda)} ${emitResult.primaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
               />
             )}
           </dl>

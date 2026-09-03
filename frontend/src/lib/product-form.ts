@@ -19,7 +19,9 @@ export type CoreFormInput = {
   commercialName: string;
   internalCode: string;
   branch: ProductBranch;
-  currency: 'VES' | 'USD' | 'INDEXADO';
+  currency: 'VES' | 'USD' | 'EUR' | 'INDEXADO';
+  subBranchCode?: string;
+  subBranchName?: string;
   emissionType:
     | 'EMISION_GARANTIZADA'
     | 'REQUIERE_DECLARACION_SALUD'
@@ -71,6 +73,8 @@ export function validateCoreForm(data: CoreFormInput): {
     branch: data.branch,
     currency: data.currency,
     emissionType: data.emissionType,
+    subBranchCode: data.subBranchCode || undefined,
+    subBranchName: data.subBranchName || undefined,
     subPlanCode: data.subPlanCode || undefined,
     vigenciaInicio: data.vigenciaInicio || undefined,
     vigenciaFin: data.vigenciaFin || undefined,

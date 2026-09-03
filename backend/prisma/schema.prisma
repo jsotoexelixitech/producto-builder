@@ -39,7 +39,19 @@ enum ProductBranch {
 enum ContractCurrency {
   VES
   USD
+  EUR
   INDEXADO
+}
+
+enum PremiumCalculationType {
+  PRIMA_FIJA
+  TASA_PORCENTUAL
+}
+
+enum CoreSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
 }
 
 enum EmissionType {
@@ -108,6 +120,16 @@ model Product {
   /** Visible en el catálogo de emisión (activar/desactivar sin borrar). */
   catalogVisible            Boolean          @default(true)
 
+  /** Sub-ramo CORE (filtrado por branch). */
+  subBranchCode             String?
+  subBranchName             String?
+
+  /** Sincronización con núcleo corporativo (CORE / SISIP). */
+  coreProductCode           String?
+  coreSyncedAt              DateTime?
+  coreSyncStatus            CoreSyncStatus?
+  coreSyncError             String?
+
   // Plan SISIP
   subPlanCode          String?
   vigenciaInicio       DateTime?
@@ -152,6 +174,11 @@ model Coverage {
   deductibleValue   Decimal?        @db.Decimal(18, 4)
   waitingPeriodDays Int             @default(0)
 
+  premiumCalculationType PremiumCalculationType @default(PRIMA_FIJA)
+  tariffRate             Decimal?               @db.Decimal(8, 4)
+  subLimitPercent        Decimal?               @db.Decimal(8, 4)
+  accountingCode         String?
+
   // Tarifa y vigencia SISIP
   tariffPremium           Decimal?  @db.Decimal(18, 4)
   vigenciaDesde           DateTime?
@@ -165,6 +192,59 @@ model Coverage {
   reinsuranceContractName String?
   reinsuranceBranchCode   String?
 
+  @@index([productId])
+}
+
+/// Catálogo de sub-ramos alineado al CORE (consulta / filtro por ramo principal).
+model CoreSubBranch {
+  id           String        @id @default(uuid())
+  branch       ProductBranch
+  coreRamoCode String
+  code         String
+  name         String
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  coverages CoreCoverageCatalog[]
+
+  @@unique([branch, code])
+  @@index([branch])
+  @@index([coreRamoCode])
+}
+
+/// Coberturas maestras del CORE (dropdown + alta sincronizada).
+model CoreCoverageCatalog {
+  id             String         @id @default(uuid())
+  branch         ProductBranch
+  subBranchCode  String?
+  subBranch      CoreSubBranch? @relation(fields: [branch, subBranchCode], references: [branch, code])
+  code           String
+  name           String
+  accountingCode String?
+  isActive       Boolean        @default(true)
+  source         String         @default("CORE")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([branch, code])
+  @@index([branch, subBranchCode])
+}
+
+/// Registro de productos publicados en el CORE (mirror local + import).
+model CoreProductRegistry {
+  id              String        @id @default(uuid())
+  coreCode        String        @unique
+  productId       String?
+  branch          ProductBranch
+  subBranchCode   String?
+  commercialName  String
+  internalCode    String
+  payload         Json
+  syncedAt        DateTime      @default(now())
+  source          String        @default("LOCAL")
+
+  @@index([branch])
   @@index([productId])
 }
 
@@ -285,6 +365,7 @@ model ProductPlan {
   isRecommended Boolean  @default(false)
   coverageIds   Json?
   coverageLabels Json?
+  assignedChannel String?
   sortOrder     Int      @default(0)
 
   @@index([productId])

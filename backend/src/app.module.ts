@@ -13,6 +13,7 @@ import { SisipModule } from './sisip/sisip.module';
 import { EmissionConfigModule } from './emission-config/emission-config.module';
 import { ProductPlansModule } from './product-plans/product-plans.module';
 import { EmissionBridgeModule } from './emission-bridge/emission-bridge.module';
+import { CoreModule } from './core/core.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EmissionBridgeModule } from './emission-bridge/emission-bridge.module';
     EmissionConfigModule,
     ProductPlansModule,
     EmissionBridgeModule,
+    CoreModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

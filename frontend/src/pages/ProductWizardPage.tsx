@@ -37,6 +37,7 @@ import { Stepper, STEPS } from '@/components/wizard/Stepper';
 import { EmissionConfigStep } from '@/components/wizard/EmissionConfigStep';
 import { PlansStep } from '@/components/wizard/PlansStep';
 import { CoveragesStep } from '@/components/wizard/CoveragesStep';
+import { CoreIntegrationPanel } from '@/components/wizard/CoreIntegrationPanel';
 import { ActivationSummary } from '@/components/wizard/ActivationSummary';
 import { WizardStickyAlert } from '@/components/wizard/WizardStickyAlert';
 import { ExclusionHtmlPreview } from '@/components/legal/ExclusionPreview';
@@ -60,6 +61,7 @@ import {
 import { formatCedulaInput, normalizeCedula } from '@/lib/cedula';
 import { sanitizePlansForSave, syncPlansWithCoverages, plansWithCalculatedPremiums, decodePlanFromApi, encodePlanDescription } from '@/lib/product-plans';
 import { clampInt, clampPercent, clampText, FIELD_LIMITS } from '@/lib/field-limits';
+import type { CoreSubBranch } from '@/lib/core-catalog';
 
 type CoreForm = CoreFormInput;
 
@@ -75,6 +77,9 @@ function mapCoverageFromApi(c: Coverage): Coverage {
     insuredSumFixed: c.insuredSumFixed != null ? Number(c.insuredSumFixed) : undefined,
     deductibleValue: c.deductibleValue != null ? Number(c.deductibleValue) : undefined,
     tariffPremium: c.tariffPremium != null ? Number(c.tariffPremium) : undefined,
+    tariffRate: c.tariffRate != null ? Number(c.tariffRate) : undefined,
+    subLimitPercent: c.subLimitPercent != null ? Number(c.subLimitPercent) : undefined,
+    premiumCalculationType: c.premiumCalculationType ?? 'PRIMA_FIJA',
     vigenciaDesde: formatDate(c.vigenciaDesde),
     vigenciaHasta: formatDate(c.vigenciaHasta),
   };
@@ -145,11 +150,15 @@ export function ProductWizardPage() {
     Partial<Record<'actuaryName' | 'actuaryCedula' | 'actuarySudeasegNumber', string>>
   >({});
 
+  const [subBranches, setSubBranches] = useState<CoreSubBranch[]>([]);
+
   const coreForm = useForm<CoreForm>({
     defaultValues: {
       commercialName: 'Nuevo producto',
       internalCode: generateDefaultInternalCode(),
       branch: 'PATRIMONIAL',
+      subBranchCode: '',
+      subBranchName: '',
       currency: 'VES',
       emissionType: 'EMISION_GARANTIZADA',
       subPlanCode: '',
@@ -164,7 +173,23 @@ export function ProductWizardPage() {
   });
 
   const branch = coreForm.watch('branch');
+  const subBranchCode = coreForm.watch('subBranchCode');
   const isUniform = UNIFORM_BRANCHES.includes(branch);
+
+  useEffect(() => {
+    api
+      .listCoreSubBranches(branch)
+      .then((rows) => {
+        setSubBranches(rows);
+        const current = coreForm.getValues('subBranchCode');
+        if (current && rows.some((r) => r.code === current)) return;
+        if (rows.length === 1) {
+          coreForm.setValue('subBranchCode', rows[0].code);
+          coreForm.setValue('subBranchName', rows[0].name);
+        }
+      })
+      .catch(() => setSubBranches([]));
+  }, [branch, coreForm]);
 
   useEffect(() => {
     if (docsTouched) return;
@@ -192,6 +217,8 @@ export function ProductWizardPage() {
       commercialName: p.commercialName,
       internalCode: p.internalCode,
       branch: p.branch,
+      subBranchCode: p.subBranchCode ?? '',
+      subBranchName: p.subBranchName ?? '',
       currency: p.currency as CoreForm['currency'],
       emissionType: p.emissionType as CoreForm['emissionType'],
       subPlanCode: p.subPlanCode ?? '',
@@ -307,6 +334,8 @@ export function ProductWizardPage() {
             commercialName: data.commercialName,
             currency: data.currency,
             emissionType: data.emissionType,
+            subBranchCode: data.subBranchCode || null,
+            subBranchName: data.subBranchName || null,
             subPlanCode: data.subPlanCode || null,
             vigenciaInicio: null,
             vigenciaFin: null,
@@ -339,7 +368,12 @@ export function ProductWizardPage() {
           deductibleType: c.deductibleType,
           deductibleValue: c.deductibleValue != null ? Number(c.deductibleValue) : undefined,
           waitingPeriodDays: c.waitingPeriodDays ?? 0,
+          premiumCalculationType: c.premiumCalculationType ?? 'PRIMA_FIJA',
           tariffPremium: c.tariffPremium != null ? Number(c.tariffPremium) : undefined,
+          tariffRate: c.tariffRate != null ? Number(c.tariffRate) : undefined,
+          subLimitPercent: c.subLimitPercent != null ? Number(c.subLimitPercent) : undefined,
+          accountingCode: c.accountingCode || undefined,
+          coberturaInternaCode: c.coberturaInternaCode || undefined,
           dependsOnCoverageName: c.dependsOnCoverageName || undefined,
           reinsuranceContractCode: c.reinsuranceContractCode || undefined,
           reinsuranceContractName: c.reinsuranceContractName || undefined,
@@ -651,12 +685,41 @@ export function ProductWizardPage() {
                       <Select
                         value={branch}
                         disabled={!!productId}
-                        onValueChange={(v) => coreForm.setValue('branch', v as ProductBranch)}
+                        onValueChange={(v) => {
+                          coreForm.setValue('branch', v as ProductBranch);
+                          coreForm.setValue('subBranchCode', '');
+                          coreForm.setValue('subBranchName', '');
+                        }}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {BRANCH_OPTIONS.map((b) => (
                             <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                    <FormField label="Sub-ramo CORE" hint="Opciones filtradas según el ramo principal.">
+                      <Select
+                        value={subBranchCode || '__none__'}
+                        onValueChange={(v) => {
+                          if (v === '__none__') {
+                            coreForm.setValue('subBranchCode', '');
+                            coreForm.setValue('subBranchName', '');
+                            return;
+                          }
+                          const row = subBranches.find((s) => s.code === v);
+                          coreForm.setValue('subBranchCode', v);
+                          coreForm.setValue('subBranchName', row?.name ?? '');
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Seleccionar sub-ramo" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin sub-ramo</SelectItem>
+                          {subBranches.map((s) => (
+                            <SelectItem key={s.code} value={s.code}>
+                              {s.name} ({s.code})
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -670,6 +733,7 @@ export function ProductWizardPage() {
                         <SelectContent>
                           <SelectItem value="VES">VES — Bolívar</SelectItem>
                           <SelectItem value="USD">USD — Dólar</SelectItem>
+                          <SelectItem value="EUR">EUR — Euro</SelectItem>
                           <SelectItem value="INDEXADO">INDEXADO</SelectItem>
                         </SelectContent>
                       </Select>
@@ -764,7 +828,12 @@ export function ProductWizardPage() {
             )}
 
             {step === 1 && (
-              <CoveragesStep coverages={coverages} onCoveragesChange={setCoverages} />
+              <CoveragesStep
+                branch={branch}
+                subBranchCode={subBranchCode || undefined}
+                coverages={coverages}
+                onCoveragesChange={setCoverages}
+              />
             )}
 
             {step === 2 && (
@@ -1223,6 +1292,16 @@ export function ProductWizardPage() {
 
             {step === 6 && (
               <div className="space-y-6">
+                <CoreIntegrationPanel
+                  product={product}
+                  productId={productId ?? undefined}
+                  onProductUpdated={(p) => setProduct(p)}
+                  onImported={(p) => {
+                    setProduct(p);
+                    navigate(`/products/${p.id}`, { replace: true });
+                    loadProduct(p.id);
+                  }}
+                />
                 <ActivationSummary
                   product={product}
                   commercialName={coreForm.watch('commercialName')}

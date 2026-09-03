@@ -3,11 +3,32 @@ import type { Coverage, Product, ProductPlan } from '@/types/product';
 export function planCoverageTariff(
   plan: ProductPlan,
   coverage: Coverage,
+  allCoverages: Coverage[] = [],
 ): number {
   const id = coverage.id;
   if (id && plan.coverageTariffs?.[id] != null) {
     return Number(plan.coverageTariffs[id]);
   }
+
+  const parent = coverage.dependsOnCoverageName
+    ? allCoverages.find((c) => c.name === coverage.dependsOnCoverageName)
+    : undefined;
+  const parentSum =
+    parent?.insuredSumFixed ?? parent?.insuredSumMin ?? undefined;
+
+  if (
+    coverage.premiumCalculationType === 'TASA_PORCENTUAL' &&
+    coverage.tariffRate != null
+  ) {
+    const sum =
+      coverage.insuredSumFixed ??
+      coverage.insuredSumMin ??
+      (parentSum != null && coverage.subLimitPercent != null
+        ? (parentSum * coverage.subLimitPercent) / 100
+        : parentSum);
+    if (sum != null) return (sum * coverage.tariffRate) / 100;
+  }
+
   return Number(coverage.tariffPremium ?? 0);
 }
 
@@ -15,7 +36,7 @@ export function calculatePlanPremiumTotal(plan: ProductPlan, coverages: Coverage
   const idSet = new Set(plan.coverageIds ?? []);
   return coverages
     .filter((c) => c.id && idSet.has(c.id))
-    .reduce((sum, c) => sum + planCoverageTariff(plan, c), 0);
+    .reduce((sum, c) => sum + planCoverageTariff(plan, c, coverages), 0);
 }
 
 export function resolvePlanDisplayPrice(
