@@ -385,7 +385,7 @@ export class CoreService implements OnModuleInit {
 
   async createSis2000Product(dto: Sis2000ProductDto) {
     this.assertPartnerConfigured();
-    const payload = dtoToPartnerPayload(dto);
+    const payload = dtoToPartnerPayload(dto as unknown as Record<string, unknown>);
     await this.partnerBridge.createProduct(payload);
     const row = await this.partnerBridge.getProductDetail(payload.cproducto);
     return { ok: true, action: 'created' as const, product: rowToPartnerForm(row) };
@@ -393,7 +393,10 @@ export class CoreService implements OnModuleInit {
 
   async updateSis2000Product(cproducto: string, dto: Sis2000ProductDto) {
     this.assertPartnerConfigured();
-    const payload = dtoToPartnerPayload({ ...dto, cproducto });
+    const payload = dtoToPartnerPayload({
+      ...(dto as unknown as Record<string, unknown>),
+      cproducto,
+    });
     await this.partnerBridge.updateProduct(cproducto, payload);
     const row = await this.partnerBridge.getProductDetail(cproducto);
     return { ok: true, action: 'updated' as const, product: rowToPartnerForm(row) };
