@@ -245,4 +245,23 @@ export const api = {
       partner?: boolean;
       partnerAction?: 'created' | 'updated';
     }>(`/core/products/${productId}/sync`, { method: 'POST', body: JSON.stringify({}) }),
+  listSis2000Products: () =>
+    request<import('@/lib/sis2000-catalog').Sis2000Product[]>('/core/sis2000/products'),
+  getSis2000Product: (cproducto: string) =>
+    request<import('@/lib/sis2000-catalog').Sis2000Product>(
+      `/core/sis2000/products/${encodeURIComponent(cproducto)}`,
+    ),
+  createSis2000Product: (body: import('@/lib/sis2000-catalog').Sis2000ProductInput) =>
+    request<{ ok: boolean; action: 'created'; product: import('@/lib/sis2000-catalog').Sis2000Product }>(
+      '/core/sis2000/products',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  updateSis2000Product: (
+    cproducto: string,
+    body: import('@/lib/sis2000-catalog').Sis2000ProductInput,
+  ) =>
+    request<{ ok: boolean; action: 'updated'; product: import('@/lib/sis2000-catalog').Sis2000Product }>(
+      `/core/sis2000/products/${encodeURIComponent(cproducto)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
 };

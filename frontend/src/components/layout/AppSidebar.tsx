@@ -1,12 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Eye, Layers, LogOut, Plus, Shield } from 'lucide-react';import { cn } from '@/lib/utils';
+import { Database, Eye, Layers, LogOut, Plus, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
+import { cn } from '@/lib/utils';
+
 const NAV = [
   { href: '/', label: 'Productos', icon: Layers, match: (p: string) => p === '/' },
   { href: '/products/new', label: 'Nuevo producto', icon: Plus, match: (p: string) => p.startsWith('/products/new') },
+  { href: '/sis2000', label: 'Sis2000 QA', icon: Database, match: (p: string) => p.startsWith('/sis2000') },
 ];
 export function AppSidebar() {
   const pathname = useLocation().pathname;

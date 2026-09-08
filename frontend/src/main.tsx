@@ -7,6 +7,8 @@ import { EmissionFlowPreviewPage } from './pages/EmissionFlowPreviewPage';
 import { EmissionLauncherPage } from './pages/EmissionLauncherPage';
 import { EmissionLivePage } from './pages/EmissionLivePage';
 import { LoginPage } from './pages/LoginPage';
+import { Sis2000CatalogPage } from './pages/Sis2000CatalogPage';
+import { Sis2000ProductPage } from './pages/Sis2000ProductPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
 import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
@@ -84,6 +86,30 @@ function Root() {
             element={
               <AuthGate>
                 <EmissionLivePage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000"
+            element={
+              <AuthGate>
+                <Sis2000CatalogPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/new"
+            element={
+              <AuthGate>
+                <Sis2000ProductPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/:cproducto"
+            element={
+              <AuthGate>
+                <Sis2000ProductPage />
               </AuthGate>
             }
           />

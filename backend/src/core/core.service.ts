@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   CoreSyncStatus,
@@ -18,7 +19,10 @@ import { PartnerBridgeService } from '../partner-bridge/partner-bridge.service';
 import {
   mapProductToPartnerPayload,
   resolveCproducto,
+  dtoToPartnerPayload,
+  rowToPartnerForm,
 } from '../partner-bridge/partner-product.mapper';
+import { Sis2000ProductDto } from './dto/sis2000.dto';
 import {
   BRANCH_CORE_RAMO,
   DEFAULT_CORE_COVERAGES,
@@ -365,6 +369,42 @@ export class CoreService implements OnModuleInit {
     });
 
     return { imported: true, product, coreCode };
+  }
+
+  async listSis2000Products() {
+    this.assertPartnerConfigured();
+    const rows = await this.partnerBridge.listProducts();
+    return rows.map((row) => rowToPartnerForm(row));
+  }
+
+  async getSis2000Product(cproducto: string) {
+    this.assertPartnerConfigured();
+    const row = await this.partnerBridge.getProductDetail(cproducto);
+    return rowToPartnerForm(row);
+  }
+
+  async createSis2000Product(dto: Sis2000ProductDto) {
+    this.assertPartnerConfigured();
+    const payload = dtoToPartnerPayload(dto);
+    await this.partnerBridge.createProduct(payload);
+    const row = await this.partnerBridge.getProductDetail(payload.cproducto);
+    return { ok: true, action: 'created' as const, product: rowToPartnerForm(row) };
+  }
+
+  async updateSis2000Product(cproducto: string, dto: Sis2000ProductDto) {
+    this.assertPartnerConfigured();
+    const payload = dtoToPartnerPayload({ ...dto, cproducto });
+    await this.partnerBridge.updateProduct(cproducto, payload);
+    const row = await this.partnerBridge.getProductDetail(cproducto);
+    return { ok: true, action: 'updated' as const, product: rowToPartnerForm(row) };
+  }
+
+  private assertPartnerConfigured() {
+    if (!this.partnerBridge.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'NEST_API_KEY no configurado. Use una key nest-api con scope partner:products.',
+      );
+    }
   }
 
   private buildCorePayload(

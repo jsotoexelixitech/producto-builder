@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ProductBranch } from '@prisma/client';
 import { CoreService } from './core.service';
 import {
@@ -7,6 +7,7 @@ import {
   ListCoreCoveragesQueryDto,
   ListSubBranchesQueryDto,
 } from './dto/core.dto';
+import { Sis2000ProductDto } from './dto/sis2000.dto';
 
 @Controller('core')
 export class CoreController {
@@ -40,5 +41,28 @@ export class CoreController {
   @Post('products/:productId/sync')
   syncProduct(@Param('productId') productId: string) {
     return this.coreService.syncProductToCore(productId);
+  }
+
+  @Get('sis2000/products')
+  listSis2000Products() {
+    return this.coreService.listSis2000Products();
+  }
+
+  @Get('sis2000/products/:cproducto')
+  getSis2000Product(@Param('cproducto') cproducto: string) {
+    return this.coreService.getSis2000Product(cproducto);
+  }
+
+  @Post('sis2000/products')
+  createSis2000Product(@Body() dto: Sis2000ProductDto) {
+    return this.coreService.createSis2000Product(dto);
+  }
+
+  @Put('sis2000/products/:cproducto')
+  updateSis2000Product(
+    @Param('cproducto') cproducto: string,
+    @Body() dto: Sis2000ProductDto,
+  ) {
+    return this.coreService.updateSis2000Product(cproducto, dto);
   }
 }
