@@ -14,6 +14,11 @@ import {
   ProductStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PartnerBridgeService } from '../partner-bridge/partner-bridge.service';
+import {
+  mapProductToPartnerPayload,
+  resolveCproducto,
+} from '../partner-bridge/partner-product.mapper';
 import {
   BRANCH_CORE_RAMO,
   DEFAULT_CORE_COVERAGES,
@@ -27,7 +32,10 @@ export class CoreService implements OnModuleInit {
   private readonly coreApiUrl: string;
   private readonly coreApiKey: string;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly partnerBridge: PartnerBridgeService,
+  ) {
     this.coreApiUrl = (process.env.CORE_API_URL ?? '').replace(/\/$/, '');
     this.coreApiKey = process.env.CORE_API_KEY ?? '';
   }
@@ -130,6 +138,14 @@ export class CoreService implements OnModuleInit {
   }
 
   async listCoreProducts(branch?: ProductBranch) {
+    if (this.partnerBridge.isConfigured()) {
+      try {
+        return await this.partnerBridge.listCoreProductSummaries(branch);
+      } catch (err) {
+        this.logger.warn(`Partner list no disponible: ${err}`);
+      }
+    }
+
     const remote = await this.fetchRemoteProducts(branch).catch(() => null);
     if (remote?.length) return remote;
 
@@ -157,16 +173,22 @@ export class CoreService implements OnModuleInit {
         productPlans: { orderBy: { sortOrder: 'asc' } },
         actuarialData: true,
         sisipConfig: true,
+        commercialChannels: true,
       },
     });
     if (!product) throw new NotFoundException('Producto no encontrado');
 
     const ramo = BRANCH_CORE_RAMO[product.branch];
-    const coreCode =
+    const legacyCoreCode =
       product.coreProductCode ||
       `${ramo.code}-${product.internalCode}`.toUpperCase();
+    const sis2000Code = resolveCproducto(
+      product.coreProductCode,
+      product.internalCode,
+    );
 
     const payload = this.buildCorePayload(product, ramo.code);
+    const partnerPayload = mapProductToPartnerPayload(product, sis2000Code);
 
     await this.prisma.product.update({
       where: { id: productId },
@@ -174,9 +196,27 @@ export class CoreService implements OnModuleInit {
     });
 
     try {
+      let remotePartner = false;
+      let remoteCore = false;
+      let partnerAction: 'created' | 'updated' | null = null;
+      let coreCode = legacyCoreCode;
+
+      if (this.partnerBridge.isConfigured()) {
+        partnerAction = await this.partnerBridge.syncProduct(partnerPayload);
+        coreCode = sis2000Code;
+        remotePartner = true;
+      }
+
       if (this.coreApiUrl) {
         await this.pushProductToRemote(coreCode, payload);
+        remoteCore = true;
       }
+
+      const source = remotePartner
+        ? 'SIS2000'
+        : remoteCore
+          ? 'CORE'
+          : 'LOCAL';
 
       await this.prisma.coreProductRegistry.upsert({
         where: { coreCode },
@@ -187,8 +227,11 @@ export class CoreService implements OnModuleInit {
           subBranchCode: product.subBranchCode,
           commercialName: product.commercialName,
           internalCode: product.internalCode,
-          payload: payload as Prisma.InputJsonValue,
-          source: this.coreApiUrl ? 'CORE' : 'LOCAL',
+          payload: {
+            ...payload,
+            partner: partnerPayload,
+          } as unknown as Prisma.InputJsonValue,
+          source,
         },
         update: {
           productId,
@@ -196,9 +239,12 @@ export class CoreService implements OnModuleInit {
           subBranchCode: product.subBranchCode,
           commercialName: product.commercialName,
           internalCode: product.internalCode,
-          payload: payload as Prisma.InputJsonValue,
+          payload: {
+            ...payload,
+            partner: partnerPayload,
+          } as unknown as Prisma.InputJsonValue,
           syncedAt: new Date(),
-          source: this.coreApiUrl ? 'CORE' : 'LOCAL',
+          source,
         },
       });
 
@@ -217,7 +263,9 @@ export class CoreService implements OnModuleInit {
         ok: true,
         coreCode,
         product: updated,
-        remote: !!this.coreApiUrl,
+        remote: remotePartner || remoteCore,
+        partner: remotePartner,
+        partnerAction,
       };
     } catch (err) {
       const message =

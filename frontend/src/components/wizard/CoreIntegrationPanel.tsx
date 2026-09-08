@@ -58,11 +58,19 @@ export function CoreIntegrationPanel({
     setSuccess(null);
     try {
       const res = await api.syncProductToCore(productId);
-      setSuccess(
-        res.remote
-          ? `Producto sincronizado en CORE (${res.coreCode}).`
-          : `Producto registrado en catálogo CORE local (${res.coreCode}). Configure CORE_API_URL para envío remoto.`,
-      );
+      if (res.partner) {
+        setSuccess(
+          res.partnerAction === 'updated'
+            ? `Producto actualizado en Sis2000 (${res.coreCode}).`
+            : `Producto publicado en Sis2000 (${res.coreCode}).`,
+        );
+      } else if (res.remote) {
+        setSuccess(`Producto sincronizado en CORE (${res.coreCode}).`);
+      } else {
+        setSuccess(
+          `Producto registrado en catálogo local (${res.coreCode}). Configure NEST_API_KEY (partner:products) o CORE_API_URL.`,
+        );
+      }
       onProductUpdated?.(res.product);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar en CORE');
@@ -94,8 +102,8 @@ export function CoreIntegrationPanel({
 
   return (
     <SectionPanel
-      title="Integración CORE"
-      description="Consultar productos del núcleo corporativo, importar configuración o publicar este producto."
+      title="Integración CORE / Sis2000"
+      description="Publicar en catálogo Sis2000 (nest-api partner), consultar productos existentes o importar configuración."
     >
       <div className="space-y-4">
         {error && <Alert variant="error">{error}</Alert>}
@@ -125,7 +133,7 @@ export function CoreIntegrationPanel({
             disabled={busy === 'sync'}
           >
             <RefreshCw className="h-4 w-4" />
-            {busy === 'sync' ? 'Guardando en CORE…' : 'Guardar producto en CORE'}
+            {busy === 'sync' ? 'Publicando…' : 'Publicar en Sis2000 / CORE'}
           </Button>
         )}
 

@@ -237,8 +237,12 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ coreCode }) },
     ),
   syncProductToCore: (productId: string) =>
-    request<{ ok: boolean; coreCode: string; product: Product; remote: boolean }>(
-      `/core/products/${productId}/sync`,
-      { method: 'POST', body: JSON.stringify({}) },
-    ),
+    request<{
+      ok: boolean;
+      coreCode: string;
+      product: Product;
+      remote: boolean;
+      partner?: boolean;
+      partnerAction?: 'created' | 'updated';
+    }>(`/core/products/${productId}/sync`, { method: 'POST', body: JSON.stringify({}) }),
 };
