@@ -90,8 +90,8 @@ export function Sis2000CatalogPage() {
               <h2 className="text-sm font-bold text-foreground">Core / Sis2000 QA</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Pulsa <strong>Ver detalle</strong> y la ficha se despliega{' '}
-                <strong>debajo de esa fila</strong> en la tabla (27 campos). Vuelve a pulsar
-                para cerrarla o usa <strong>Editar</strong> para modificar.
+                <strong>debajo de esa fila</strong> (27 campos + planes y coberturas del
+                producto). Vuelve a pulsar para cerrarla o usa <strong>Editar</strong>.
               </p>
             </div>
           </div>

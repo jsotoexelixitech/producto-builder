@@ -24,6 +24,10 @@ import {
 } from '../partner-bridge/partner-product.mapper';
 import { Sis2000ProductDto } from './dto/sis2000.dto';
 import {
+  normalizeSis2000Plan,
+  normalizeSis2000PlanList,
+} from './sis2000-plans';
+import {
   BRANCH_CORE_RAMO,
   DEFAULT_CORE_COVERAGES,
   DEFAULT_SUB_BRANCHES,
@@ -400,6 +404,39 @@ export class CoreService implements OnModuleInit {
     await this.partnerBridge.updateProduct(cproducto, payload);
     const row = await this.partnerBridge.getProductDetail(cproducto);
     return { ok: true, action: 'updated' as const, product: rowToPartnerForm(row) };
+  }
+
+  async listSis2000ProductPlans(
+    cproducto: string,
+    centidad?: string,
+    citem?: string,
+  ) {
+    this.assertPartnerConfigured();
+    const entity = (centidad ?? process.env.SIS2000_CENTIDAD ?? 'P').trim().toUpperCase();
+    const item = (citem ?? process.env.SIS2000_CITEM ?? '80080').trim();
+    const { plans, mensaje } = await this.partnerBridge.listProductPlans(
+      cproducto.trim(),
+      entity,
+      item,
+    );
+    return {
+      cproducto: cproducto.trim(),
+      centidad: entity,
+      citem: item,
+      mensaje,
+      plans: normalizeSis2000PlanList(plans),
+    };
+  }
+
+  async getSis2000PlanDetail(cramo: number, cplan: string) {
+    this.assertPartnerConfigured();
+    const rows = await this.partnerBridge.getPlanDetail(cramo, cplan.trim());
+    if (!rows.length) {
+      throw new NotFoundException(
+        `No se encontró detalle para el plan ${cplan} (ramo ${cramo}).`,
+      );
+    }
+    return { plan: normalizeSis2000Plan(rows[0]) };
   }
 
   private assertPartnerConfigured() {

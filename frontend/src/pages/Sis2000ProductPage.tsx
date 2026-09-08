@@ -4,6 +4,7 @@ import { Save } from 'lucide-react';
 import { api } from '@/lib/api';
 import { EMPTY_SIS2000_PRODUCT, type Sis2000ProductInput } from '@/lib/sis2000-catalog';
 import { Sis2000ProductForm } from '@/components/sis2000/Sis2000ProductForm';
+import { Sis2000ProductPlansPanel } from '@/components/sis2000/Sis2000ProductPlansPanel';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -99,6 +100,10 @@ export function Sis2000ProductPage() {
           </Button>
         </div>
       </form>
+
+      {!isNew && !loading && (
+        <Sis2000ProductPlansPanel cproducto={code} />
+      )}
     </AppShell>
   );
 }

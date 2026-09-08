@@ -8,6 +8,7 @@ import {
 } from '@/lib/sis2000-catalog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Sis2000ProductPlansPanel } from '@/components/sis2000/Sis2000ProductPlansPanel';
 
 interface Sis2000ProductDetailPanelProps {
   product: Sis2000Product;
@@ -65,6 +66,7 @@ export function Sis2000ProductDetailPanel({
           );
         })}
       </dl>
+      <Sis2000ProductPlansPanel cproducto={product.cproducto} />
     </div>
   );
 }

@@ -264,4 +264,12 @@ export const api = {
       `/core/sis2000/products/${encodeURIComponent(cproducto)}`,
       { method: 'PUT', body: JSON.stringify(body) },
     ),
+  listSis2000ProductPlans: (cproducto: string) =>
+    request<import('@/lib/sis2000-plans').Sis2000ProductPlansResponse>(
+      `/core/sis2000/products/${encodeURIComponent(cproducto)}/plans`,
+    ),
+  getSis2000PlanDetail: (cramo: number, cplan: string) =>
+    request<{ plan: import('@/lib/sis2000-plans').Sis2000Plan }>(
+      `/core/sis2000/plans/detail?cramo=${encodeURIComponent(String(cramo))}&cplan=${encodeURIComponent(cplan)}`,
+    ),
 };

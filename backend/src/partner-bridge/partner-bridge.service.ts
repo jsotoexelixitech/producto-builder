@@ -108,6 +108,35 @@ export class PartnerBridgeService {
     );
   }
 
+  /** Planes asociados a un cproducto — POST valrep/planes/producto (puede tardar ~70s en RCV). */
+  async listProductPlans(
+    cproducto: string,
+    centidad: string,
+    citem: string,
+  ): Promise<{ plans: Record<string, unknown>[]; mensaje: string }> {
+    const body = await this.request<
+      NestEnvelope<{ plan?: Record<string, unknown>[]; mensaje?: string }>
+    >(
+      'POST',
+      '/api/v1/valrep/planes/producto',
+      { cproducto, centidad, citem },
+      120_000,
+    );
+    const plans = Array.isArray(body.data?.plan) ? body.data!.plan! : [];
+    return { plans, mensaje: String(body.data?.mensaje ?? '') };
+  }
+
+  /** Detalle tarifario de un plan — POST valrep/planes/detalle. */
+  async getPlanDetail(
+    cramo: number,
+    cplan: string,
+  ): Promise<Record<string, unknown>[]> {
+    const body = await this.request<
+      NestEnvelope<{ plan?: Record<string, unknown>[] }>
+    >('POST', '/api/v1/valrep/planes/detalle', { cramo, cplan }, 30_000);
+    return Array.isArray(body.data?.plan) ? body.data!.plan! : [];
+  }
+
   async syncProduct(payload: PartnerProductPayload): Promise<'created' | 'updated'> {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException(
@@ -177,6 +206,7 @@ export class PartnerBridgeService {
     method: string,
     path: string,
     body?: unknown,
+    timeoutMs = 30_000,
   ): Promise<T> {
     const url = `${this.nestBase}${path}`;
     let res: Response;
@@ -185,6 +215,7 @@ export class PartnerBridgeService {
         method,
         headers: await this.authHeaders(),
         body: body != null ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
       this.logger.error(`nest-api partner unreachable: ${method} ${path}`, err);

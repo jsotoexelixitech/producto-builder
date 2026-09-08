@@ -8,6 +8,10 @@ import {
   ListSubBranchesQueryDto,
 } from './dto/core.dto';
 import { Sis2000ProductDto } from './dto/sis2000.dto';
+import {
+  GetSis2000PlanDetailQueryDto,
+  ListSis2000PlansQueryDto,
+} from './dto/sis2000-plans.dto';
 
 @Controller('core')
 export class CoreController {
@@ -64,5 +68,22 @@ export class CoreController {
     @Body() dto: Sis2000ProductDto,
   ) {
     return this.coreService.updateSis2000Product(cproducto, dto);
+  }
+
+  @Get('sis2000/products/:cproducto/plans')
+  listSis2000ProductPlans(
+    @Param('cproducto') cproducto: string,
+    @Query() query: ListSis2000PlansQueryDto,
+  ) {
+    return this.coreService.listSis2000ProductPlans(
+      cproducto,
+      query.centidad,
+      query.citem,
+    );
+  }
+
+  @Get('sis2000/plans/detail')
+  getSis2000PlanDetail(@Query() query: GetSis2000PlanDetailQueryDto) {
+    return this.coreService.getSis2000PlanDetail(query.cramo, query.cplan);
   }
 }
