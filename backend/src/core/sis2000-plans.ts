@@ -7,6 +7,13 @@ export interface Sis2000PlanCoverage {
   pprima: number | null;
 }
 
+export interface Sis2000PlanParentesco {
+  cparen: string;
+  xparentesco: string;
+  min_edad: number | null;
+  max_edad: number | null;
+}
+
 export interface Sis2000Plan {
   cplan: string;
   xplan: string;
@@ -14,11 +21,20 @@ export interface Sis2000Plan {
   cramo: number;
   cproducto: string | null;
   cproductor: number | null;
+  cbeneficiario: number | null;
+  ctenedor: number | null;
   cmoneda: string | null;
   iestado: string | null;
   msumaasegext: number | null;
+  /** Suma asegurada del detalle SP (puede diferir de msumaasegext del listado). */
+  msumaaseg: number | null;
+  itarifa: string | null;
+  nmax_dep: number | null;
+  ctipo: number | null;
+  bnacional: number | null;
+  itiporen: string | null;
   coberturas: Sis2000PlanCoverage[];
-  parentescos: Record<string, unknown>[];
+  parentescos: Sis2000PlanParentesco[];
 }
 
 function trimStr(value: unknown): string | null {
@@ -44,6 +60,15 @@ function normalizeCoverage(row: Record<string, unknown>): Sis2000PlanCoverage {
   };
 }
 
+function normalizeParentesco(row: Record<string, unknown>): Sis2000PlanParentesco {
+  return {
+    cparen: trimStr(row.cparen) ?? String(row.cparen ?? ''),
+    xparentesco: trimStr(row.xparentesco) ?? '',
+    min_edad: toNum(row.min_edad),
+    max_edad: toNum(row.max_edad),
+  };
+}
+
 export function normalizeSis2000Plan(row: Record<string, unknown>): Sis2000Plan {
   const coberturasRaw = Array.isArray(row.coberturas) ? row.coberturas : [];
   const parentescosRaw = Array.isArray(row.parentescos) ? row.parentescos : [];
@@ -55,13 +80,23 @@ export function normalizeSis2000Plan(row: Record<string, unknown>): Sis2000Plan 
     cramo: toNum(row.cramo) ?? 0,
     cproducto: trimStr(row.cproducto),
     cproductor: toNum(row.cproductor),
+    cbeneficiario: toNum(row.cbeneficiario),
+    ctenedor: toNum(row.ctenedor),
     cmoneda: trimStr(row.cmoneda),
     iestado: trimStr(row.iestado),
     msumaasegext: toNum(row.msumaasegext),
+    msumaaseg: toNum(row.msumaaseg),
+    itarifa: trimStr(row.itarifa),
+    nmax_dep: toNum(row.nmax_dep),
+    ctipo: toNum(row.ctipo),
+    bnacional: toNum(row.bnacional),
+    itiporen: trimStr(row.itiporen),
     coberturas: coberturasRaw.map((c) =>
       normalizeCoverage(c as Record<string, unknown>),
     ),
-    parentescos: parentescosRaw as Record<string, unknown>[],
+    parentescos: parentescosRaw.map((p) =>
+      normalizeParentesco(p as Record<string, unknown>),
+    ),
   };
 }
 
