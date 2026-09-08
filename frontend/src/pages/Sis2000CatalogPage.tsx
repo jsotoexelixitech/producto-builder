@@ -6,21 +6,23 @@ import type { Sis2000Product } from '@/lib/sis2000-catalog';
 import {
   boolLabel,
   formatSis2000Value,
-  SIS2000_FIELD_DEFS,
   sis2000SourceLabel,
 } from '@/lib/sis2000-catalog';
+import { Sis2000ProductDetailDialog } from '@/components/sis2000/Sis2000ProductDetailDialog';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export function Sis2000CatalogPage() {
   const [products, setProducts] = useState<Sis2000Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const [detailProduct, setDetailProduct] = useState<Sis2000Product | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -47,7 +49,10 @@ export function Sis2000CatalogPage() {
     );
   }, [products, search]);
 
-  const expanded = filtered.find((p) => p.cproducto === expandedCode);
+  function openDetail(product: Sis2000Product) {
+    setDetailProduct(product);
+    setDetailOpen(true);
+  }
 
   return (
     <AppShell
@@ -75,9 +80,8 @@ export function Sis2000CatalogPage() {
             <div>
               <h2 className="text-sm font-bold text-foreground">Core / Sis2000 QA</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Misma respuesta que nest-api partner: 27 campos por producto. Usa
-                <strong> Ver </strong> para el detalle completo o <strong> Editar </strong> para
-                modificar todos los valores.
+                Pulsa <strong>Ver detalle</strong> para abrir la ficha en un modal con los 27
+                campos, o <strong>Editar</strong> para modificar el producto.
               </p>
             </div>
           </div>
@@ -130,84 +134,67 @@ export function Sis2000CatalogPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p) => (
-                    <tr key={p.cproducto} className="border-b border-border/40 last:border-0">
-                      <td className="px-3 py-3 font-mono text-xs font-semibold">{p.cproducto}</td>
-                      <td className="px-3 py-3 max-w-[200px] truncate">{p.xdescripcion_l}</td>
-                      <td className="px-3 py-3 font-mono text-xs">{p.xabreviatura}</td>
-                      <td className="px-3 py-3 text-xs">{p.xform}</td>
-                      <td className="px-3 py-3 text-xs">{formatSis2000Value(p.cramo)}</td>
-                      <td className="px-3 py-3 text-xs">{formatSis2000Value(p.ctiporamo)}</td>
-                      <td className="px-3 py-3 text-xs">{boolLabel(p.iproductor)}</td>
-                      <td className="px-3 py-3 text-xs">{boolLabel(p.icanal)}</td>
-                      <td className="px-3 py-3">
-                        <Badge variant={p.ifuente === 'API' ? 'approved' : 'draft'}>
-                          {sis2000SourceLabel(p)}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-3 text-xs">{formatSis2000Value(p.mmonto_inicial)}</td>
-                      <td className="px-3 py-3 text-xs">{formatSis2000Value(p.norden)}</td>
-                      <td className="px-3 py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              setExpandedCode(expandedCode === p.cproducto ? null : p.cproducto)
-                            }
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            Ver
-                          </Button>
-                          <Button asChild variant="outline" size="sm">
-                            <Link to={`/sis2000/${encodeURIComponent(p.cproducto)}`}>
-                              <Pencil className="h-3.5 w-3.5" />
-                              Editar
-                            </Link>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((p) => {
+                    const isSelected =
+                      detailOpen && detailProduct?.cproducto === p.cproducto;
+                    return (
+                      <tr
+                        key={p.cproducto}
+                        className={cn(
+                          'border-b border-border/40 last:border-0 transition-colors',
+                          isSelected && 'bg-primary/5',
+                        )}
+                      >
+                        <td className="px-3 py-3 font-mono text-xs font-semibold">{p.cproducto}</td>
+                        <td className="px-3 py-3 max-w-[200px] truncate">{p.xdescripcion_l}</td>
+                        <td className="px-3 py-3 font-mono text-xs">{p.xabreviatura}</td>
+                        <td className="px-3 py-3 text-xs">{p.xform}</td>
+                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.cramo)}</td>
+                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.ctiporamo)}</td>
+                        <td className="px-3 py-3 text-xs">{boolLabel(p.iproductor)}</td>
+                        <td className="px-3 py-3 text-xs">{boolLabel(p.icanal)}</td>
+                        <td className="px-3 py-3">
+                          <Badge variant={p.ifuente === 'API' ? 'approved' : 'draft'}>
+                            {sis2000SourceLabel(p)}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.mmonto_inicial)}</td>
+                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.norden)}</td>
+                        <td className="px-3 py-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant={isSelected ? 'default' : 'outline'}
+                              size="sm"
+                              className={cn(!isSelected && 'border-primary/30 text-primary')}
+                              onClick={() => openDetail(p)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Ver detalle
+                            </Button>
+                            <Button asChild variant="outline" size="sm">
+                              <Link to={`/sis2000/${encodeURIComponent(p.cproducto)}`}>
+                                <Pencil className="h-3.5 w-3.5" />
+                                Editar
+                              </Link>
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
-
-        {expanded && (
-          <section className="rounded-2xl border border-border/60 bg-muted/10 p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-bold">
-                Detalle completo — {expanded.cproducto}
-              </h3>
-              <Button asChild size="sm">
-                <Link to={`/sis2000/${encodeURIComponent(expanded.cproducto)}`}>Editar</Link>
-              </Button>
-            </div>
-            <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {SIS2000_FIELD_DEFS.map(({ key, label }) => {
-                const value = expanded[key];
-                return (
-                  <div key={key} className="rounded-lg border border-border/50 bg-card px-3 py-2">
-                    <dt className="font-mono text-[10px] uppercase text-muted-foreground">
-                      {label}
-                    </dt>
-                    <dd className="mt-1 break-all text-sm">
-                      {value == null || value === ''
-                        ? '—'
-                        : typeof value === 'boolean'
-                          ? boolLabel(value)
-                          : String(value)}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </section>
-        )}
       </div>
+
+      <Sis2000ProductDetailDialog
+        product={detailProduct}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </AppShell>
   );
 }
