@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Database, Eye, Pencil, Plus, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, Database, Eye, EyeOff, Pencil, Plus, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Sis2000Product } from '@/lib/sis2000-catalog';
 import {
@@ -8,7 +8,7 @@ import {
   formatSis2000Value,
   sis2000SourceLabel,
 } from '@/lib/sis2000-catalog';
-import { Sis2000ProductDetailDialog } from '@/components/sis2000/Sis2000ProductDetailDialog';
+import { Sis2000ProductDetailPanel } from '@/components/sis2000/Sis2000ProductDetailPanel';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -16,13 +16,15 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+const TABLE_COLS = 12;
+
 export function Sis2000CatalogPage() {
   const [products, setProducts] = useState<Sis2000Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [detailProduct, setDetailProduct] = useState<Sis2000Product | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const detailRowRef = useRef<HTMLTableRowElement>(null);
 
   async function load() {
     setLoading(true);
@@ -41,6 +43,14 @@ export function Sis2000CatalogPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!expandedCode) return;
+    const timer = window.setTimeout(() => {
+      detailRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [expandedCode]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return products;
@@ -49,9 +59,8 @@ export function Sis2000CatalogPage() {
     );
   }, [products, search]);
 
-  function openDetail(product: Sis2000Product) {
-    setDetailProduct(product);
-    setDetailOpen(true);
+  function toggleDetail(cproducto: string) {
+    setExpandedCode((prev) => (prev === cproducto ? null : cproducto));
   }
 
   return (
@@ -80,8 +89,9 @@ export function Sis2000CatalogPage() {
             <div>
               <h2 className="text-sm font-bold text-foreground">Core / Sis2000 QA</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pulsa <strong>Ver detalle</strong> para abrir la ficha en un modal con los 27
-                campos, o <strong>Editar</strong> para modificar el producto.
+                Pulsa <strong>Ver detalle</strong> y la ficha se despliega{' '}
+                <strong>debajo de esa fila</strong> en la tabla (27 campos). Vuelve a pulsar
+                para cerrarla o usa <strong>Editar</strong> para modificar.
               </p>
             </div>
           </div>
@@ -99,6 +109,7 @@ export function Sis2000CatalogPage() {
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             {filtered.length} de {products.length} productos
+            {expandedCode ? ` · detalle abierto: ${expandedCode}` : ''}
           </p>
         </div>
 
@@ -135,52 +146,78 @@ export function Sis2000CatalogPage() {
                 </thead>
                 <tbody>
                   {filtered.map((p) => {
-                    const isSelected =
-                      detailOpen && detailProduct?.cproducto === p.cproducto;
+                    const isExpanded = expandedCode === p.cproducto;
                     return (
-                      <tr
-                        key={p.cproducto}
-                        className={cn(
-                          'border-b border-border/40 last:border-0 transition-colors',
-                          isSelected && 'bg-primary/5',
+                      <Fragment key={p.cproducto}>
+                        <tr
+                          className={cn(
+                            'border-b border-border/40 transition-colors',
+                            isExpanded
+                              ? 'border-l-4 border-l-primary bg-primary/5'
+                              : 'border-l-4 border-l-transparent',
+                          )}
+                        >
+                          <td className="px-3 py-3 font-mono text-xs font-semibold">
+                            {p.cproducto}
+                          </td>
+                          <td className="px-3 py-3 max-w-[200px] truncate">{p.xdescripcion_l}</td>
+                          <td className="px-3 py-3 font-mono text-xs">{p.xabreviatura}</td>
+                          <td className="px-3 py-3 text-xs">{p.xform}</td>
+                          <td className="px-3 py-3 text-xs">{formatSis2000Value(p.cramo)}</td>
+                          <td className="px-3 py-3 text-xs">{formatSis2000Value(p.ctiporamo)}</td>
+                          <td className="px-3 py-3 text-xs">{boolLabel(p.iproductor)}</td>
+                          <td className="px-3 py-3 text-xs">{boolLabel(p.icanal)}</td>
+                          <td className="px-3 py-3">
+                            <Badge variant={p.ifuente === 'API' ? 'approved' : 'draft'}>
+                              {sis2000SourceLabel(p)}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-3 text-xs">
+                            {formatSis2000Value(p.mmonto_inicial)}
+                          </td>
+                          <td className="px-3 py-3 text-xs">{formatSis2000Value(p.norden)}</td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant={isExpanded ? 'default' : 'outline'}
+                                size="sm"
+                                className={cn(!isExpanded && 'border-primary/30 text-primary')}
+                                onClick={() => toggleDetail(p.cproducto)}
+                              >
+                                {isExpanded ? (
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Eye className="h-3.5 w-3.5" />
+                                )}
+                                {isExpanded ? 'Ocultar' : 'Ver detalle'}
+                                <ChevronDown
+                                  className={cn(
+                                    'h-3.5 w-3.5 transition-transform',
+                                    isExpanded && 'rotate-180',
+                                  )}
+                                />
+                              </Button>
+                              <Button asChild variant="outline" size="sm">
+                                <Link to={`/sis2000/${encodeURIComponent(p.cproducto)}`}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Editar
+                                </Link>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr ref={detailRowRef} className="border-b border-border/40 bg-muted/10">
+                            <td colSpan={TABLE_COLS} className="px-4 py-4">
+                              <Sis2000ProductDetailPanel
+                                product={p}
+                                onClose={() => setExpandedCode(null)}
+                              />
+                            </td>
+                          </tr>
                         )}
-                      >
-                        <td className="px-3 py-3 font-mono text-xs font-semibold">{p.cproducto}</td>
-                        <td className="px-3 py-3 max-w-[200px] truncate">{p.xdescripcion_l}</td>
-                        <td className="px-3 py-3 font-mono text-xs">{p.xabreviatura}</td>
-                        <td className="px-3 py-3 text-xs">{p.xform}</td>
-                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.cramo)}</td>
-                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.ctiporamo)}</td>
-                        <td className="px-3 py-3 text-xs">{boolLabel(p.iproductor)}</td>
-                        <td className="px-3 py-3 text-xs">{boolLabel(p.icanal)}</td>
-                        <td className="px-3 py-3">
-                          <Badge variant={p.ifuente === 'API' ? 'approved' : 'draft'}>
-                            {sis2000SourceLabel(p)}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.mmonto_inicial)}</td>
-                        <td className="px-3 py-3 text-xs">{formatSis2000Value(p.norden)}</td>
-                        <td className="px-3 py-3 text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              type="button"
-                              variant={isSelected ? 'default' : 'outline'}
-                              size="sm"
-                              className={cn(!isSelected && 'border-primary/30 text-primary')}
-                              onClick={() => openDetail(p)}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              Ver detalle
-                            </Button>
-                            <Button asChild variant="outline" size="sm">
-                              <Link to={`/sis2000/${encodeURIComponent(p.cproducto)}`}>
-                                <Pencil className="h-3.5 w-3.5" />
-                                Editar
-                              </Link>
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -189,12 +226,6 @@ export function Sis2000CatalogPage() {
           </div>
         )}
       </div>
-
-      <Sis2000ProductDetailDialog
-        product={detailProduct}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-      />
     </AppShell>
   );
 }
