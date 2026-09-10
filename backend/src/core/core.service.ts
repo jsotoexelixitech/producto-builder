@@ -439,6 +439,149 @@ export class CoreService implements OnModuleInit {
     return { plan: normalizeSis2000Plan(rows[0]) };
   }
 
+  // ── nest-api catalog:sis2000 + partner/starter/plan ─────────────────────
+
+  async listSis2000CatalogMonedas() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listCatalogMonedas();
+  }
+
+  async listSis2000CatalogRamosInternos() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listCatalogRamosInternos();
+  }
+
+  async listSis2000CatalogCoberturasInternas() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listCatalogCoberturasInternas();
+  }
+
+  async listSis2000CatalogTarifasInternas() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listCatalogTarifasInternas();
+  }
+
+  async listSis2000CatalogContratosReaseguro() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listCatalogContratosReaseguro();
+  }
+
+  async listSis2000CatalogRamosReaseguro() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listCatalogRamosReaseguro();
+  }
+
+  async getSis2000CoberturasDefinicion() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.getSis2000CoberturasDefinicion();
+  }
+
+  async listSis2000CoberturasByRamo(cramo: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000CoberturasByRamo(cramo);
+  }
+
+  async getSis2000Cobertura(cramo: string, ccobertura: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.getSis2000Cobertura(cramo, ccobertura);
+  }
+
+  async createSis2000Cobertura(body: Record<string, unknown>) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.createSis2000Cobertura(body);
+  }
+
+  async updateSis2000Cobertura(
+    cramo: string,
+    ccobertura: string,
+    body: Record<string, unknown>,
+  ) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.updateSis2000Cobertura(cramo, ccobertura, body);
+  }
+
+  async getSis2000TarifasDefinicion() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.getSis2000TarifasDefinicion();
+  }
+
+  async getSis2000TarifasDetalleDefinicion() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.getSis2000TarifasDetalleDefinicion();
+  }
+
+  async listSis2000TarifasByRamoCobertura(cramo: string, ccobertura: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000TarifasByRamoCobertura(
+      cramo,
+      ccobertura,
+    );
+  }
+
+  async listSis2000TarifaDetalleHistorico(
+    cramo: string,
+    ccobertura: string,
+    ctarifa: string,
+  ) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000TarifaDetalleHistorico(
+      cramo,
+      ccobertura,
+      ctarifa,
+    );
+  }
+
+  async createSis2000Tarifa(body: Record<string, unknown>) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.createSis2000Tarifa(body);
+  }
+
+  async createSis2000TarifaDetalle(body: Record<string, unknown>) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.createSis2000TarifaDetalle(body);
+  }
+
+  async updateSis2000Tarifa(
+    cramo: string,
+    ccobertura: string,
+    ctarifa: string,
+    body: Record<string, unknown>,
+  ) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.updateSis2000Tarifa(
+      cramo,
+      ccobertura,
+      ctarifa,
+      body,
+    );
+  }
+
+  async listSis2000MasterPlans() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000MasterPlans();
+  }
+
+  async createSis2000MasterPlan(body: Record<string, unknown>) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.createSis2000MasterPlan(body);
+  }
+
+  async updateSis2000MasterPlan(id: string, body: Record<string, unknown>) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.updateSis2000MasterPlan(id, body);
+  }
+
+  async deleteSis2000MasterPlan(id: string) {
+    this.assertPartnerConfigured();
+    await this.partnerBridge.deleteSis2000MasterPlan(id);
+    return { ok: true };
+  }
+
+  async listSis2000PlanFrecuencias(cplan: string, cramo?: number) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listPlanFrecuencias(cplan, cramo);
+  }
+
   private assertPartnerConfigured() {
     if (!this.partnerBridge.isConfigured()) {
       throw new ServiceUnavailableException(

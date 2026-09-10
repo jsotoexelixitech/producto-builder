@@ -93,6 +93,20 @@ export function Sis2000CatalogPage() {
                 <strong>debajo de esa fila</strong> (27 campos + planes y coberturas del
                 producto). Vuelve a pulsar para cerrarla o usa <strong>Editar</strong>.
               </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <Link
+                  to="/sis2000/ramo/18/coberturas"
+                  className="rounded-md border border-primary/30 bg-background px-2 py-1 font-medium text-primary hover:bg-primary/5"
+                >
+                  Coberturas ramo 18
+                </Link>
+                <Link
+                  to="/sis2000/plans"
+                  className="rounded-md border border-primary/30 bg-background px-2 py-1 font-medium text-primary hover:bg-primary/5"
+                >
+                  Planes maestro
+                </Link>
+              </div>
             </div>
           </div>
         </section>

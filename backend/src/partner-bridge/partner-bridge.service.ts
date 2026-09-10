@@ -152,6 +152,264 @@ export class PartnerBridgeService {
     return 'created';
   }
 
+  // ── nest-api catalog:sis2000 — catálogos auxiliares ───────────────────────
+
+  async listCatalogMonedas(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/catalogos/monedas',
+      ),
+    );
+  }
+
+  async listCatalogRamosInternos(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/catalogos/ramos-internos',
+      ),
+    );
+  }
+
+  async listCatalogCoberturasInternas(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/catalogos/coberturas-internas',
+      ),
+    );
+  }
+
+  async listCatalogTarifasInternas(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/catalogos/tarifas-internas',
+      ),
+    );
+  }
+
+  async listCatalogContratosReaseguro(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/catalogos/contratos-reaseguro',
+      ),
+    );
+  }
+
+  async listCatalogRamosReaseguro(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/catalogos/ramos-reaseguro',
+      ),
+    );
+  }
+
+  // ── nest-api catalog:sis2000 — macoberturas ─────────────────────────────
+
+  async getSis2000CoberturasDefinicion(): Promise<unknown> {
+    const body = await this.request<NestEnvelope<unknown>>(
+      'GET',
+      '/api/v1/coberturas/definicion',
+    );
+    return body.data ?? [];
+  }
+
+  async listSis2000CoberturasByRamo(cramo: string): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/coberturas/${encodeURIComponent(cramo)}`,
+      ),
+    );
+  }
+
+  async getSis2000Cobertura(
+    cramo: string,
+    ccobertura: string,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'GET',
+      `/api/v1/coberturas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
+    );
+    return body.data ?? {};
+  }
+
+  async createSis2000Cobertura(
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/coberturas/create',
+      payload,
+    );
+    return body.data ?? payload;
+  }
+
+  async updateSis2000Cobertura(
+    cramo: string,
+    ccobertura: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PUT',
+      `/api/v1/coberturas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
+      payload,
+    );
+    return body.data ?? payload;
+  }
+
+  // ── nest-api catalog:sis2000 — matarifa / matarifa_d ────────────────────
+
+  async getSis2000TarifasDefinicion(): Promise<unknown> {
+    const body = await this.request<NestEnvelope<unknown>>(
+      'GET',
+      '/api/v1/tarifas/definicion',
+    );
+    return body.data ?? [];
+  }
+
+  async getSis2000TarifasDetalleDefinicion(): Promise<unknown> {
+    const body = await this.request<NestEnvelope<unknown>>(
+      'GET',
+      '/api/v1/tarifas/detalles/definicion',
+    );
+    return body.data ?? [];
+  }
+
+  async listSis2000TarifasByRamoCobertura(
+    cramo: string,
+    ccobertura: string,
+  ): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
+      ),
+    );
+  }
+
+  async listSis2000TarifaDetalleHistorico(
+    cramo: string,
+    ccobertura: string,
+    ctarifa: string,
+  ): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}/detalles`,
+      ),
+    );
+  }
+
+  async createSis2000Tarifa(
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/tarifas/create',
+      payload,
+    );
+    return body.data ?? payload;
+  }
+
+  async createSis2000TarifaDetalle(
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/tarifas/detalles/create',
+      payload,
+    );
+    return body.data ?? payload;
+  }
+
+  async updateSis2000Tarifa(
+    cramo: string,
+    ccobertura: string,
+    ctarifa: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PUT',
+      `/api/v1/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}`,
+      payload,
+    );
+    return body.data ?? payload;
+  }
+
+  // ── nest-api partner:starter — maplanes (spMantPlanes) ──────────────────
+
+  async listSis2000MasterPlans(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        '/api/v1/partner/starter/plan',
+      ),
+    );
+  }
+
+  async createSis2000MasterPlan(
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/partner/starter/plan',
+      payload,
+      60_000,
+    );
+    return body.data ?? payload;
+  }
+
+  async updateSis2000MasterPlan(
+    id: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PUT',
+      `/api/v1/partner/starter/plan/${encodeURIComponent(id)}`,
+      payload,
+      60_000,
+    );
+    return body.data ?? payload;
+  }
+
+  async deleteSis2000MasterPlan(id: string): Promise<void> {
+    await this.request<NestEnvelope<unknown>>(
+      'DELETE',
+      `/api/v1/partner/starter/plan/${encodeURIComponent(id)}`,
+      undefined,
+      60_000,
+    );
+  }
+
+  /** Frecuencias de pago — POST valrep/frecuencia (auxiliar formulario plan). */
+  async listPlanFrecuencias(
+    cplan: string,
+    cramo?: number,
+  ): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'POST',
+        '/api/v1/valrep/frecuencia',
+        { cplan, cramo },
+      ),
+    );
+  }
+
+  static planMasterId(cramo: number | string, cplan: string): string {
+    return `${cramo}-${String(cplan).trim()}`;
+  }
+
+  private unwrapDataArray(body: NestEnvelope<unknown[]>): Record<string, unknown>[] {
+    return Array.isArray(body.data)
+      ? (body.data as Record<string, unknown>[])
+      : [];
+  }
+
   private async ensureAccessToken(): Promise<string> {
     const now = Date.now();
     if (this.cachedToken && this.cachedToken.expiresAt > now + 30_000) {

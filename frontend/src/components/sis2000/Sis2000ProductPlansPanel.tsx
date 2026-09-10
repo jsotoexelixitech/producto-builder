@@ -7,6 +7,7 @@ import {
   SIS2000_PLAN_SCALAR_FIELDS,
   type Sis2000Plan,
 } from '@/lib/sis2000-plans';
+import { Sis2000CoverageNestPanel } from '@/components/sis2000/Sis2000CoverageNestPanel';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -198,6 +199,7 @@ function PlanDetailBlock({ plan }: { plan: Sis2000Plan }) {
   const [fullPlan, setFullPlan] = useState<Sis2000Plan>(plan);
   const [detailLoading, setDetailLoading] = useState(true);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [expandedCov, setExpandedCov] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -303,22 +305,48 @@ function PlanDetailBlock({ plan }: { plan: Sis2000Plan }) {
                   <th className="px-3 py-2">Suma máx</th>
                   <th className="px-3 py-2">Prima</th>
                   <th className="px-3 py-2">% prima</th>
+                  <th className="px-3 py-2 text-right">Maestro</th>
                 </tr>
               </thead>
               <tbody>
-                {fullPlan.coberturas.map((c) => (
-                  <tr
-                    key={`${c.ccobertura}-${c.xcobertura}`}
-                    className="border-b border-border/30"
-                  >
-                    <td className="px-3 py-2 font-mono">{c.ccobertura}</td>
-                    <td className="px-3 py-2">{c.xcobertura}</td>
-                    <td className="px-3 py-2">{formatPlanMoney(c.msumamin)}</td>
-                    <td className="px-3 py-2">{formatPlanMoney(c.msumamax)}</td>
-                    <td className="px-3 py-2">{formatPlanMoney(c.mprima)}</td>
-                    <td className="px-3 py-2">{formatPlanMoney(c.pprima)}</td>
-                  </tr>
-                ))}
+                {fullPlan.coberturas.map((c) => {
+                  const covKey = String(c.ccobertura);
+                  const isCovOpen = expandedCov === covKey;
+                  return (
+                    <Fragment key={`${c.ccobertura}-${c.xcobertura}`}>
+                      <tr className="border-b border-border/30">
+                        <td className="px-3 py-2 font-mono">{c.ccobertura}</td>
+                        <td className="px-3 py-2">{c.xcobertura}</td>
+                        <td className="px-3 py-2">{formatPlanMoney(c.msumamin)}</td>
+                        <td className="px-3 py-2">{formatPlanMoney(c.msumamax)}</td>
+                        <td className="px-3 py-2">{formatPlanMoney(c.mprima)}</td>
+                        <td className="px-3 py-2">{formatPlanMoney(c.pprima)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            type="button"
+                            variant={isCovOpen ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() =>
+                              setExpandedCov((prev) => (prev === covKey ? null : covKey))
+                            }
+                          >
+                            {isCovOpen ? 'Ocultar' : 'Sis2000'}
+                          </Button>
+                        </td>
+                      </tr>
+                      {isCovOpen && c.ccobertura != null && (
+                        <tr className="border-b border-border/30">
+                          <td colSpan={7} className="px-3 py-2">
+                            <Sis2000CoverageNestPanel
+                              cramo={fullPlan.cramo}
+                              ccobertura={String(c.ccobertura)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

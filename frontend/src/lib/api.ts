@@ -272,4 +272,108 @@ export const api = {
     request<{ plan: import('@/lib/sis2000-plans').Sis2000Plan }>(
       `/core/sis2000/plans/detail?cramo=${encodeURIComponent(String(cramo))}&cplan=${encodeURIComponent(cplan)}`,
     ),
+
+  // Catálogos auxiliares (combos formulario plan)
+  listSis2000CatalogMonedas: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/catalogos/monedas'),
+  listSis2000CatalogRamosInternos: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      '/core/sis2000/catalogos/ramos-internos',
+    ),
+  listSis2000CatalogCoberturasInternas: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      '/core/sis2000/catalogos/coberturas-internas',
+    ),
+  listSis2000CatalogTarifasInternas: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      '/core/sis2000/catalogos/tarifas-internas',
+    ),
+  listSis2000CatalogContratosReaseguro: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      '/core/sis2000/catalogos/contratos-reaseguro',
+    ),
+  listSis2000CatalogRamosReaseguro: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      '/core/sis2000/catalogos/ramos-reaseguro',
+    ),
+
+  // Coberturas maestro
+  getSis2000CoberturasDefinicion: () =>
+    request<unknown>('/core/sis2000/coberturas/definicion'),
+  listSis2000CoberturasByRamo: (cramo: number) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      `/core/sis2000/coberturas/${encodeURIComponent(String(cramo))}`,
+    ),
+  getSis2000Cobertura: (cramo: number, ccobertura: string) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>(
+      `/core/sis2000/coberturas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}`,
+    ),
+  createSis2000Cobertura: (body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>('/core/sis2000/coberturas', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateSis2000Cobertura: (
+    cramo: number,
+    ccobertura: string,
+    body: Record<string, unknown>,
+  ) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>(
+      `/core/sis2000/coberturas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+
+  // Tarifas
+  getSis2000TarifasDefinicion: () =>
+    request<unknown>('/core/sis2000/tarifas/definicion'),
+  listSis2000Tarifas: (cramo: number, ccobertura: string) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      `/core/sis2000/tarifas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}`,
+    ),
+  listSis2000TarifaDetalleHistorico: (
+    cramo: number,
+    ccobertura: string,
+    ctarifa: string,
+  ) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
+      `/core/sis2000/tarifas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}/detalles`,
+    ),
+  createSis2000Tarifa: (body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>('/core/sis2000/tarifas', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateSis2000Tarifa: (
+    cramo: number,
+    ccobertura: string,
+    ctarifa: string,
+    body: Record<string, unknown>,
+  ) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>(
+      `/core/sis2000/tarifas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+
+  // Planes maestro (spMantPlanes)
+  listSis2000MasterPlans: () =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/plans/master'),
+  createSis2000MasterPlan: (body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>('/core/sis2000/plans', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateSis2000MasterPlan: (id: string, body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>(
+      `/core/sis2000/plans/${encodeURIComponent(id)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  deleteSis2000MasterPlan: (id: string) =>
+    request<{ ok: boolean }>(`/core/sis2000/plans/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+  listSis2000PlanFrecuencias: (cplan: string, cramo?: number) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/plans/frecuencias', {
+      method: 'POST',
+      body: JSON.stringify({ cplan, cramo }),
+    }),
 };
