@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Shield } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNestRowValue, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
@@ -60,10 +60,18 @@ export function Sis2000RamoCoveragesPage() {
             nest-api GET /api/v1/coberturas/{cramo} → macoberturas
           </p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-          Recargar
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+            Recargar
+          </Button>
+          <Link to={`/sis2000/ramo/${cramo}/coberturas/new`}>
+            <Button type="button" size="sm">
+              <Plus className="h-3.5 w-3.5" />
+              Nueva cobertura
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 max-w-md">
@@ -84,7 +92,7 @@ export function Sis2000RamoCoveragesPage() {
                 <th className="px-3 py-2">ccobertura</th>
                 <th className="px-3 py-2">Descripción</th>
                 <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2 text-right">Tarifas</th>
+                <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -99,12 +107,20 @@ export function Sis2000RamoCoveragesPage() {
                     <td className="px-3 py-2 text-xs">{formatNestRowValue(row.iestado)}</td>
                     <td className="px-3 py-2 text-right">
                       {ccob && (
-                        <Link
-                          to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/tarifas`}
-                          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                        >
-                          Ver tarifas
-                        </Link>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Link
+                            to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/edit`}
+                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                          >
+                            Editar
+                          </Link>
+                          <Link
+                            to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/tarifas`}
+                            className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+                          >
+                            Tarifas
+                          </Link>
+                        </div>
                       )}
                     </td>
                   </tr>

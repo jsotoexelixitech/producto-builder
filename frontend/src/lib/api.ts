@@ -264,10 +264,18 @@ export const api = {
       `/core/sis2000/products/${encodeURIComponent(cproducto)}`,
       { method: 'PUT', body: JSON.stringify(body) },
     ),
-  listSis2000ProductPlans: (cproducto: string) =>
-    request<import('@/lib/sis2000-plans').Sis2000ProductPlansResponse>(
-      `/core/sis2000/products/${encodeURIComponent(cproducto)}/plans`,
-    ),
+  listSis2000ProductPlans: (
+    cproducto: string,
+    opts?: { centidad?: string; citem?: string },
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts?.centidad?.trim()) qs.set('centidad', opts.centidad.trim());
+    if (opts?.citem?.trim()) qs.set('citem', opts.citem.trim());
+    const q = qs.toString();
+    return request<import('@/lib/sis2000-plans').Sis2000ProductPlansResponse>(
+      `/core/sis2000/products/${encodeURIComponent(cproducto)}/plans${q ? `?${q}` : ''}`,
+    );
+  },
   getSis2000PlanDetail: (cramo: number, cplan: string) =>
     request<{ plan: import('@/lib/sis2000-plans').Sis2000Plan }>(
       `/core/sis2000/plans/detail?cramo=${encodeURIComponent(String(cramo))}&cplan=${encodeURIComponent(cplan)}`,
@@ -326,6 +334,8 @@ export const api = {
   // Tarifas
   getSis2000TarifasDefinicion: () =>
     request<unknown>('/core/sis2000/tarifas/definicion'),
+  getSis2000TarifasDetalleDefinicion: () =>
+    request<unknown>('/core/sis2000/tarifas/detalles/definicion'),
   listSis2000Tarifas: (cramo: number, ccobertura: string) =>
     request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>(
       `/core/sis2000/tarifas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}`,
@@ -353,6 +363,11 @@ export const api = {
       `/core/sis2000/tarifas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}`,
       { method: 'PUT', body: JSON.stringify(body) },
     ),
+  createSis2000TarifaDetalle: (body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow>('/core/sis2000/tarifas/detalles', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   // Planes maestro (spMantPlanes)
   listSis2000MasterPlans: () =>

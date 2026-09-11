@@ -13,6 +13,10 @@ import { Sis2000RamoCoveragesPage } from './pages/Sis2000RamoCoveragesPage';
 import { Sis2000TarifasPage } from './pages/Sis2000TarifasPage';
 import { Sis2000MasterPlansPage } from './pages/Sis2000MasterPlansPage';
 import { Sis2000PlanFormPage } from './pages/Sis2000PlanFormPage';
+import { Sis2000CoberturaFormPage } from './pages/Sis2000CoberturaFormPage';
+import { Sis2000TarifaFormPage } from './pages/Sis2000TarifaFormPage';
+import { Sis2000TarifaDetallePage } from './pages/Sis2000TarifaDetallePage';
+import { Sis2000TarifaDetalleFormPage } from './pages/Sis2000TarifaDetalleFormPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
 import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
@@ -122,6 +126,54 @@ function Root() {
             element={
               <AuthGate>
                 <Sis2000MasterPlansPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/ramo/:cramo/coberturas/new"
+            element={
+              <AuthGate>
+                <Sis2000CoberturaFormPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/ramo/:cramo/coberturas/:ccobertura/edit"
+            element={
+              <AuthGate>
+                <Sis2000CoberturaFormPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/ramo/:cramo/coberturas/:ccobertura/tarifas/new"
+            element={
+              <AuthGate>
+                <Sis2000TarifaFormPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/ramo/:cramo/coberturas/:ccobertura/tarifas/:ctarifa/edit"
+            element={
+              <AuthGate>
+                <Sis2000TarifaFormPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/ramo/:cramo/coberturas/:ccobertura/tarifas/:ctarifa/detalles/new"
+            element={
+              <AuthGate>
+                <Sis2000TarifaDetalleFormPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/ramo/:cramo/coberturas/:ccobertura/tarifas/:ctarifa/detalles"
+            element={
+              <AuthGate>
+                <Sis2000TarifaDetallePage />
               </AuthGate>
             }
           />

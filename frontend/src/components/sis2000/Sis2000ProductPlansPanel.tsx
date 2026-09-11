@@ -11,7 +11,12 @@ import { Sis2000CoverageNestPanel } from '@/components/sis2000/Sis2000CoverageNe
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+
+const DEFAULT_CENTIDAD = 'P';
+const DEFAULT_CITEM = '80080';
 
 interface Sis2000ProductPlansPanelProps {
   cproducto: string;
@@ -20,17 +25,26 @@ interface Sis2000ProductPlansPanelProps {
 export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanelProps) {
   const [plans, setPlans] = useState<Sis2000Plan[]>([]);
   const [mensaje, setMensaje] = useState('');
+  const [centidad, setCentidad] = useState(DEFAULT_CENTIDAD);
+  const [citem, setCitem] = useState(DEFAULT_CITEM);
+  const [appliedEntity, setAppliedEntity] = useState(DEFAULT_CENTIDAD);
+  const [appliedItem, setAppliedItem] = useState(DEFAULT_CITEM);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
-  async function load() {
+  async function load(entity = centidad, item = citem) {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.listSis2000ProductPlans(cproducto);
+      const res = await api.listSis2000ProductPlans(cproducto, {
+        centidad: entity,
+        citem: item,
+      });
       setPlans(res.plans);
       setMensaje(res.mensaje);
+      setAppliedEntity(res.centidad);
+      setAppliedItem(res.citem);
       setExpandedKey(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron cargar los planes');
@@ -41,7 +55,9 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
   }
 
   useEffect(() => {
-    void load();
+    setCentidad(DEFAULT_CENTIDAD);
+    setCitem(DEFAULT_CITEM);
+    void load(DEFAULT_CENTIDAD, DEFAULT_CITEM);
   }, [cproducto]);
 
   function planKey(plan: Sis2000Plan) {
@@ -63,7 +79,12 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
               Planes del producto {cproducto}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              valrep/planes/producto + detalle por plan · puede tardar ~1 min en RCV
+              valrep/planes/producto + detalle · consulta catálogo (sin emisión de pólizas)
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Entidad aplicada: <strong>{appliedEntity}</strong> / ítem{' '}
+              <strong>{appliedItem}</strong>
+              {loading ? '' : ' · puede tardar ~1 min en RCV'}
             </p>
           </div>
         </div>
@@ -71,7 +92,7 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
           type="button"
           variant="outline"
           size="sm"
-          onClick={load}
+          onClick={() => void load()}
           disabled={loading}
         >
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
@@ -80,6 +101,41 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
+
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-border/50 bg-muted/20 p-3">
+        <div className="space-y-1">
+          <Label htmlFor={`centidad-${cproducto}`} className="text-xs">
+            centidad
+          </Label>
+          <Input
+            id={`centidad-${cproducto}`}
+            className="h-8 w-16 font-mono text-xs uppercase"
+            maxLength={1}
+            value={centidad}
+            onChange={(e) => setCentidad(e.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`citem-${cproducto}`} className="text-xs">
+            citem (productor)
+          </Label>
+          <Input
+            id={`citem-${cproducto}`}
+            className="h-8 w-28 font-mono text-xs"
+            value={citem}
+            onChange={(e) => setCitem(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={loading}
+          onClick={() => void load()}
+        >
+          Aplicar filtro
+        </Button>
+      </div>
 
       {loading && (
         <div className="space-y-2">
@@ -91,7 +147,8 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
 
       {!loading && !error && plans.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Sin planes asociados para este producto y entidad (P/80080).
+          Sin planes para producto {cproducto} con entidad {appliedEntity} / ítem{' '}
+          {appliedItem}.
         </p>
       )}
 

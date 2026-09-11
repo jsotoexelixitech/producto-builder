@@ -93,6 +93,11 @@ export function Sis2000CatalogPage() {
                 <strong>debajo de esa fila</strong> (27 campos + planes y coberturas del
                 producto). Vuelve a pulsar para cerrarla o usa <strong>Editar</strong>.
               </p>
+              <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                Solo consulta y mantenimiento de catálogo Sis2000 (productos, planes,
+                coberturas, tarifas). <strong>No emite pólizas</strong> ni usa
+                patrimonial/emit.
+              </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <Link
                   to="/sis2000/ramo/18/coberturas"

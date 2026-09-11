@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Layers, Plus, RefreshCw } from 'lucide-react';
+import { Layers, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   formatNestRowValue,
@@ -19,6 +19,7 @@ export function Sis2000MasterPlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [ramoFilter, setRamoFilter] = useState('18');
   const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -48,6 +49,30 @@ export function Sis2000MasterPlansPage() {
     });
   }, [plans, search, ramoFilter]);
 
+  async function handleDelete(id: string, cplan: string) {
+    if (
+      !window.confirm(
+        `¿Eliminar plan maestro ${cplan} (${id})? Esta acción usa DELETE en nest-api/spMantPlanes.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(id);
+    setError(null);
+    try {
+      await api.deleteSis2000MasterPlan(id);
+      setPlans((prev) =>
+        prev.filter(
+          (p) => sis2000PlanMasterId(String(p.cramo ?? ''), String(p.cplan ?? '')) !== id,
+        ),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar el plan');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <AppShell title="Planes maestro Sis2000">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -63,7 +88,10 @@ export function Sis2000MasterPlansPage() {
             Planes maestro (maplanes)
           </h1>
           <p className="text-xs text-muted-foreground">
-            nest-api GET /api/v1/partner/starter/plan · edición vía spMantPlanes
+            nest-api GET /api/v1/partner/starter/plan · mantenimiento maplanes (spMantPlanes)
+          </p>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+            Catálogo de planes — no emite pólizas (no usar patrimonial/emit).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -106,7 +134,7 @@ export function Sis2000MasterPlansPage() {
                 <th className="px-3 py-2">Nombre</th>
                 <th className="px-3 py-2">Ramo</th>
                 <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2 text-right">Editar</th>
+                <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -122,12 +150,23 @@ export function Sis2000MasterPlansPage() {
                     <td className="px-3 py-2 text-xs">{formatNestRowValue(p.iestado)}</td>
                     <td className="px-3 py-2 text-right">
                       {cplan && cramo && (
-                        <Link
-                          to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
-                          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                        >
-                          Editar
-                        </Link>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Link
+                            to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
+                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                          >
+                            Editar
+                          </Link>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+                            disabled={deletingId === id}
+                            onClick={() => void handleDelete(id, cplan)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            {deletingId === id ? '…' : 'Eliminar'}
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

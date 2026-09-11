@@ -29,6 +29,50 @@ export function sis2000PlanMasterId(cramo: number | string, cplan: string): stri
   return `${cramo}-${String(cplan).trim()}`;
 }
 
+export function defaultCoberturaPayload(cramo: number): Record<string, unknown> {
+  return {
+    operation: 'I',
+    cusuario: 4,
+    cramo,
+    ccobertura: '',
+    xcobertura: '',
+    xdescripcion_l: '',
+    iestado: 'A',
+    cmoneda: 'USD',
+  };
+}
+
+export function defaultTarifaPayload(cramo: number, ccobertura: string): Record<string, unknown> {
+  return {
+    operation: 'I',
+    cusuario: 4,
+    cramo,
+    ccobertura,
+    ctarifa: '',
+    xdescripcion_l: '',
+    iestado: 'A',
+    cmoneda: 'USD',
+  };
+}
+
+export function defaultTarifaDetallePayload(
+  cramo: number,
+  ccobertura: string,
+  ctarifa: string,
+): Record<string, unknown> {
+  return {
+    operation: 'I',
+    cusuario: 4,
+    cramo,
+    ccobertura,
+    ctarifa,
+    fdesde: '2020-01-01',
+    fhasta: '2099-12-31',
+    mprima: 0,
+    pprima: 0,
+  };
+}
+
 export function formatNestRowValue(value: unknown): string {
   if (value == null || value === '') return '—';
   if (typeof value === 'object') return JSON.stringify(value);

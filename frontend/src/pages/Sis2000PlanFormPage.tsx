@@ -43,6 +43,32 @@ export function Sis2000PlanFormPage() {
     void api.listSis2000CatalogMonedas().then(setMonedas).catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    setError(null);
+    void (async () => {
+      try {
+        const plans = await api.listSis2000MasterPlans();
+        const [cramoPart, ...planParts] = id.split('-');
+        const cplanPart = planParts.join('-');
+        const match = plans.find(
+          (p) =>
+            String(p.cramo ?? '') === cramoPart &&
+            String(p.cplan ?? '').trim() === cplanPart.trim(),
+        );
+        if (!match) {
+          setError(`Plan ${id} no encontrado en catálogo maestro`);
+          return;
+        }
+        setCplanQuick(String(match.cplan ?? ''));
+        setCramoQuick(String(match.cramo ?? '18'));
+        setJsonText(JSON.stringify({ ...match, operation: 'U', type: 'plan' }, null, 2));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error al cargar plan');
+      }
+    })();
+  }, [id, isEdit]);
+
   async function loadFrecuencias() {
     setLoadingFrec(true);
     setError(null);
@@ -101,8 +127,11 @@ export function Sis2000PlanFormPage() {
       <h1 className="mb-1 text-lg font-bold">
         {isEdit ? `Editar plan ${id}` : 'Crear plan maestro'}
       </h1>
-      <p className="mb-4 text-xs text-muted-foreground">
-        POST/PUT nest-api /api/v1/partner/starter/plan → spMantPlanes
+      <p className="mb-1 text-xs text-muted-foreground">
+        POST/PUT nest-api /api/v1/partner/starter/plan → spMantPlanes (catálogo maplanes)
+      </p>
+      <p className="mb-4 text-xs text-amber-800 dark:text-amber-200">
+        Mantenimiento de plan en Sis2000 — no emite pólizas.
       </p>
 
       {error && <Alert variant="error" className="mb-3">{error}</Alert>}
