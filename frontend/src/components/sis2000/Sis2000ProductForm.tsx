@@ -1,7 +1,10 @@
 import {
   SIS2000_FIELD_DEFS,
   SIS2000_SECTION_LABELS,
+  SIS2000_XFORM_CTIRAMO,
   SIS2000_XFORM_OPTIONS,
+  SIS2000_XFORM_SUGGESTED_CRAMO,
+  shouldShowSis2000FormField,
   type Sis2000FieldDef,
   type Sis2000ProductInput,
 } from '@/lib/sis2000-catalog';
@@ -35,6 +38,10 @@ function displayInputValue(
   return String(value);
 }
 
+function fieldLabel(def: Sis2000FieldDef): string {
+  return def.required ? `${def.label} *` : def.label;
+}
+
 function renderField(
   def: Sis2000FieldDef,
   form: Sis2000ProductInput,
@@ -43,7 +50,7 @@ function renderField(
 ) {
   if (def.createOnly && !isNew) {
     return (
-      <FormField key={def.key} label={def.label} hint={def.hint}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint}>
         <Input value={String(form[def.key] ?? '')} disabled readOnly />
       </FormField>
     );
@@ -56,7 +63,7 @@ function renderField(
       <ToggleField
         key={def.key}
         id={def.key}
-        label={def.label}
+        label={fieldLabel(def)}
         description={def.hint}
         checked={Boolean(form[def.key])}
         onChange={(v) => onPatch(def.key, v as Sis2000ProductInput[typeof def.key])}
@@ -73,7 +80,7 @@ function renderField(
           ? 'true'
           : 'false';
     return (
-      <FormField key={def.key} label={def.label} hint={def.hint} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
         <Select
           value={current}
           onValueChange={(v) =>
@@ -98,10 +105,20 @@ function renderField(
 
   if (def.type === 'select' && def.key === 'xform') {
     return (
-      <FormField key={def.key} label={def.label} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} className={wideClass}>
         <Select
           value={form.xform}
-          onValueChange={(v) => onPatch('xform', v)}
+          onValueChange={(v) => {
+            onPatch('xform', v);
+            const ctiporamo = SIS2000_XFORM_CTIRAMO[v];
+            if (ctiporamo != null) {
+              onPatch('ctiporamo', ctiporamo);
+            }
+            const suggestedCramo = SIS2000_XFORM_SUGGESTED_CRAMO[v];
+            if (suggestedCramo != null && (form.cramo == null || form.cramo === 0)) {
+              onPatch('cramo', suggestedCramo);
+            }
+          }}
         >
           <SelectTrigger>
             <SelectValue />
@@ -120,7 +137,7 @@ function renderField(
 
   if (def.type === 'number') {
     return (
-      <FormField key={def.key} label={def.label} hint={def.hint} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
         <Input
           type="number"
           value={displayInputValue(form, def.key)}
@@ -136,7 +153,7 @@ function renderField(
   }
 
   return (
-    <FormField key={def.key} label={def.label} hint={def.hint} className={wideClass}>
+    <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
       <Input
         value={displayInputValue(form, def.key)}
         onChange={(e) => {
@@ -165,14 +182,18 @@ export function Sis2000ProductForm({ form, isNew, onPatch }: Sis2000ProductFormP
           title={SIS2000_SECTION_LABELS[section]}
           description={
             section === 'auditoria'
-              ? 'Campos devueltos por list/detail partner — editables en QA.'
-              : undefined
+              ? isNew
+                ? 'Solo ifuente/cprog en alta; el resto lo asigna Sis2000.'
+                : 'Campos devueltos por list/detail partner — editables en QA.'
+              : section === 'clasificacion' && isNew
+                ? 'Patrimonial Pastora: xform general-risk, cramo 10, ctiporamo 6.'
+                : undefined
           }
         >
           <FormGrid>
-            {SIS2000_FIELD_DEFS.filter((def) => def.section === section).map((def) =>
-              renderField(def, form, isNew, onPatch),
-            )}
+            {SIS2000_FIELD_DEFS.filter(
+              (def) => def.section === section && shouldShowSis2000FormField(def, isNew),
+            ).map((def) => renderField(def, form, isNew, onPatch))}
           </FormGrid>
         </SectionPanel>
       ))}

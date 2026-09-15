@@ -39,18 +39,100 @@ export interface Sis2000FieldDef {
   hint?: string;
   section: 'identificacion' | 'clasificacion' | 'comercial' | 'auditoria';
   createOnly?: boolean;
+  hideOnCreate?: boolean;
+  required?: boolean;
   wide?: boolean;
 }
 
+/** ctiporamo sugerido al elegir xform (mapa Sis2000 / partner). */
+export const SIS2000_XFORM_CTIRAMO: Record<string, number> = {
+  persons: 2,
+  'persons-ind': 2,
+  automobile: 7,
+  'rcv-external': 7,
+  traveler: 4,
+  'alt-traveler': 4,
+  'general-risk': 6,
+  embarcaciones: 6,
+};
+
+/** cramo típico por xform (confirmar con LM). */
+export const SIS2000_XFORM_SUGGESTED_CRAMO: Record<string, number> = {
+  persons: 8,
+  'persons-ind': 8,
+  automobile: 18,
+  'rcv-external': 18,
+  traveler: 5,
+  'alt-traveler': 5,
+  'general-risk': 10,
+  embarcaciones: 20,
+};
+
+/** Campos de auditoría que Sis2000 rellena al crear — no mostrar en /new. */
+export const SIS2000_AUDITORIA_HIDE_ON_CREATE: ReadonlySet<keyof Sis2000Product> = new Set([
+  'fingreso',
+  'fultmod',
+  'cusuario',
+  'ccategoria',
+  'cusuarioauto',
+  'ccategoriaauto',
+  'cusuariomod',
+  'ccategoriamod',
+  'bok',
+  'cerror',
+]);
+
 export const SIS2000_FIELD_DEFS: Sis2000FieldDef[] = [
-  { key: 'cproducto', label: 'cproducto', type: 'text', section: 'identificacion', hint: 'Máx. 6 caracteres', createOnly: true },
-  { key: 'xdescripcion_l', label: 'xdescripcion_l', type: 'text', section: 'identificacion', wide: true },
-  { key: 'xabreviatura', label: 'xabreviatura', type: 'text', section: 'identificacion', hint: 'Máx. 5 caracteres' },
+  {
+    key: 'cproducto',
+    label: 'cproducto',
+    type: 'text',
+    section: 'identificacion',
+    hint: 'Máx. 6 caracteres alfanuméricos',
+    createOnly: true,
+    required: true,
+  },
+  {
+    key: 'xdescripcion_l',
+    label: 'xdescripcion_l',
+    type: 'text',
+    section: 'identificacion',
+    wide: true,
+    required: true,
+  },
+  {
+    key: 'xabreviatura',
+    label: 'xabreviatura',
+    type: 'text',
+    section: 'identificacion',
+    hint: 'Máx. 5 caracteres',
+    required: true,
+  },
   { key: 'xdescripcion_c', label: 'xdescripcion_c (icono)', type: 'text', section: 'identificacion' },
   { key: 'u_version', label: 'u_version', type: 'text', section: 'identificacion', hint: 'Ej. !' },
-  { key: 'xform', label: 'xform', type: 'select', section: 'clasificacion' },
-  { key: 'cramo', label: 'cramo', type: 'number', section: 'clasificacion' },
-  { key: 'ctiporamo', label: 'ctiporamo', type: 'number', section: 'clasificacion' },
+  {
+    key: 'xform',
+    label: 'xform',
+    type: 'select',
+    section: 'clasificacion',
+    required: true,
+    hint: 'Patrimonial / Pastora → general-risk',
+  },
+  {
+    key: 'cramo',
+    label: 'cramo',
+    type: 'number',
+    section: 'clasificacion',
+    required: true,
+    hint: 'Ej. 10 patrimonial, 18 RCV — confirmar con LM',
+  },
+  {
+    key: 'ctiporamo',
+    label: 'ctiporamo',
+    type: 'number',
+    section: 'clasificacion',
+    hint: 'Se sugiere al cambiar xform (patrimonial = 6)',
+  },
   { key: 'norden', label: 'norden', type: 'number', section: 'clasificacion' },
   { key: 'iproductor', label: 'iproductor', type: 'boolean', section: 'clasificacion' },
   { key: 'icanal', label: 'icanal', type: 'boolean', section: 'clasificacion' },
@@ -60,16 +142,34 @@ export const SIS2000_FIELD_DEFS: Sis2000FieldDef[] = [
   { key: 'xurl_presentacion', label: 'xurl_presentacion', type: 'text', section: 'comercial', wide: true },
   { key: 'ifuente', label: 'ifuente', type: 'text', section: 'auditoria', hint: 'SQL / API' },
   { key: 'cprog', label: 'cprog', type: 'text', section: 'auditoria' },
-  { key: 'fingreso', label: 'fingreso', type: 'text', section: 'auditoria' },
-  { key: 'fultmod', label: 'fultmod', type: 'text', section: 'auditoria' },
-  { key: 'cusuario', label: 'cusuario', type: 'number', section: 'auditoria' },
-  { key: 'ccategoria', label: 'ccategoria', type: 'number', section: 'auditoria' },
-  { key: 'cusuarioauto', label: 'cusuarioauto', type: 'number', section: 'auditoria' },
-  { key: 'ccategoriaauto', label: 'ccategoriaauto', type: 'number', section: 'auditoria' },
-  { key: 'cusuariomod', label: 'cusuariomod', type: 'number', section: 'auditoria' },
-  { key: 'ccategoriamod', label: 'ccategoriamod', type: 'number', section: 'auditoria' },
-  { key: 'bok', label: 'bok', type: 'tri-bool', section: 'auditoria' },
-  { key: 'cerror', label: 'cerror', type: 'text', section: 'auditoria', wide: true },
+  { key: 'fingreso', label: 'fingreso', type: 'text', section: 'auditoria', hideOnCreate: true },
+  { key: 'fultmod', label: 'fultmod', type: 'text', section: 'auditoria', hideOnCreate: true },
+  { key: 'cusuario', label: 'cusuario', type: 'number', section: 'auditoria', hideOnCreate: true },
+  { key: 'ccategoria', label: 'ccategoria', type: 'number', section: 'auditoria', hideOnCreate: true },
+  {
+    key: 'cusuarioauto',
+    label: 'cusuarioauto',
+    type: 'number',
+    section: 'auditoria',
+    hideOnCreate: true,
+  },
+  {
+    key: 'ccategoriaauto',
+    label: 'ccategoriaauto',
+    type: 'number',
+    section: 'auditoria',
+    hideOnCreate: true,
+  },
+  { key: 'cusuariomod', label: 'cusuariomod', type: 'number', section: 'auditoria', hideOnCreate: true },
+  {
+    key: 'ccategoriamod',
+    label: 'ccategoriamod',
+    type: 'number',
+    section: 'auditoria',
+    hideOnCreate: true,
+  },
+  { key: 'bok', label: 'bok', type: 'tri-bool', section: 'auditoria', hideOnCreate: true },
+  { key: 'cerror', label: 'cerror', type: 'text', section: 'auditoria', wide: true, hideOnCreate: true },
 ];
 
 export const SIS2000_XFORM_OPTIONS = [
@@ -161,4 +261,50 @@ export function shouldShowSis2000ProductField(
 export function boolLabel(value: boolean | null | undefined): string {
   if (value == null) return '—';
   return value ? 'Sí' : 'No';
+}
+
+export function shouldShowSis2000FormField(def: Sis2000FieldDef, isNew: boolean): boolean {
+  if (isNew && def.hideOnCreate) return false;
+  if (isNew && SIS2000_AUDITORIA_HIDE_ON_CREATE.has(def.key)) return false;
+  return true;
+}
+
+/** Valida antes de POST partner/products/create. */
+export function validateSis2000ProductForSave(form: Sis2000ProductInput): string[] {
+  const errors: string[] = [];
+  const code = form.cproducto.trim().toUpperCase();
+  if (code.length < 2 || code.length > 6 || !/^[A-Z0-9]+$/.test(code)) {
+    errors.push('cproducto: 2–6 caracteres alfanuméricos.');
+  }
+  if (form.xdescripcion_l.trim().length < 2) {
+    errors.push('xdescripcion_l: mínimo 2 caracteres.');
+  }
+  const abrev = form.xabreviatura.trim().toUpperCase();
+  if (abrev.length < 2 || abrev.length > 5 || !/^[A-Z0-9]+$/.test(abrev)) {
+    errors.push('xabreviatura: 2–5 caracteres alfanuméricos.');
+  }
+  if (form.cramo == null || Number.isNaN(Number(form.cramo))) {
+    errors.push('cramo: obligatorio (número de ramo Sis2000).');
+  }
+  if (!form.xform.trim()) {
+    errors.push('xform: elige tipo de formulario Sis2000.');
+  }
+  return errors;
+}
+
+/** Plantilla patrimonial / Pastora (Riesgos Especiales). */
+export function patrimonialProductTemplate(
+  overrides: Partial<Sis2000ProductInput> = {},
+): Sis2000ProductInput {
+  return {
+    ...EMPTY_SIS2000_PRODUCT,
+    xform: 'general-risk',
+    cramo: 10,
+    ctiporamo: 6,
+    xdescripcion_l: 'Riesgos Especiales - Carne viva Pastora',
+    xabreviatura: 'PAST',
+    xdescripcion_prod:
+      'Seguro kg carne viva - engorde / catastrofe / robo / transporte',
+    ...overrides,
+  };
 }

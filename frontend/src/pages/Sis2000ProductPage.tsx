@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { api } from '@/lib/api';
-import { EMPTY_SIS2000_PRODUCT, type Sis2000ProductInput } from '@/lib/sis2000-catalog';
+import { EMPTY_SIS2000_PRODUCT, patrimonialProductTemplate, validateSis2000ProductForSave, type Sis2000ProductInput } from '@/lib/sis2000-catalog';
 import { Sis2000ProductForm } from '@/components/sis2000/Sis2000ProductForm';
 import { Sis2000ProductPlansPanel } from '@/components/sis2000/Sis2000ProductPlansPanel';
 import { AppShell } from '@/components/layout/AppShell';
@@ -41,6 +41,11 @@ export function Sis2000ProductPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    const validationErrors = validateSis2000ProductForSave(form);
+    if (validationErrors.length > 0) {
+      setError(validationErrors.join(' '));
+      return;
+    }
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -73,7 +78,11 @@ export function Sis2000ProductPage() {
     <AppShell
       backTo={{ href: '/sis2000', label: 'Sis2000 QA' }}
       title={isNew ? 'Nuevo producto Sis2000' : `Editar ${code}`}
-      subtitle="Todos los campos de maproductos (list/detail partner)"
+      subtitle={
+        isNew
+          ? 'Alta maproductos vía partner/products/create · campos * obligatorios'
+          : 'Todos los campos de maproductos (list/detail partner)'
+      }
       actions={
         <Button type="submit" form="sis2000-form" disabled={saving || loading}>
           <Save className="h-4 w-4" />
@@ -88,7 +97,27 @@ export function Sis2000ProductPage() {
         {loading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-muted/60" />
         ) : (
-          <Sis2000ProductForm form={form} isNew={isNew} onPatch={patch} />
+          <>
+            {isNew && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setForm(patrimonialProductTemplate());
+                    setError(null);
+                  }}
+                >
+                  Plantilla patrimonial (Pastora)
+                </Button>
+                <p className="self-center text-xs text-muted-foreground">
+                  Siguiente: coberturas → tarifas → planes (tipo cosas).
+                </p>
+              </div>
+            )}
+            <Sis2000ProductForm form={form} isNew={isNew} onPatch={patch} />
+          </>
         )}
 
         <div className="flex justify-end gap-2">
