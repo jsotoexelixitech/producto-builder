@@ -3,6 +3,7 @@ import { Pencil, X } from 'lucide-react';
 import {
   boolLabel,
   SIS2000_FIELD_DEFS,
+  shouldShowSis2000ProductField,
   sis2000SourceLabel,
   type Sis2000Product,
 } from '@/lib/sis2000-catalog';
@@ -30,10 +31,11 @@ export function Sis2000ProductDetailPanel({
             </span>
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Ficha maproductos · 27 campos · fuente{' '}
+            Ficha maproductos · fuente{' '}
             <Badge variant={product.ifuente === 'API' ? 'approved' : 'draft'} className="ml-1">
               {sis2000SourceLabel(product)}
             </Badge>
+            · campos vacíos opcionales ocultos
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -50,7 +52,9 @@ export function Sis2000ProductDetailPanel({
         </div>
       </div>
       <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {SIS2000_FIELD_DEFS.map(({ key, label }) => {
+        {SIS2000_FIELD_DEFS.filter(({ key }) =>
+          shouldShowSis2000ProductField(key, product[key]),
+        ).map(({ key, label }) => {
           const value = product[key];
           return (
             <div key={key} className="rounded-lg border border-border/50 bg-card px-3 py-2">

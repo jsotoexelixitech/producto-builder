@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatNestRowValue, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
+import { formatNestRowValue, formatTarifaDescripcion, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -83,7 +83,7 @@ export function Sis2000TarifasPage() {
             <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">ctarifa</th>
-                <th className="px-3 py-2">Descripción</th>
+                <th className="px-3 py-2">xtarifam</th>
                 <th className="px-3 py-2">Moneda</th>
                 <th className="px-3 py-2">Estado</th>
                 <th className="px-3 py-2 text-right">Acciones</th>
@@ -96,7 +96,7 @@ export function Sis2000TarifasPage() {
                   <tr key={ct || i} className="border-b border-border/30">
                     <td className="px-3 py-2 font-mono text-xs">{formatNestRowValue(t.ctarifa)}</td>
                     <td className="px-3 py-2 text-xs">
-                      {formatNestRowValue(t.xdescripcion_l ?? t.xplan)}
+                      {formatTarifaDescripcion(t)}
                     </td>
                     <td className="px-3 py-2 text-xs">{formatNestRowValue(t.cmoneda)}</td>
                     <td className="px-3 py-2 text-xs">{formatNestRowValue(t.iestado)}</td>

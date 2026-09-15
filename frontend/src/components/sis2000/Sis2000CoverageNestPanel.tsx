@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import {
   formatNestRowValue,
+  formatTarifaDescripcion,
   pickNestRowPreview,
+  pickVigenteTarifaDetalle,
   type Sis2000NestRow,
 } from '@/lib/sis2000-nest-api';
 import { Alert } from '@/components/ui/alert';
@@ -13,13 +15,19 @@ interface Sis2000CoverageNestPanelProps {
   ccobertura: string;
 }
 
+interface TarifaRowView {
+  row: Sis2000NestRow;
+  pprimaMaestro: number | null;
+  mprimaMaestro: number | null;
+}
+
 /** Maestro macoberturas + tarifas matarifa (nest-api catalog:sis2000). */
 export function Sis2000CoverageNestPanel({
   cramo,
   ccobertura,
 }: Sis2000CoverageNestPanelProps) {
   const [maestro, setMaestro] = useState<Sis2000NestRow | null>(null);
-  const [tarifas, setTarifas] = useState<Sis2000NestRow[]>([]);
+  const [tarifas, setTarifas] = useState<TarifaRowView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,13 +37,38 @@ export function Sis2000CoverageNestPanel({
     setError(null);
     void (async () => {
       try {
-        const [cov, tar] = await Promise.all([
+        const [cov, tarRows] = await Promise.all([
           api.getSis2000Cobertura(cramo, ccobertura),
           api.listSis2000Tarifas(cramo, ccobertura),
         ]);
         if (cancelled) return;
+
+        const enriched = await Promise.all(
+          tarRows.map(async (row) => {
+            const ct = String(row.ctarifa ?? '1').trim() || '1';
+            try {
+              const detalles = await api.listSis2000TarifaDetalleHistorico(
+                cramo,
+                ccobertura,
+                ct,
+              );
+              const vigente = pickVigenteTarifaDetalle(detalles);
+              return {
+                row,
+                pprimaMaestro:
+                  vigente?.pprima != null ? Number(vigente.pprima) : null,
+                mprimaMaestro:
+                  vigente?.mprima != null ? Number(vigente.mprima) : null,
+              };
+            } catch {
+              return { row, pprimaMaestro: null, mprimaMaestro: null };
+            }
+          }),
+        );
+
+        if (cancelled) return;
         setMaestro(cov);
-        setTarifas(tar);
+        setTarifas(enriched);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Error al cargar maestro Sis2000');
@@ -93,22 +126,24 @@ export function Sis2000CoverageNestPanel({
           <p className="text-xs text-muted-foreground">Sin tarifas para esta cobertura.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left text-xs">
+            <table className="w-full min-w-[560px] text-left text-xs">
               <thead className="border-b border-border/40 text-muted-foreground">
                 <tr>
                   <th className="px-2 py-1">ctarifa</th>
-                  <th className="px-2 py-1">Descripción</th>
+                  <th className="px-2 py-1">xtarifam</th>
+                  <th className="px-2 py-1">% pprima</th>
+                  <th className="px-2 py-1">mprima</th>
                   <th className="px-2 py-1">Estado</th>
                 </tr>
               </thead>
               <tbody>
-                {tarifas.map((t, i) => (
-                  <tr key={String(t.ctarifa ?? i)} className="border-b border-border/20">
-                    <td className="px-2 py-1 font-mono">{formatNestRowValue(t.ctarifa)}</td>
-                    <td className="px-2 py-1">
-                      {formatNestRowValue(t.xdescripcion_l ?? t.xplan ?? t.xobserva)}
-                    </td>
-                    <td className="px-2 py-1">{formatNestRowValue(t.iestado)}</td>
+                {tarifas.map(({ row, pprimaMaestro, mprimaMaestro }, i) => (
+                  <tr key={String(row.ctarifa ?? i)} className="border-b border-border/20">
+                    <td className="px-2 py-1 font-mono">{formatNestRowValue(row.ctarifa)}</td>
+                    <td className="px-2 py-1">{formatTarifaDescripcion(row)}</td>
+                    <td className="px-2 py-1">{formatNestRowValue(pprimaMaestro)}</td>
+                    <td className="px-2 py-1">{formatNestRowValue(mprimaMaestro)}</td>
+                    <td className="px-2 py-1">{formatNestRowValue(row.iestado)}</td>
                   </tr>
                 ))}
               </tbody>

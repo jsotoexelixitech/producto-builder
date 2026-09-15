@@ -232,6 +232,73 @@ export function normalizeCatalogCreatePayload(
   return out;
 }
 
+/** Descripción visible de matarifa (campo real: xtarifam). */
+export function formatTarifaDescripcion(row: Sis2000NestRow): string {
+  const raw =
+    row.xtarifam ?? row.xtarifa ?? row.xdescripcion_l ?? row.xplan ?? row.xobserva;
+  return formatNestRowValue(raw);
+}
+
+function resolveCcober(
+  payload: Record<string, unknown>,
+  fallbackCobertura?: string,
+): string {
+  const fromCcober = String(payload.ccober ?? '').trim();
+  if (fromCcober) return fromCcober;
+  const fromCobertura = String(payload.ccobertura ?? fallbackCobertura ?? '').trim();
+  return fromCobertura;
+}
+
+/** POST/PUT matarifa — API exige ccober + xtarifam (no ccobertura / xdescripcion_l). */
+export function normalizeTarifaPayloadForApi(
+  payload: Record<string, unknown>,
+  fallbackCobertura?: string,
+): Record<string, unknown> {
+  const out = normalizeCatalogCreatePayload(payload);
+  const ccober = resolveCcober(out, fallbackCobertura);
+  if (!ccober) {
+    throw new Error('Falta ccober (código cobertura, máx. 4 caracteres).');
+  }
+  out.ccober = ccober;
+  delete out.ccobertura;
+
+  const xtarifam = String(out.xtarifam ?? out.xdescripcion_l ?? out.xtarifa ?? '').trim();
+  if (!xtarifam) {
+    throw new Error('Falta xtarifam (descripción tarifa, máx. 15 caracteres).');
+  }
+  out.xtarifam = xtarifam.slice(0, 15);
+  delete out.xdescripcion_l;
+  delete out.xtarifa;
+
+  return out;
+}
+
+/** POST matarifa_d — API exige ccober (no ccobertura). */
+export function normalizeTarifaDetallePayloadForApi(
+  payload: Record<string, unknown>,
+  fallbackCobertura?: string,
+): Record<string, unknown> {
+  const out = normalizeCatalogCreatePayload(payload);
+  const ccober = resolveCcober(out, fallbackCobertura);
+  if (!ccober) {
+    throw new Error('Falta ccober para el detalle de tarifa.');
+  }
+  out.ccober = ccober;
+  delete out.ccobertura;
+  if (out.pprima != null && out.pprima !== '') out.pprima = Number(out.pprima);
+  if (out.mprima != null && out.mprima !== '') out.mprima = Number(out.mprima);
+  return out;
+}
+
+/** Toma el detalle vigente (iestado A) o el más reciente. */
+export function pickVigenteTarifaDetalle(
+  rows: Sis2000NestRow[],
+): Sis2000NestRow | null {
+  if (!rows.length) return null;
+  const vigente = rows.find((r) => String(r.iestado ?? '').trim().toUpperCase() === 'A');
+  return vigente ?? rows[0] ?? null;
+}
+
 export function normalizeCatalogUpdatePayload(
   payload: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -256,9 +323,9 @@ export function defaultTarifaPayload(cramo: number, ccobertura: string): Record<
     operation: 'C',
     cusuario: SIS2000_DEFAULT_CUSUARIO,
     cramo,
-    ccobertura: String(ccobertura).trim(),
+    ccober: String(ccobertura).trim(),
     ctarifa: '1',
-    xdescripcion_l: '',
+    xtarifam: 'Tarifa plan',
     iestado: 'A',
     cmoneda: 'USD',
   };
@@ -273,13 +340,13 @@ export function defaultTarifaDetallePayload(
     operation: 'C',
     cusuario: SIS2000_DEFAULT_CUSUARIO,
     cramo,
-    ccobertura: String(ccobertura).trim(),
+    ccober: String(ccobertura).trim(),
     ctarifa: String(ctarifa).trim(),
     fdesde: '2020-01-01',
     fhasta: '2099-12-31',
     ctablatar: 'PRUEB',
     mprima: 0,
-    pprima: 0,
+    pprima: 5,
   };
 }
 
@@ -293,11 +360,15 @@ export function formatNestRowValue(value: unknown): string {
 export function pickNestRowPreview(row: Sis2000NestRow, max = 8): [string, string][] {
   const priority = [
     'ccobertura',
+    'ccober',
     'ctarifa',
+    'xtarifam',
+    'xtarifa',
     'xdescripcion_l',
     'xcobertura',
     'cmoneda',
     'iestado',
+    'ctablatar',
     'msumamax',
     'msumamin',
     'mprima',

@@ -3,15 +3,19 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, Layers, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
+  formatPlanMoney,
+  formatPlanCoverageMoney,
+  formatPlanScalar,
+  formatPlanSumaDisplay,
+  SIS2000_PLAN_SCALAR_FIELDS,
+  shouldShowPlanScalarField,
+  type Sis2000Plan,
+} from '@/lib/sis2000-plans';
+import {
+  pickVigenteTarifaDetalle,
   SIS2000_DEFAULT_CENTIDAD,
   SIS2000_DEFAULT_CITEM,
 } from '@/lib/sis2000-nest-api';
-import {
-  formatPlanMoney,
-  formatPlanScalar,
-  SIS2000_PLAN_SCALAR_FIELDS,
-  type Sis2000Plan,
-} from '@/lib/sis2000-plans';
 import { Sis2000CoverageNestPanel } from '@/components/sis2000/Sis2000CoverageNestPanel';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -233,7 +237,11 @@ export function Sis2000ProductPlansPanel({ cproducto, cramo }: Sis2000ProductPla
                       {isOpen && (
                         <tr className="border-b border-border/40 bg-muted/10">
                           <td colSpan={8} className="px-4 py-4">
-                            <PlanDetailBlock plan={plan} />
+                            <PlanDetailBlock
+                              plan={plan}
+                              valrepCentidad={appliedEntity}
+                              valrepCitem={appliedItem}
+                            />
                           </td>
                         </tr>
                       )}
@@ -265,23 +273,60 @@ function mergePlanDetail(summary: Sis2000Plan, detail: Sis2000Plan): Sis2000Plan
   };
 }
 
-function PlanDetailBlock({ plan }: { plan: Sis2000Plan }) {
+function PlanDetailBlock({
+  plan,
+  valrepCentidad,
+  valrepCitem,
+}: {
+  plan: Sis2000Plan;
+  valrepCentidad: string;
+  valrepCitem: string;
+}) {
   const [fullPlan, setFullPlan] = useState<Sis2000Plan>(plan);
   const [detailLoading, setDetailLoading] = useState(true);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [expandedCov, setExpandedCov] = useState<string | null>(null);
+  const [maestroTarifas, setMaestroTarifas] = useState<
+    Record<string, { pprima: number | null; mprima: number | null }>
+  >({});
 
   useEffect(() => {
     let cancelled = false;
     setDetailLoading(true);
     setDetailError(null);
     setFullPlan(plan);
+    setMaestroTarifas({});
 
     void (async () => {
       try {
         const res = await api.getSis2000PlanDetail(plan.cramo, plan.cplan);
         if (cancelled) return;
-        setFullPlan(mergePlanDetail(plan, res.plan));
+        const merged = mergePlanDetail(plan, res.plan);
+        setFullPlan(merged);
+
+        const tarifaMap: Record<string, { pprima: number | null; mprima: number | null }> =
+          {};
+        await Promise.all(
+          merged.coberturas.map(async (c) => {
+            const cc = String(c.ccobertura).trim();
+            if (!cc) return;
+            try {
+              const detalles = await api.listSis2000TarifaDetalleHistorico(
+                merged.cramo,
+                cc,
+                '1',
+              );
+              const vigente = pickVigenteTarifaDetalle(detalles);
+              tarifaMap[cc] = {
+                pprima: vigente?.pprima != null ? Number(vigente.pprima) : null,
+                mprima: vigente?.mprima != null ? Number(vigente.mprima) : null,
+              };
+            } catch {
+              tarifaMap[cc] = { pprima: null, mprima: null };
+            }
+          }),
+        );
+        if (!cancelled) setMaestroTarifas(tarifaMap);
       } catch (e) {
         if (cancelled) return;
         setDetailError(
@@ -297,6 +342,8 @@ function PlanDetailBlock({ plan }: { plan: Sis2000Plan }) {
     };
   }, [plan.cramo, plan.cplan]);
 
+  const isCosasPlan = fullPlan.parentescos.length === 0;
+
   return (
     <div className="space-y-5">
       {detailLoading && (
@@ -304,18 +351,30 @@ function PlanDetailBlock({ plan }: { plan: Sis2000Plan }) {
       )}
       {detailError && <Alert variant="error">{detailError}</Alert>}
 
+      {isCosasPlan && (
+        <p className="text-xs text-muted-foreground">
+          Plan patrimonial/cosas · visibilidad productor en valrep:{' '}
+          <span className="font-mono">
+            {valrepCentidad} / {valrepCitem}
+          </span>
+          · sumas/primas del plan en 0 = riesgo dinámico; % en matarifa_d.
+        </p>
+      )}
+
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Datos del plan
         </h4>
         <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {SIS2000_PLAN_SCALAR_FIELDS.map(({ key, label }) => (
+          {SIS2000_PLAN_SCALAR_FIELDS.filter(({ key }) =>
+            shouldShowPlanScalarField(fullPlan, key),
+          ).map(({ key, label }) => (
             <DetailItem
               key={key}
               label={label}
               value={
                 key === 'msumaasegext' || key === 'msumaaseg'
-                  ? formatPlanMoney(fullPlan[key] as number | null)
+                  ? formatPlanSumaDisplay(fullPlan[key] as number | null)
                   : formatPlanScalar(fullPlan[key])
               }
             />
@@ -371,26 +430,35 @@ function PlanDetailBlock({ plan }: { plan: Sis2000Plan }) {
                 <tr>
                   <th className="px-3 py-2">Código</th>
                   <th className="px-3 py-2">Cobertura</th>
-                  <th className="px-3 py-2">Suma mín</th>
-                  <th className="px-3 py-2">Suma máx</th>
-                  <th className="px-3 py-2">Prima</th>
-                  <th className="px-3 py-2">% prima</th>
+                  <th className="px-3 py-2">Suma mín (plan)</th>
+                  <th className="px-3 py-2">Suma máx (plan)</th>
+                  <th className="px-3 py-2">Prima fija</th>
+                  <th className="px-3 py-2">% matarifa_d</th>
                   <th className="px-3 py-2 text-right">Maestro</th>
                 </tr>
               </thead>
               <tbody>
                 {fullPlan.coberturas.map((c) => {
-                  const covKey = String(c.ccobertura);
+                  const covKey = String(c.ccobertura).trim();
                   const isCovOpen = expandedCov === covKey;
+                  const maestro = maestroTarifas[covKey];
                   return (
                     <Fragment key={`${c.ccobertura}-${c.xcobertura}`}>
                       <tr className="border-b border-border/30">
                         <td className="px-3 py-2 font-mono">{c.ccobertura}</td>
                         <td className="px-3 py-2">{c.xcobertura}</td>
-                        <td className="px-3 py-2">{formatPlanMoney(c.msumamin)}</td>
-                        <td className="px-3 py-2">{formatPlanMoney(c.msumamax)}</td>
-                        <td className="px-3 py-2">{formatPlanMoney(c.mprima)}</td>
-                        <td className="px-3 py-2">{formatPlanMoney(c.pprima)}</td>
+                        <td className="px-3 py-2">
+                          {formatPlanCoverageMoney(c.msumamin, null)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {formatPlanCoverageMoney(c.msumamax, null)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {formatPlanCoverageMoney(c.mprima, maestro?.mprima ?? null)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {formatPlanCoverageMoney(c.pprima, maestro?.pprima ?? null)}
+                        </td>
                         <td className="px-3 py-2 text-right">
                           <Button
                             type="button"

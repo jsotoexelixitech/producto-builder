@@ -76,3 +76,42 @@ export function formatPlanScalar(value: unknown): string {
   if (value == null || value === '') return '—';
   return String(value);
 }
+
+/** Planes cosas/patrimonial: campos de auto/personas que suelen venir null. */
+export const SIS2000_PLAN_HIDE_WHEN_EMPTY: ReadonlySet<keyof Sis2000Plan> = new Set([
+  'cproductor',
+  'cbeneficiario',
+  'ctenedor',
+  'itarifa',
+  'nmax_dep',
+  'ctipo',
+  'bnacional',
+  'msumaasegext',
+]);
+
+export function shouldShowPlanScalarField(
+  plan: Sis2000Plan,
+  key: keyof Sis2000Plan,
+): boolean {
+  if (!SIS2000_PLAN_HIDE_WHEN_EMPTY.has(key)) return true;
+  const value = plan[key];
+  return value != null && value !== '';
+}
+
+export function formatPlanSumaDisplay(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  if (value === 0) return '0 (dinámica / matarifa)';
+  return String(value);
+}
+
+export function formatPlanCoverageMoney(
+  planValue: number | null | undefined,
+  maestroValue: number | null | undefined,
+): string {
+  const plan = planValue ?? null;
+  const maestro = maestroValue ?? null;
+  if (plan != null && plan !== 0) return String(plan);
+  if (maestro != null && maestro !== 0) return `${maestro} (matarifa_d)`;
+  if (plan === 0 || maestro === 0) return '0';
+  return '—';
+}

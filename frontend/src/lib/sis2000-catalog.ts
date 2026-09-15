@@ -132,6 +132,32 @@ export function formatSis2000Value(value: unknown): string {
   return String(value);
 }
 
+/** Campos opcionales que no se muestran en ficha si vienen vacíos de Sis2000. */
+export const SIS2000_HIDE_WHEN_EMPTY: ReadonlySet<keyof Sis2000Product> = new Set([
+  'xdescripcion_c',
+  'norden',
+  'mmonto_inicial',
+  'xfraccionamiento',
+  'xurl_presentacion',
+  'cusuario',
+  'ccategoria',
+  'cusuarioauto',
+  'ccategoriaauto',
+  'fultmod',
+  'cusuariomod',
+  'ccategoriamod',
+  'bok',
+  'cerror',
+]);
+
+export function shouldShowSis2000ProductField(
+  key: keyof Sis2000Product,
+  value: unknown,
+): boolean {
+  if (!SIS2000_HIDE_WHEN_EMPTY.has(key)) return true;
+  return value != null && value !== '';
+}
+
 export function boolLabel(value: boolean | null | undefined): string {
   if (value == null) return '—';
   return value ? 'Sí' : 'No';
