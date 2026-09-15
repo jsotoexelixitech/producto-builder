@@ -102,7 +102,7 @@ export function Sis2000ProductPage() {
       </form>
 
       {!isNew && !loading && (
-        <Sis2000ProductPlansPanel cproducto={code} />
+        <Sis2000ProductPlansPanel cproducto={code} cramo={form.cramo} />
       )}
     </AppShell>
   );

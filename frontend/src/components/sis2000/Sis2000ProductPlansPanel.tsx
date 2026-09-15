@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useState } from 'react';
-import { ChevronDown, Layers, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ChevronDown, Layers, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
+import {
+  SIS2000_DEFAULT_CENTIDAD,
+  SIS2000_DEFAULT_CITEM,
+} from '@/lib/sis2000-nest-api';
 import {
   formatPlanMoney,
   formatPlanScalar,
@@ -15,20 +20,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
-const DEFAULT_CENTIDAD = 'P';
-const DEFAULT_CITEM = '80080';
-
 interface Sis2000ProductPlansPanelProps {
   cproducto: string;
+  cramo?: number | null;
 }
 
-export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanelProps) {
+export function Sis2000ProductPlansPanel({ cproducto, cramo }: Sis2000ProductPlansPanelProps) {
   const [plans, setPlans] = useState<Sis2000Plan[]>([]);
   const [mensaje, setMensaje] = useState('');
-  const [centidad, setCentidad] = useState(DEFAULT_CENTIDAD);
-  const [citem, setCitem] = useState(DEFAULT_CITEM);
-  const [appliedEntity, setAppliedEntity] = useState(DEFAULT_CENTIDAD);
-  const [appliedItem, setAppliedItem] = useState(DEFAULT_CITEM);
+  const [centidad, setCentidad] = useState(SIS2000_DEFAULT_CENTIDAD);
+  const [citem, setCitem] = useState(SIS2000_DEFAULT_CITEM);
+  const [appliedEntity, setAppliedEntity] = useState(SIS2000_DEFAULT_CENTIDAD);
+  const [appliedItem, setAppliedItem] = useState(SIS2000_DEFAULT_CITEM);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -55,9 +58,9 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
   }
 
   useEffect(() => {
-    setCentidad(DEFAULT_CENTIDAD);
-    setCitem(DEFAULT_CITEM);
-    void load(DEFAULT_CENTIDAD, DEFAULT_CITEM);
+    setCentidad(SIS2000_DEFAULT_CENTIDAD);
+    setCitem(SIS2000_DEFAULT_CITEM);
+    void load(SIS2000_DEFAULT_CENTIDAD, SIS2000_DEFAULT_CITEM);
   }, [cproducto]);
 
   function planKey(plan: Sis2000Plan) {
@@ -88,16 +91,26 @@ export function Sis2000ProductPlansPanel({ cproducto }: Sis2000ProductPlansPanel
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-          Recargar planes
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild type="button" variant="default" size="sm">
+            <Link
+              to={`/sis2000/plans/new?cproducto=${encodeURIComponent(cproducto)}${cramo != null ? `&cramo=${cramo}` : ''}&type=personas`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Nuevo plan
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+            Recargar planes
+          </Button>
+        </div>
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}

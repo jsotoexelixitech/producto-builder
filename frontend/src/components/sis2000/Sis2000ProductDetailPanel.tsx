@@ -66,7 +66,7 @@ export function Sis2000ProductDetailPanel({
           );
         })}
       </dl>
-      <Sis2000ProductPlansPanel cproducto={product.cproducto} />
+      <Sis2000ProductPlansPanel cproducto={product.cproducto} cramo={product.cramo} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
-import { defaultTarifaDetallePayload } from '@/lib/sis2000-nest-api';
+import { defaultTarifaDetallePayload, normalizeCatalogCreatePayload } from '@/lib/sis2000-nest-api';
 import { Sis2000NestJsonForm } from '@/components/sis2000/Sis2000NestJsonForm';
 
 export function Sis2000TarifaDetalleFormPage() {
@@ -44,8 +44,8 @@ export function Sis2000TarifaDetalleFormPage() {
     setError(null);
     setSuccess(null);
     try {
-      const payload = JSON.parse(jsonText) as Record<string, unknown>;
-      payload.operation = 'I';
+      const raw = JSON.parse(jsonText) as Record<string, unknown>;
+      const payload = normalizeCatalogCreatePayload(raw);
       payload.cramo = payload.cramo ?? cramo;
       payload.ccobertura = payload.ccobertura ?? ccobertura;
       payload.ctarifa = payload.ctarifa ?? ctarifa;
