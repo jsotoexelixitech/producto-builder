@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  HttpException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -114,16 +115,26 @@ export class PartnerBridgeService {
     centidad: string,
     citem: string,
   ): Promise<{ plans: Record<string, unknown>[]; mensaje: string }> {
-    const body = await this.request<
-      NestEnvelope<{ plan?: Record<string, unknown>[]; mensaje?: string }>
-    >(
-      'POST',
-      '/api/v1/valrep/planes/producto',
-      { cproducto, centidad, citem },
-      120_000,
-    );
-    const plans = Array.isArray(body.data?.plan) ? body.data!.plan! : [];
-    return { plans, mensaje: String(body.data?.mensaje ?? '') };
+    try {
+      const body = await this.request<
+        NestEnvelope<{ plan?: Record<string, unknown>[]; mensaje?: string }>
+      >(
+        'POST',
+        '/api/v1/valrep/planes/producto',
+        { cproducto, centidad, citem },
+        120_000,
+      );
+      const plans = Array.isArray(body.data?.plan) ? body.data!.plan! : [];
+      return { plans, mensaje: String(body.data?.mensaje ?? '') };
+    } catch (err) {
+      if (err instanceof HttpException && err.getStatus() === 400) {
+        const msg = this.httpExceptionMessage(err);
+        if (this.isValrepEmptyPlansMessage(msg)) {
+          return { plans: [], mensaje: msg };
+        }
+      }
+      throw err;
+    }
   }
 
   /** Detalle tarifario de un plan — POST valrep/planes/detalle. */
@@ -487,12 +498,44 @@ export class PartnerBridgeService {
     };
 
     if (!res.ok || parsed.status === false) {
-      throw new BadGatewayException(
+      const message =
         parsed.message ??
-          `Error nest-api partner (${res.status}) en ${path}`,
-      );
+        `Error nest-api partner (${res.status}) en ${path}`;
+      this.throwNestHttpError(res.status, message);
     }
 
     return parsed as T;
+  }
+
+  /** Sin planes para P/citem no es fallo de infra — catálogo devuelve lista vacía. */
+  private isValrepEmptyPlansMessage(message: string): boolean {
+    const m = message.trim().toLowerCase();
+    if (!m) return false;
+    return /no se encuentr[aá]n?\s+planes/.test(m) || m.includes('planes asociados');
+  }
+
+  private httpExceptionMessage(err: HttpException): string {
+    const body = err.getResponse();
+    if (typeof body === 'string') return body;
+    if (body && typeof body === 'object' && 'message' in body) {
+      const msg = (body as { message?: string | string[] }).message;
+      if (Array.isArray(msg)) return msg.join(' ');
+      if (typeof msg === 'string') return msg;
+    }
+    return err.message;
+  }
+
+  private throwNestHttpError(status: number, message: string): never {
+    if (status === 502 || status === 503 || status === 504) {
+      throw new BadGatewayException(message);
+    }
+    throw new HttpException(
+      {
+        message,
+        statusCode: status,
+        error: HttpException.createBody('', message, status).error,
+      },
+      status,
+    );
   }
 }
