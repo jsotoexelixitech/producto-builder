@@ -105,7 +105,7 @@ function renderField(
 
   if (def.type === 'select' && def.key === 'xform') {
     return (
-      <FormField key={def.key} label={fieldLabel(def)} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
         <Select
           value={form.xform}
           onValueChange={(v) => {
@@ -186,7 +186,7 @@ export function Sis2000ProductForm({ form, isNew, onPatch }: Sis2000ProductFormP
                 ? 'Solo ifuente/cprog en alta; el resto lo asigna Sis2000.'
                 : 'Campos devueltos por list/detail partner — editables en QA.'
               : section === 'clasificacion' && isNew
-                ? 'Patrimonial Pastora: xform general-risk, cramo 10, ctiporamo 6.'
+                ? 'xform define el tipo de emisión; cramo y ctiporamo se pueden sugerir al cambiar xform.'
                 : undefined
           }
         >

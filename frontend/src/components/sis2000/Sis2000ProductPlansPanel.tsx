@@ -438,12 +438,12 @@ function PlanDetailBlock({
                 </tr>
               </thead>
               <tbody>
-                {fullPlan.coberturas.map((c) => {
+                {fullPlan.coberturas.map((c, covIndex) => {
                   const covKey = String(c.ccobertura).trim();
                   const isCovOpen = expandedCov === covKey;
                   const maestro = maestroTarifas[covKey];
                   return (
-                    <Fragment key={`${c.ccobertura}-${c.xcobertura}`}>
+                    <Fragment key={`${c.ccobertura}-${c.xcobertura}-${covIndex}`}>
                       <tr className="border-b border-border/30">
                         <td className="px-3 py-2 font-mono">{c.ccobertura}</td>
                         <td className="px-3 py-2">{c.xcobertura}</td>

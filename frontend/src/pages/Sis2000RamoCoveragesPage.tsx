@@ -98,8 +98,11 @@ export function Sis2000RamoCoveragesPage() {
             <tbody>
               {filtered.map((row, i) => {
                 const ccob = String(row.ccobertura ?? '');
+                const rowKey = ccob
+                  ? `${ccob}-${String(row.iestado ?? '')}-${String(row.u_version ?? '')}-${i}`
+                  : `row-${i}`;
                 return (
-                  <tr key={ccob || i} className="border-b border-border/30">
+                  <tr key={rowKey} className="border-b border-border/30">
                     <td className="px-3 py-2 font-mono text-xs">{ccob || '—'}</td>
                     <td className="px-3 py-2 text-xs">
                       {formatNestRowValue(row.xdescripcion_l ?? row.xcobertura)}

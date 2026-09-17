@@ -108,7 +108,13 @@ export const SIS2000_FIELD_DEFS: Sis2000FieldDef[] = [
     hint: 'Máx. 5 caracteres',
     required: true,
   },
-  { key: 'xdescripcion_c', label: 'xdescripcion_c (icono)', type: 'text', section: 'identificacion' },
+  {
+    key: 'xdescripcion_c',
+    label: 'xdescripcion_c (icono)',
+    type: 'text',
+    section: 'identificacion',
+    hint: 'Nombre PNG/JPG en Sis2000 (ej. 4_1.png). Vista previa si está en public/sis2000-icons/',
+  },
   { key: 'u_version', label: 'u_version', type: 'text', section: 'identificacion', hint: 'Ej. !' },
   {
     key: 'xform',
@@ -116,7 +122,7 @@ export const SIS2000_FIELD_DEFS: Sis2000FieldDef[] = [
     type: 'select',
     section: 'clasificacion',
     required: true,
-    hint: 'Patrimonial / Pastora → general-risk',
+    hint: 'Tipo de formulario de emisión Sis2000',
   },
   {
     key: 'cramo',
@@ -124,14 +130,14 @@ export const SIS2000_FIELD_DEFS: Sis2000FieldDef[] = [
     type: 'number',
     section: 'clasificacion',
     required: true,
-    hint: 'Ej. 10 patrimonial, 18 RCV — confirmar con LM',
+    hint: 'Código de ramo en maproductos',
   },
   {
     key: 'ctiporamo',
     label: 'ctiporamo',
     type: 'number',
     section: 'clasificacion',
-    hint: 'Se sugiere al cambiar xform (patrimonial = 6)',
+    hint: 'Se sugiere al cambiar xform',
   },
   { key: 'norden', label: 'norden', type: 'number', section: 'clasificacion' },
   { key: 'iproductor', label: 'iproductor', type: 'boolean', section: 'clasificacion' },
@@ -290,21 +296,4 @@ export function validateSis2000ProductForSave(form: Sis2000ProductInput): string
     errors.push('xform: elige tipo de formulario Sis2000.');
   }
   return errors;
-}
-
-/** Plantilla patrimonial / Pastora (Riesgos Especiales). */
-export function patrimonialProductTemplate(
-  overrides: Partial<Sis2000ProductInput> = {},
-): Sis2000ProductInput {
-  return {
-    ...EMPTY_SIS2000_PRODUCT,
-    xform: 'general-risk',
-    cramo: 10,
-    ctiporamo: 6,
-    xdescripcion_l: 'Riesgos Especiales - Carne viva Pastora',
-    xabreviatura: 'PAST',
-    xdescripcion_prod:
-      'Seguro kg carne viva - engorde / catastrofe / robo / transporte',
-    ...overrides,
-  };
 }

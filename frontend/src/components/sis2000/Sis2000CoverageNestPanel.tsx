@@ -138,7 +138,10 @@ export function Sis2000CoverageNestPanel({
               </thead>
               <tbody>
                 {tarifas.map(({ row, pprimaMaestro, mprimaMaestro }, i) => (
-                  <tr key={String(row.ctarifa ?? i)} className="border-b border-border/20">
+                  <tr
+                    key={`${String(row.ctarifa ?? 'tar')}-${String(row.iestado ?? '')}-${i}`}
+                    className="border-b border-border/20"
+                  >
                     <td className="px-2 py-1 font-mono">{formatNestRowValue(row.ctarifa)}</td>
                     <td className="px-2 py-1">{formatTarifaDescripcion(row)}</td>
                     <td className="px-2 py-1">{formatNestRowValue(pprimaMaestro)}</td>

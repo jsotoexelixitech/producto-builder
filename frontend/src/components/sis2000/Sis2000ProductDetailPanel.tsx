@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pencil, X } from 'lucide-react';
 import {
@@ -7,6 +8,10 @@ import {
   sis2000SourceLabel,
   type Sis2000Product,
 } from '@/lib/sis2000-catalog';
+import {
+  sis2000ProductIconFileName,
+  sis2000ProductIconUrl,
+} from '@/lib/sis2000-product-icon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sis2000ProductPlansPanel } from '@/components/sis2000/Sis2000ProductPlansPanel';
@@ -57,20 +62,59 @@ export function Sis2000ProductDetailPanel({
         ).map(({ key, label }) => {
           const value = product[key];
           return (
-            <div key={key} className="rounded-lg border border-border/50 bg-card px-3 py-2">
-              <dt className="font-mono text-[10px] uppercase text-muted-foreground">{label}</dt>
-              <dd className="mt-1 break-all text-sm">
-                {value == null || value === ''
-                  ? '—'
-                  : typeof value === 'boolean'
-                    ? boolLabel(value)
-                    : String(value)}
-              </dd>
-            </div>
+            <ProductFieldDisplay
+              key={key}
+              fieldKey={key}
+              label={label}
+              value={value}
+            />
           );
         })}
       </dl>
       <Sis2000ProductPlansPanel cproducto={product.cproducto} cramo={product.cramo} />
+    </div>
+  );
+}
+
+function ProductFieldDisplay({
+  fieldKey,
+  label,
+  value,
+}: {
+  fieldKey: keyof Sis2000Product;
+  label: string;
+  value: Sis2000Product[keyof Sis2000Product];
+}) {
+  const [iconFailed, setIconFailed] = useState(false);
+  const iconUrl =
+    fieldKey === 'xdescripcion_c' ? sis2000ProductIconUrl(String(value ?? '')) : null;
+  const iconName =
+    fieldKey === 'xdescripcion_c' ? sis2000ProductIconFileName(String(value ?? '')) : null;
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-card px-3 py-2">
+      <dt className="font-mono text-[10px] uppercase text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-all text-sm">
+        {value == null || value === ''
+          ? '—'
+          : typeof value === 'boolean'
+            ? boolLabel(value)
+            : String(value)}
+      </dd>
+      {iconName && iconUrl && !iconFailed && (
+        <img
+          src={iconUrl}
+          alt=""
+          className="mt-2 h-14 w-14 rounded-md border border-border/50 bg-muted/30 object-contain p-1"
+          onError={() => setIconFailed(true)}
+        />
+      )}
+      {iconName && iconFailed && (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Icono Sis2000 ({iconName}): copia el archivo en{' '}
+          <span className="font-mono">frontend/public/sis2000-icons/</span> y vuelve a cargar.
+        </p>
+      )}
     </div>
   );
 }
