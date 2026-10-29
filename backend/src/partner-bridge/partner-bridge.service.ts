@@ -397,18 +397,34 @@ export class PartnerBridgeService {
     );
   }
 
-  /** Frecuencias de pago — POST valrep/frecuencia (auxiliar formulario plan). */
+  /**
+   * Frecuencias de pago — POST valrep/frecuencia (auxiliar formulario plan).
+   * nest-api responde { data: { frecuencias: [{cvalor, xdescripcion}] }, plan: [{ifrecuencia, xfrecuencia, ndias}] };
+   * se devuelve con la forma de CreatePlanDto.frecuencias.
+   */
   async listPlanFrecuencias(
     cplan: string,
     cramo?: number,
   ): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'POST',
-        '/api/v1/valrep/frecuencia',
-        { cplan, cramo },
-      ),
-    );
+    const body = await this.request<
+      NestEnvelope<{ frecuencias?: Record<string, unknown>[] } | unknown[]> & {
+        plan?: Record<string, unknown>[];
+      }
+    >('POST', '/api/v1/valrep/frecuencia', { cplan, cramo });
+    if (Array.isArray(body.plan) && body.plan.length) {
+      return body.plan.map((f) => ({
+        ifrecuencia: String(f.ifrecuencia ?? '').trim(),
+        xfrecuencia: String(f.xfrecuencia ?? '').trim(),
+        ndias: f.ndias ?? null,
+      }));
+    }
+    const data = body.data;
+    const filas = Array.isArray(data) ? data : (data?.frecuencias ?? []);
+    return (filas as Record<string, unknown>[]).map((f) => ({
+      ifrecuencia: String(f.ifrecuencia ?? f.cvalor ?? '').trim(),
+      xfrecuencia: String(f.xfrecuencia ?? f.xdescripcion ?? '').trim(),
+      ndias: f.ndias ?? null,
+    }));
   }
 
   /** Cotización de un plan de cosas — spCalculoRiesgoGeneral (suma y prima salen de maplantar). */
