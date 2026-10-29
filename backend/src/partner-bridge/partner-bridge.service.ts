@@ -3,8 +3,18 @@ import {
   HttpException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import {
+  aCrearCobertura,
+  aCrearDetalleTarifa,
+  aCrearTarifa,
+  aEditarCobertura,
+  aEditarTarifa,
+  aPlan,
+  partirPlanId,
+} from './configurador.mapper';
 import {
   inferBranchFromPartnerRow,
   PartnerProductPayload,
@@ -229,11 +239,13 @@ export class PartnerBridgeService {
     return body.data ?? [];
   }
 
+  // Lectura y escritura por el módulo propio de nest-api (v1/configurador, scope configurador:write).
+
   async listSis2000CoberturasByRamo(cramo: string): Promise<Record<string, unknown>[]> {
     return this.unwrapDataArray(
       await this.request<NestEnvelope<unknown[]>>(
         'GET',
-        `/api/v1/coberturas/${encodeURIComponent(cramo)}`,
+        `/api/v1/configurador/coberturas?cramo=${encodeURIComponent(cramo)}`,
       ),
     );
   }
@@ -242,11 +254,11 @@ export class PartnerBridgeService {
     cramo: string,
     ccobertura: string,
   ): Promise<Record<string, unknown>> {
-    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
-      'GET',
-      `/api/v1/coberturas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
+    const fila = (await this.listSis2000CoberturasByRamo(cramo)).find(
+      (c) => String(c.ccobertura ?? '').trim() === ccobertura.trim(),
     );
-    return body.data ?? {};
+    if (!fila) throw new NotFoundException(`Cobertura ${ccobertura} no encontrada en el ramo ${cramo}.`);
+    return fila;
   }
 
   async createSis2000Cobertura(
@@ -254,8 +266,8 @@ export class PartnerBridgeService {
   ): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'POST',
-      '/api/v1/coberturas/create',
-      payload,
+      '/api/v1/configurador/coberturas',
+      aCrearCobertura(payload),
     );
     return body.data ?? payload;
   }
@@ -266,9 +278,9 @@ export class PartnerBridgeService {
     payload: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
-      'PUT',
-      `/api/v1/coberturas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
-      payload,
+      'PATCH',
+      `/api/v1/configurador/coberturas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
+      aEditarCobertura(payload),
     );
     return body.data ?? payload;
   }
@@ -291,16 +303,18 @@ export class PartnerBridgeService {
     return body.data ?? [];
   }
 
+  /** Tarifas de la cobertura, cada una con sus tasas por vigencia en `detalles`. */
   async listSis2000TarifasByRamoCobertura(
     cramo: string,
     ccobertura: string,
   ): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
+    const tarifas = this.unwrapDataArray(
       await this.request<NestEnvelope<unknown[]>>(
         'GET',
-        `/api/v1/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}`,
+        `/api/v1/configurador/tarifas?cramo=${encodeURIComponent(cramo)}&ccober=${encodeURIComponent(ccobertura)}`,
       ),
     );
+    return tarifas.map((t) => ({ cramo: Number(cramo), ccober: ccobertura.trim(), ...t }));
   }
 
   async listSis2000TarifaDetalleHistorico(
@@ -308,12 +322,11 @@ export class PartnerBridgeService {
     ccobertura: string,
     ctarifa: string,
   ): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        `/api/v1/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}/detalles`,
-      ),
+    const tarifa = (await this.listSis2000TarifasByRamoCobertura(cramo, ccobertura)).find(
+      (t) => String(t.ctarifa ?? '').trim() === ctarifa.trim(),
     );
+    const detalles = Array.isArray(tarifa?.detalles) ? (tarifa.detalles as Record<string, unknown>[]) : [];
+    return detalles.map((d) => ({ cramo: Number(cramo), ccober: ccobertura.trim(), ...d }));
   }
 
   async createSis2000Tarifa(
@@ -321,8 +334,8 @@ export class PartnerBridgeService {
   ): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'POST',
-      '/api/v1/tarifas/create',
-      payload,
+      '/api/v1/configurador/tarifas',
+      aCrearTarifa(payload),
     );
     return body.data ?? payload;
   }
@@ -332,8 +345,8 @@ export class PartnerBridgeService {
   ): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'POST',
-      '/api/v1/tarifas/detalles/create',
-      payload,
+      '/api/v1/configurador/tarifas/detalles',
+      aCrearDetalleTarifa(payload),
     );
     return body.data ?? payload;
   }
@@ -345,9 +358,9 @@ export class PartnerBridgeService {
     payload: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
-      'PUT',
-      `/api/v1/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}`,
-      payload,
+      'PATCH',
+      `/api/v1/configurador/tarifas/${encodeURIComponent(cramo)}/${encodeURIComponent(ccobertura)}/${encodeURIComponent(ctarifa)}`,
+      aEditarTarifa(payload),
     );
     return body.data ?? payload;
   }
@@ -363,13 +376,14 @@ export class PartnerBridgeService {
     );
   }
 
+  /** Crear, editar y borrar planes: v1/configurador/planes (valida en nest-api y llama a spMantPlanes). */
   async createSis2000MasterPlan(
     payload: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'POST',
-      '/api/v1/partner/starter/plan',
-      payload,
+      '/api/v1/configurador/planes',
+      aPlan(payload),
       60_000,
     );
     return body.data ?? payload;
@@ -379,19 +393,21 @@ export class PartnerBridgeService {
     id: string,
     payload: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
+    const { cramo, cplan } = partirPlanId(id);
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'PUT',
-      `/api/v1/partner/starter/plan/${encodeURIComponent(id)}`,
-      payload,
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan)}`,
+      aPlan(payload),
       60_000,
     );
     return body.data ?? payload;
   }
 
   async deleteSis2000MasterPlan(id: string): Promise<void> {
+    const { cramo, cplan } = partirPlanId(id);
     await this.request<NestEnvelope<unknown>>(
       'DELETE',
-      `/api/v1/partner/starter/plan/${encodeURIComponent(id)}`,
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan)}`,
       undefined,
       60_000,
     );
