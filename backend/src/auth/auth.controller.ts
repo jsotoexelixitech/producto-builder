@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthService, AuthUserPayload } from './auth.service';
 import { LoginDto, SignupDto } from './dto/auth.dto';
@@ -10,9 +12,11 @@ import { LoginDto, SignupDto } from './dto/auth.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Public()
+  // Sin registro abierto: el sitio escribe en Sis2000 y está publicado en cierrelmds.
+  @Roles(UserRole.ADMIN)
   @Post('signup')
-  @ApiOperation({ summary: 'Registrar usuario (el primero es ADMIN)' })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Crear usuario (solo ADMIN)' })
   signup(@Body() dto: SignupDto) {
     return this.authService.signup(dto);
   }

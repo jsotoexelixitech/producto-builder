@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
-import { ProductBranch } from '@prisma/client';
+import { ProductBranch, UserRole } from '@prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CoreService } from './core.service';
 import {
   CreateCoreCoverageDto,
@@ -57,11 +58,13 @@ export class CoreController {
     return this.coreService.getSis2000Product(cproducto);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Post('sis2000/products')
   createSis2000Product(@Body() dto: Sis2000ProductDto) {
     return this.coreService.createSis2000Product(dto);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Put('sis2000/products/:cproducto')
   updateSis2000Product(
     @Param('cproducto') cproducto: string,

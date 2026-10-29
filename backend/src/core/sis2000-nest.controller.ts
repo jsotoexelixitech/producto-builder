@@ -7,6 +7,8 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CoreService } from './core.service';
 import {
   Sis2000CoberturaParamDto,
@@ -15,7 +17,7 @@ import {
   Sis2000TarifaParamDto,
 } from './dto/sis2000-nest.dto';
 
-/** Proxy nest-api → sis2000_qa (coberturas, tarifas, catálogos, planes maestro). */
+/** Proxy nest-api → sis2000_qa (coberturas, tarifas, catálogos, planes maestro). Escribir: PRODUCT_MANAGER o ADMIN. */
 @Controller('core/sis2000')
 export class Sis2000NestController {
   constructor(private readonly coreService: CoreService) {}
@@ -72,11 +74,13 @@ export class Sis2000NestController {
     );
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Post('coberturas')
   createCobertura(@Body() body: Record<string, unknown>) {
     return this.coreService.createSis2000Cobertura(body);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Put('coberturas/:cramo/:ccobertura')
   updateCobertura(
     @Param() params: Sis2000CoberturaParamDto,
@@ -118,16 +122,19 @@ export class Sis2000NestController {
     );
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Post('tarifas')
   createTarifa(@Body() body: Record<string, unknown>) {
     return this.coreService.createSis2000Tarifa(body);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Post('tarifas/detalles')
   createTarifaDetalle(@Body() body: Record<string, unknown>) {
     return this.coreService.createSis2000TarifaDetalle(body);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Put('tarifas/:cramo/:ccobertura/:ctarifa')
   updateTarifa(
     @Param() params: Sis2000TarifaParamDto,
@@ -148,11 +155,13 @@ export class Sis2000NestController {
     return this.coreService.listSis2000MasterPlans();
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Post('plans')
   createMasterPlan(@Body() body: Record<string, unknown>) {
     return this.coreService.createSis2000MasterPlan(body);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Put('plans/:id')
   updateMasterPlan(
     @Param('id') id: string,
@@ -161,6 +170,7 @@ export class Sis2000NestController {
     return this.coreService.updateSis2000MasterPlan(id, body);
   }
 
+  @Roles(UserRole.PRODUCT_MANAGER)
   @Delete('plans/:id')
   deleteMasterPlan(@Param('id') id: string) {
     return this.coreService.deleteSis2000MasterPlan(id);
