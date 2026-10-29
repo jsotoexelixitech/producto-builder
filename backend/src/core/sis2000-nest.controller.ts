@@ -12,6 +12,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CoreService } from './core.service';
 import {
   Sis2000CoberturaParamDto,
+  Sis2000PlanCotizarDto,
   Sis2000PlanFrecuenciasDto,
   Sis2000RamoParamDto,
   Sis2000TarifaParamDto,
@@ -174,6 +175,12 @@ export class Sis2000NestController {
   @Delete('plans/:id')
   deleteMasterPlan(@Param('id') id: string) {
     return this.coreService.deleteSis2000MasterPlan(id);
+  }
+
+  /** Cotiza un plan de cosas recién creado (solo lectura: no emite). */
+  @Post('plans/cotizar')
+  cotizarPlan(@Body() dto: Sis2000PlanCotizarDto) {
+    return this.coreService.cotizarSis2000Plan(dto.cramo, dto.cplan, dto.ifrecuencia);
   }
 
   /** Auxiliar: frecuencias valrep para armar CreatePlanDto.frecuencias. */

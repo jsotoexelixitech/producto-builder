@@ -18,6 +18,20 @@ export class Sis2000TarifaParamDto extends Sis2000CoberturaParamDto {
   ctarifa!: string;
 }
 
+export class Sis2000PlanCotizarDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  cramo!: number;
+
+  @IsString()
+  cplan!: string;
+
+  @IsOptional()
+  @IsString()
+  ifrecuencia?: string;
+}
+
 export class Sis2000PlanFrecuenciasDto {
   @IsString()
   cplan!: string;

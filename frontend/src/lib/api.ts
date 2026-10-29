@@ -386,6 +386,11 @@ export const api = {
     request<{ ok: boolean }>(`/core/sis2000/plans/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+  cotizarSis2000Plan: (cramo: number, cplan: string, ifrecuencia = 'A') =>
+    request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/plans/cotizar', {
+      method: 'POST',
+      body: JSON.stringify({ cramo, cplan, ifrecuencia }),
+    }),
   listSis2000PlanFrecuencias: (cplan: string, cramo?: number) =>
     request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/plans/frecuencias', {
       method: 'POST',

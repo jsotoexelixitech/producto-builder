@@ -411,6 +411,21 @@ export class PartnerBridgeService {
     );
   }
 
+  /** Cotización de un plan de cosas — spCalculoRiesgoGeneral (suma y prima salen de maplantar). */
+  async quoteGeneralRiskPlan(
+    cramo: number,
+    cplan: string,
+    ifrecuencia = 'A',
+  ): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'POST',
+        '/api/v1/partner/starter/patrimonial/quote',
+        { cramo, cplan, cuotas: 1, ifrecuencia, pdescuento: 0, precargo: 0 },
+      ),
+    );
+  }
+
   static planMasterId(cramo: number | string, cplan: string): string {
     return `${cramo}-${String(cplan).trim()}`;
   }

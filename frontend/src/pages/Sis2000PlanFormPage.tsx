@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Save } from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Calculator, RefreshCw, Save } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   defaultPlanPayload,
   inferPlanType,
   normalizePlanPayloadForApi,
-  SIS2000_DEFAULT_PRODUCTOR,
+  validatePlanPayload,
+  type Sis2000NestRow,
   type Sis2000PlanType,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
@@ -26,7 +27,6 @@ export function Sis2000PlanFormPage() {
   const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
-  const navigate = useNavigate();
 
   const queryCproducto = searchParams.get('cproducto')?.trim() ?? '';
   const queryCramo = searchParams.get('cramo')?.trim() ?? '';
@@ -34,10 +34,12 @@ export function Sis2000PlanFormPage() {
 
   const [jsonText, setJsonText] = useState('');
   const [planType, setPlanType] = useState<Sis2000PlanType>('personas');
-  const [cproductoQuick, setCproductoQuick] = useState(queryCproducto || 'TST908');
-  const [cramoQuick, setCramoQuick] = useState(queryCramo || '8');
-  const [cproductorQuick, setCproductorQuick] = useState(String(SIS2000_DEFAULT_PRODUCTOR));
+  const [cproductoQuick, setCproductoQuick] = useState(queryCproducto);
+  const [cramoQuick, setCramoQuick] = useState(queryCramo);
+  const [cproductorQuick, setCproductorQuick] = useState('');
   const [cplanQuick, setCplanQuick] = useState('');
+  const [cotizando, setCotizando] = useState(false);
+  const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
   const [loadingFrec, setLoadingFrec] = useState(false);
   const [loadingInit, setLoadingInit] = useState(!isEdit);
   const [saving, setSaving] = useState(false);
@@ -56,9 +58,9 @@ export function Sis2000PlanFormPage() {
       const type = opts?.type ?? planType;
       const payload = defaultPlanPayload({
         type,
-        cramo: opts?.cramo ?? (Number(cramoQuick) || 8),
+        cramo: opts?.cramo ?? (Number(cramoQuick) || undefined),
         cproducto: opts?.cproducto ?? cproductoQuick,
-        cproductor: opts?.cproductor ?? (Number(cproductorQuick) || SIS2000_DEFAULT_PRODUCTOR),
+        cproductor: opts?.cproductor ?? (Number(cproductorQuick) || undefined),
         cplan: opts?.preserveCplan ?? cplanQuick,
       });
       setJsonText(JSON.stringify(payload, null, 2));
@@ -77,8 +79,8 @@ export function Sis2000PlanFormPage() {
     setError(null);
     void (async () => {
       try {
-        let cramo = Number(queryCramo) || 8;
-        const cproducto = queryCproducto || 'TST908';
+        let cramo = Number(queryCramo) || undefined;
+        const cproducto = queryCproducto;
         if (queryCproducto) {
           try {
             const product = await api.getSis2000Product(queryCproducto);
@@ -89,7 +91,7 @@ export function Sis2000PlanFormPage() {
         }
         const type: Sis2000PlanType = queryType === 'cosas' ? 'cosas' : 'personas';
         setCproductoQuick(cproducto);
-        setCramoQuick(String(cramo));
+        setCramoQuick(cramo ? String(cramo) : '');
         setPlanType(type);
         const payload = defaultPlanPayload({ type, cramo, cproducto });
         setJsonText(JSON.stringify(payload, null, 2));
@@ -119,8 +121,8 @@ export function Sis2000PlanFormPage() {
           return;
         }
         setCplanQuick(String(match.cplan ?? ''));
-        setCramoQuick(String(match.cramo ?? '8'));
-        setCproductoQuick(String(match.cproducto ?? '').trim() || 'TST908');
+        setCramoQuick(String(match.cramo ?? ''));
+        setCproductoQuick(String(match.cproducto ?? '').trim());
         const merged = normalizePlanPayloadForApi({ ...match, operation: 'U' }, 'update');
         setPlanType(inferPlanType(merged));
         setJsonText(JSON.stringify(merged, null, 2));
@@ -135,14 +137,12 @@ export function Sis2000PlanFormPage() {
       const parsed = JSON.parse(jsonText) as Record<string, unknown>;
       parsed.type = planType;
       parsed.cproducto = cproductoQuick.trim();
-      parsed.cramo = Number(cramoQuick) || 8;
+      parsed.cramo = Number(cramoQuick) || 0;
       parsed.cplan = cplanQuick.trim();
-      if (parsed.all_productor !== true) {
+      if (parsed.all_productor !== true && Number(cproductorQuick) > 0) {
         parsed.all_productor = false;
         parsed.all_canal = false;
-        parsed.productores = [
-          { cproductor: Number(cproductorQuick) || SIS2000_DEFAULT_PRODUCTOR },
-        ];
+        parsed.productores = [{ cproductor: Number(cproductorQuick) }];
       }
       const normalized = normalizePlanPayloadForApi(parsed, isEdit ? 'update' : 'create');
       setJsonText(JSON.stringify(normalized, null, 2));
@@ -182,13 +182,19 @@ export function Sis2000PlanFormPage() {
     try {
       const raw = JSON.parse(jsonText) as Record<string, unknown>;
       const payload = normalizePlanPayloadForApi(raw, isEdit ? 'update' : 'create');
+      const errores = validatePlanPayload(payload);
+      if (errores.length) {
+        setError(errores.join(' '));
+        return;
+      }
       if (isEdit && id) {
         await api.updateSis2000MasterPlan(id, payload);
         setSuccess(`Plan ${id} actualizado (visibilidad productor incluida)`);
       } else {
         await api.createSis2000MasterPlan(payload);
-        setSuccess('Plan creado en Sis2000 con visibilidad para valrep');
-        navigate('/sis2000/plans');
+        setSuccess(`Plan ${String(payload.cplan)} creado en Sis2000. Puedes cotizarlo antes de salir.`);
+        setCplanQuick(String(payload.cplan));
+        setCramoQuick(String(payload.cramo));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar plan');
@@ -196,6 +202,28 @@ export function Sis2000PlanFormPage() {
       setSaving(false);
     }
   }
+
+  /** Solo planes de cosas: spCalculoRiesgoGeneral con suma y prima de maplantar. */
+  async function cotizar() {
+    setCotizando(true);
+    setError(null);
+    setCotizacion(null);
+    try {
+      const rows = await api.cotizarSis2000Plan(Number(cramoQuick), cplanQuick.trim());
+      if (!rows.length) {
+        setError('La cotización no devolvió coberturas: revisa que el plan exista y tenga suma y prima.');
+        return;
+      }
+      setCotizacion(rows);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cotizar plan');
+    } finally {
+      setCotizando(false);
+    }
+  }
+
+  const totalCotizacion = (campo: string) =>
+    (cotizacion ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
 
   return (
     <AppShell title={isEdit ? 'Editar plan Sis2000' : 'Nuevo plan Sis2000'}>
@@ -214,8 +242,9 @@ export function Sis2000PlanFormPage() {
         POST/PUT nest-api /api/v1/partner/starter/plan → spMantPlanes + mausuplan (productores)
       </p>
       <p className="mb-4 text-xs text-amber-800 dark:text-amber-200">
-        Incluye productores para que el plan aparezca en valrep (P / 80080). Solo catálogo — no
-        emite pólizas.
+        Indica los productores que pueden vender el plan (o all_productor: true). En planes de cosas
+        la prima de cada cobertura es mprima: spMantPlanes no recibe tasa. Solo catálogo — no emite
+        pólizas.
       </p>
 
       {error && <Alert variant="error" className="mb-3">{error}</Alert>}
@@ -301,10 +330,54 @@ export function Sis2000PlanFormPage() {
         />
       )}
 
-      <Button type="button" onClick={save} disabled={saving || loadingInit}>
-        <Save className="h-4 w-4" />
-        {saving ? 'Guardando…' : isEdit ? 'Actualizar plan' : 'Crear plan'}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={save} disabled={saving || loadingInit}>
+          <Save className="h-4 w-4" />
+          {saving ? 'Guardando…' : isEdit ? 'Actualizar plan' : 'Crear plan'}
+        </Button>
+        {planType === 'cosas' && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={cotizar}
+            disabled={cotizando || !cplanQuick.trim() || !(Number(cramoQuick) > 0)}
+          >
+            <Calculator className="h-4 w-4" />
+            {cotizando ? 'Cotizando…' : 'Cotizar plan'}
+          </Button>
+        )}
+      </div>
+
+      {cotizacion && (
+        <div className="mt-4 overflow-x-auto rounded-lg border border-border/50">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="p-2">Cobertura</th>
+                <th className="p-2 text-right">Suma asegurada</th>
+                <th className="p-2 text-right">Prima</th>
+                <th className="p-2 text-right">Comisión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cotizacion.map((r) => (
+                <tr key={String(r.ccober)} className="border-t border-border/50">
+                  <td className="p-2">{String(r.ccober ?? '').trim()} · {String(r.xcobertura ?? '').trim()}</td>
+                  <td className="p-2 text-right">{Number(r.msumaasegext ?? 0).toLocaleString('es-VE')}</td>
+                  <td className="p-2 text-right">{Number(r.mprimaext ?? 0).toLocaleString('es-VE')}</td>
+                  <td className="p-2 text-right">{Number(r.mcomisionext ?? 0).toLocaleString('es-VE')}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-border font-semibold">
+                <td className="p-2">Total (moneda del plan)</td>
+                <td className="p-2" />
+                <td className="p-2 text-right">{totalCotizacion('mprimaext').toLocaleString('es-VE')}</td>
+                <td className="p-2 text-right">{totalCotizacion('mcomisionext').toLocaleString('es-VE')}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppShell>
   );
 }

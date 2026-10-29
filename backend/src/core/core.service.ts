@@ -582,6 +582,11 @@ export class CoreService implements OnModuleInit {
     return this.partnerBridge.listPlanFrecuencias(cplan, cramo);
   }
 
+  async cotizarSis2000Plan(cramo: number, cplan: string, ifrecuencia?: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.quoteGeneralRiskPlan(cramo, cplan.trim(), ifrecuencia || 'A');
+  }
+
   private assertPartnerConfigured() {
     if (!this.partnerBridge.isConfigured()) {
       throw new ServiceUnavailableException(

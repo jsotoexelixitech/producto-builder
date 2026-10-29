@@ -1,7 +1,9 @@
 /** Filas genéricas devueltas por nest-api sis2000-catalog (passthrough). */
 export type Sis2000NestRow = Record<string, unknown>;
 
-export const SIS2000_DEFAULT_CUSUARIO = 4;
+/** Usuario Sis2000 de la integración Exelixi (el mismo de las emisiones nest-api). */
+export const SIS2000_DEFAULT_CUSUARIO = 20364172;
+/** Solo para el filtro de consulta de planes por productor (no se usa al crear planes). */
 export const SIS2000_DEFAULT_PRODUCTOR = 80080;
 export const SIS2000_DEFAULT_CENTIDAD = 'P';
 export const SIS2000_DEFAULT_CITEM = '80080';
@@ -56,7 +58,7 @@ function normalizeParentescoRow(row: Record<string, unknown>): Record<string, un
     ...row,
     cparen: Number(row.cparen ?? 1),
     csexo: String(row.csexo ?? 'A'),
-    ctablatar: String(row.ctablatar ?? 'PRUEB'),
+    ctablatar: String(row.ctablatar ?? '').trim(),
     nedad_min: Number(row.nedad_min ?? 0),
     nedad_max: Number(row.nedad_max ?? 99),
     msuma: Number(row.msuma ?? 0),
@@ -107,15 +109,12 @@ export function inferPlanType(payload: Record<string, unknown>): Sis2000PlanType
   return 'cosas';
 }
 
-/** Plantilla create alineada con CreatePlanDto + visibilidad productor (valrep). */
+/**
+ * Plantilla create alineada con CreatePlanDto (spMantPlanes). Sin valores de prueba: producto, ramo,
+ * cobertura, tarifa, tabla de edades y productores quedan vacíos y validatePlanPayload exige llenarlos.
+ */
 export function defaultPlanPayload(options: DefaultPlanOptions = {}): Sis2000CreatePlanPayload {
   const type = options.type ?? 'personas';
-  const cramo = options.cramo ?? 8;
-  const cproducto = options.cproducto ?? 'TST908';
-  const cproductor = options.cproductor ?? SIS2000_DEFAULT_PRODUCTOR;
-  const ccobertura = options.ccobertura ?? 908;
-  const ctarifa = options.ctarifa ?? 1;
-  const ctablatar = options.ctablatar ?? 'PRUEB';
 
   const base: Sis2000CreatePlanPayload = {
     type,
@@ -123,49 +122,72 @@ export function defaultPlanPayload(options: DefaultPlanOptions = {}): Sis2000Cre
     cusuario: SIS2000_DEFAULT_CUSUARIO,
     cplan: options.cplan ?? '',
     xplan: '',
-    fdesde: '2020-01-01',
+    fdesde: new Date().toISOString().slice(0, 10),
     fhasta: '2099-12-31',
-    cramo,
-    cmoneda: 'USD',
-    cproducto,
-    itiporen: 'N',
+    cramo: options.cramo ?? 0,
+    cmoneda: '$',
+    cproducto: options.cproducto ?? '',
+    itiporen: 'A',
     idevolucion: 'N',
     iestado: 'V',
     all_productor: false,
     all_canal: false,
-    productores: [{ cproductor }],
+    productores: options.cproductor ? [{ cproductor: options.cproductor }] : [],
     frecuencias: [{ ifrecuencia: 'A', xfrecuencia: 'Anual', ndias: 365 }],
     coberturas: [],
   };
 
-  if (type === 'personas') {
-    base.coberturas = [
-      normalizePlanCobertura(
-        {
-          ccobertura,
-          ctarifa,
-          bobligatoria: true,
-          parentescos: [{ ctablatar }],
-        },
-        'personas',
-      ),
-    ];
-  } else {
-    base.coberturas = [
-      normalizePlanCobertura(
-        {
-          ccobertura,
-          ctarifa,
-          msumamax: 2000,
-          msumamin: 2000,
-          mprima: 15,
-        },
-        'cosas',
-      ),
-    ];
-  }
+  const cobertura: Record<string, unknown> = {
+    ccobertura: options.ccobertura ?? '',
+    ctarifa: options.ctarifa ?? 1,
+  };
+  base.coberturas = [
+    type === 'personas'
+      ? { ...cobertura, bobligatoria: true, parentescos: [normalizeParentescoRow({ ctablatar: options.ctablatar ?? '' })] }
+      : { ...cobertura, msumamin: 0, msumamax: 0, mprima: 0 },
+  ];
 
   return base;
+}
+
+/**
+ * Errores que impedirían crear un plan útil en Sis2000 (vacío = se puede guardar).
+ * En cosas la prima sale de maplantar.mprima: spMantPlanes no recibe tasa por cobertura.
+ */
+export function validatePlanPayload(payload: Record<string, unknown>): string[] {
+  const errores: string[] = [];
+  const type = inferPlanType(payload);
+  if (!(Number(payload.cramo) > 0)) errores.push('Falta el ramo (cramo).');
+  if (!String(payload.cproducto ?? '').trim()) errores.push('Falta el producto (cproducto).');
+  const cplan = String(payload.cplan ?? '').trim();
+  if (!cplan || cplan.length > 6) errores.push('El código del plan (cplan) es obligatorio, máx. 6 caracteres.');
+  if (!String(payload.xplan ?? '').trim()) errores.push('Falta el nombre del plan (xplan).');
+
+  const productores = Array.isArray(payload.productores) ? payload.productores : [];
+  if (payload.all_productor !== true && productores.length === 0) {
+    errores.push('Indica al menos un productor o marca all_productor: true.');
+  }
+  const frecuencias = Array.isArray(payload.frecuencias) ? payload.frecuencias : [];
+  if (frecuencias.length === 0) errores.push('Agrega al menos una frecuencia de pago.');
+
+  const coberturas = Array.isArray(payload.coberturas) ? (payload.coberturas as Record<string, unknown>[]) : [];
+  if (coberturas.length === 0) errores.push('Agrega al menos una cobertura.');
+  coberturas.forEach((c, i) => {
+    const n = `Cobertura ${i + 1}`;
+    if (!String(c.ccobertura ?? '').trim()) errores.push(`${n}: falta ccobertura.`);
+    if (!String(c.ctarifa ?? '').trim()) errores.push(`${n}: falta ctarifa.`);
+    if (type === 'cosas') {
+      if (!(Number(c.msumamax) > 0)) errores.push(`${n}: msumamax debe ser mayor a 0.`);
+      if (!(Number(c.mprima) > 0)) errores.push(`${n}: mprima debe ser mayor a 0 (es la prima que cotiza el plan).`);
+    } else {
+      const parentescos = Array.isArray(c.parentescos) ? (c.parentescos as Record<string, unknown>[]) : [];
+      if (parentescos.length === 0) errores.push(`${n}: agrega al menos un parentesco.`);
+      parentescos.forEach((p, j) => {
+        if (!String(p.ctablatar ?? '').trim()) errores.push(`${n}, parentesco ${j + 1}: falta la tabla de tasas (ctablatar).`);
+      });
+    }
+  });
+  return errores;
 }
 
 /** Normaliza JSON del formulario antes de POST/PUT partner/starter/plan. */
@@ -188,13 +210,11 @@ export function normalizePlanPayloadForApi(
   if (out.all_productor !== true) {
     out.all_productor = Boolean(out.all_productor);
     out.all_canal = Boolean(out.all_canal);
-    if (!Array.isArray(out.productores) || out.productores.length === 0) {
-      out.productores = [{ cproductor: SIS2000_DEFAULT_PRODUCTOR }];
-    } else {
-      out.productores = (out.productores as Record<string, unknown>[]).map((p) => ({
-        cproductor: Number(p.cproductor),
-      }));
-    }
+    out.productores = Array.isArray(out.productores)
+      ? (out.productores as Record<string, unknown>[]).map((p) => ({
+          cproductor: Number(p.cproductor),
+        }))
+      : [];
   }
 
   if (Array.isArray(out.coberturas)) {
@@ -313,8 +333,8 @@ export function defaultCoberturaPayload(cramo: number): Record<string, unknown> 
     ccobertura: '',
     xcobertura: '',
     xdescripcion_l: '',
-    iestado: 'A',
-    cmoneda: 'USD',
+    iestado: 'V',
+    cmoneda: '$',
   };
 }
 
@@ -325,9 +345,8 @@ export function defaultTarifaPayload(cramo: number, ccobertura: string): Record<
     cramo,
     ccober: String(ccobertura).trim(),
     ctarifa: '1',
-    xtarifam: 'Tarifa plan',
-    iestado: 'A',
-    cmoneda: 'USD',
+    xtarifam: '',
+    iestado: 'V',
   };
 }
 
@@ -342,11 +361,13 @@ export function defaultTarifaDetallePayload(
     cramo,
     ccober: String(ccobertura).trim(),
     ctarifa: String(ctarifa).trim(),
-    fdesde: '2020-01-01',
+    fdesde: new Date().toISOString().slice(0, 10),
     fhasta: '2099-12-31',
-    ctablatar: 'PRUEB',
+    msumamin: 0,
+    msumamax: 0,
     mprima: 0,
-    pprima: 5,
+    pprima: 0,
+    iestado: 'V',
   };
 }
 
