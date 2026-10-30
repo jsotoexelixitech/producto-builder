@@ -65,7 +65,7 @@ export function Sis2000TarifaDetalleFormPage() {
   return (
     <Sis2000NestJsonForm
       title={`Nuevo detalle tarifa ${ctarifa}`}
-      subtitle="POST nest-api /api/v1/tarifas/detalles/create → matarifa_d"
+      subtitle="POST nest-api /api/v1/configurador/tarifas/detalles → matarifa_d"
       backHref={backHref}
       backLabel="Historial detalle"
       jsonText={jsonText}

@@ -1,9 +1,12 @@
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 interface ToggleFieldProps {
   id: string;
   label: string;
   description?: string;
+  /** Qué hace el campo (ícono de ayuda junto al título). */
+  tooltip?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   className?: string;
@@ -14,6 +17,7 @@ export function ToggleField({
   id,
   label,
   description,
+  tooltip,
   checked,
   onChange,
   className,
@@ -32,14 +36,17 @@ export function ToggleField({
     >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p
-            className={cn(
-              'text-sm font-bold',
-              checked ? 'text-indigo-900' : 'text-slate-700',
-            )}
-          >
-            {label}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p
+              className={cn(
+                'text-sm font-bold',
+                checked ? 'text-indigo-900' : 'text-slate-700',
+              )}
+            >
+              {label}
+            </p>
+            {tooltip && <InfoTip text={tooltip} />}
+          </div>
           {description && (
             <p
               className={cn(

@@ -641,6 +641,7 @@ export function ProductWizardPage() {
                       label="Nombre comercial"
                       span={2}
                       hint="Mínimo 3 caracteres, máximo 200. Visible para clientes y canales."
+                      tooltip="Nombre del producto para clientes y canales. Al publicarlo en Sis2000 pasa a ser el nombre largo (xdescripcion_l), que admite 120 caracteres: lo que pase de ahí se corta."
                       error={fieldErrors.commercialName}
                     >
                       <Input
@@ -658,6 +659,7 @@ export function ProductWizardPage() {
                     <FormField
                       label="Código interno"
                       hint={productId ? 'No editable tras crear el producto.' : 'Mayúsculas, números y guiones. Máximo 50 caracteres.'}
+                      tooltip="Código único del producto en el configurador. Al publicarlo en Sis2000, sus primeros 5 caracteres (sin guiones) forman la abreviatura (xabreviatura)."
                       error={fieldErrors.internalCode}
                     >
                       <Input
@@ -675,14 +677,21 @@ export function ProductWizardPage() {
                         className="font-mono uppercase"
                       />
                     </FormField>
-                    <FormField label="Código de variante / sub-plan" hint="Máximo 50 caracteres. Diferencia planes dentro del mismo producto.">
+                    <FormField
+                      label="Código de variante del producto"
+                      hint="Opcional. Máximo 50 caracteres."
+                      tooltip="Referencia interna que solo se guarda en el configurador. No se envía a Sis2000 ni separa planes: los planes se crean en el paso Planes."
+                    >
                       <Input
                         maxLength={FIELD_LIMITS.product.subPlanCode}
                         {...coreForm.register('subPlanCode')}
                         placeholder="COND1"
                       />
                     </FormField>
-                    <FormField label="Ramo SUDEASEG">
+                    <FormField
+                      label="Ramo SUDEASEG"
+                      tooltip="Define con qué ramo de Sis2000 (cramo), tipo de formulario de emisión (xform) y tipo de ramo se publica el producto, y qué coberturas CORE se ofrecen. No se puede cambiar después de crear el producto."
+                    >
                       <Select
                         value={branch}
                         disabled={!!productId}
@@ -700,7 +709,11 @@ export function ProductWizardPage() {
                         </SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Sub-ramo CORE" hint="Opciones filtradas según el ramo principal.">
+                    <FormField
+                      label="Sub-ramo CORE"
+                      hint="Opciones filtradas según el ramo principal."
+                      tooltip="Acota el catálogo de coberturas CORE que aparece en el paso Coberturas."
+                    >
                       <Select
                         value={subBranchCode || '__none__'}
                         onValueChange={(v) => {
@@ -725,7 +738,10 @@ export function ProductWizardPage() {
                         </SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Moneda">
+                    <FormField
+                      label="Moneda"
+                      tooltip="Moneda en que se expresan primas y sumas del producto. Al publicarlo en Sis2000 da el símbolo del monto «desde» (mmonto_inicial) de la tarjeta del MarketPlace."
+                    >
                       <Select
                         value={coreForm.watch('currency')}
                         onValueChange={(v) => coreForm.setValue('currency', v as CoreForm['currency'])}
@@ -739,7 +755,11 @@ export function ProductWizardPage() {
                         </SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Tipo de emisión" span={2}>
+                    <FormField
+                      label="Tipo de emisión"
+                      span={2}
+                      tooltip="Indica si la póliza se emite directo, si pide declaración de salud o si requiere inspección previa. Se guarda con el producto y se envía al CORE; hoy no cambia los pasos del flujo de emisión."
+                    >
                       <Select
                         value={coreForm.watch('emissionType')}
                         onValueChange={(v) => coreForm.setValue('emissionType', v as CoreForm['emissionType'])}
@@ -766,7 +786,10 @@ export function ProductWizardPage() {
                   icon={FileText}
                 >
                   <FormGrid>
-                    <FormField label="Frecuencia de renovación">
+                    <FormField
+                      label="Frecuencia de pago (fraccionamiento)"
+                      tooltip="Cada cuánto paga el cliente. Al publicar en Sis2000 llena el texto de fraccionamiento (xfraccionamiento) de la tarjeta del MarketPlace, p. ej. «Fraccionamiento Semestral / Anual». No cambia la vigencia ni la renovación de la póliza."
+                    >
                       <Select
                         value={coreForm.watch('renewalFrequency')}
                         onValueChange={(v) => coreForm.setValue('renewalFrequency', v as CoreForm['renewalFrequency'])}
@@ -780,7 +803,10 @@ export function ProductWizardPage() {
                         </SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Tipo de renovación">
+                    <FormField
+                      label="Tipo de renovación"
+                      tooltip="Normal, tácita (se renueva sola al vencer) o con aviso previo al cliente. Se guarda con el producto y se envía al CORE; hoy no cambia la emisión."
+                    >
                       <Select
                         value={coreForm.watch('renewalType')}
                         onValueChange={(v) => coreForm.setValue('renewalType', v as CoreForm['renewalType'])}
@@ -793,7 +819,11 @@ export function ProductWizardPage() {
                         </SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Período garantía de prima" hint="Días de gracia (0–365).">
+                    <FormField
+                      label="Período de gracia de la prima (días)"
+                      hint="Entre 0 y 365."
+                      tooltip="Días que tiene el cliente para pagar la prima vencida sin perder la cobertura. Hoy solo se guarda en el configurador; no se envía a Sis2000."
+                    >
                       <Input
                         type="number"
                         min={0}
@@ -801,7 +831,10 @@ export function ProductWizardPage() {
                         {...coreForm.register('premiumGuaranteeDays', { valueAsNumber: true })}
                       />
                     </FormField>
-                    <FormField label="Mes de cierre anual">
+                    <FormField
+                      label="Mes de cierre anual"
+                      tooltip="Mes en que cierra el ejercicio anual del producto (1 = enero). Hoy solo se guarda en el configurador."
+                    >
                       <Select
                         value={String(coreForm.watch('annualClosingMonth'))}
                         onValueChange={(v) => coreForm.setValue('annualClosingMonth', Number(v))}
@@ -818,7 +851,8 @@ export function ProductWizardPage() {
                       <ToggleField
                         id="quickEmission"
                         label="Permite emisión rápida"
-                        description="Habilita flujo simplificado de emisión sin pasos adicionales."
+                        description="Marca el producto para un flujo de emisión simplificado."
+                        tooltip="Hoy solo queda guardado en el producto: el flujo de emisión todavía no lo usa para saltar pasos."
                         checked={coreForm.watch('allowsQuickEmission')}
                         onChange={(v) => coreForm.setValue('allowsQuickEmission', v)}
                       />
@@ -850,11 +884,14 @@ export function ProductWizardPage() {
               <div className="space-y-6">
                 <SectionPanel
                   title="Componentes de la prima"
-                  description="Ingresa los porcentajes de recargo sobre la prima pura."
+                  description="Prima pura y porcentajes de recargo; los porcentajes se calculan sobre la prima comercial."
                   icon={Calculator}
                 >
                   <FormGrid>
-                    <FormField label="Prima pura">
+                    <FormField
+                      label="Prima pura"
+                      tooltip="Costo esperado del riesgo, en la moneda del producto, antes de gastos, comisiones y utilidad. Es la base de la prima comercial; esa prima comercial se publica en Sis2000 como monto «desde» (mmonto_inicial)."
+                    >
                       <Input
                         type="number"
                         value={actuarial.purePremium}
@@ -863,7 +900,11 @@ export function ProductWizardPage() {
                         }
                       />
                     </FormField>
-                    <FormField label="Gastos administrativos (%)" hint="Porcentaje sobre prima pura.">
+                    <FormField
+                      label="Gastos administrativos (%)"
+                      hint="Porcentaje sobre la prima comercial."
+                      tooltip="Parte de la prima comercial que cubre gastos de la aseguradora. Gastos + comisiones + utilidad debe ser menor a 100 %."
+                    >
                       <Input
                         type="number"
                         min={0}
@@ -878,7 +919,10 @@ export function ProductWizardPage() {
                         }
                       />
                     </FormField>
-                    <FormField label="Comisiones (%)">
+                    <FormField
+                      label="Comisiones (%)"
+                      tooltip="Parte de la prima comercial reservada para comisiones de intermediarios. Solo entra en este cálculo: no define la comisión que paga Sis2000 (esa sale de la tabla de aranceles)."
+                    >
                       <Input
                         type="number"
                         min={0}
@@ -893,7 +937,10 @@ export function ProductWizardPage() {
                         }
                       />
                     </FormField>
-                    <FormField label="Utilidad (%)">
+                    <FormField
+                      label="Utilidad (%)"
+                      tooltip="Margen de ganancia esperado, como parte de la prima comercial."
+                    >
                       <Input
                         type="number"
                         min={0}
@@ -940,7 +987,13 @@ export function ProductWizardPage() {
                   icon={Shield}
                 >
                   <FormGrid>
-                    <FormField label="Nombre del actuario" span={2} hint="Mínimo 3, máximo 150 caracteres." error={actuarialFieldErrors.actuaryName}>
+                    <FormField
+                      label="Nombre del actuario"
+                      span={2}
+                      hint="Mínimo 3, máximo 150 caracteres."
+                      tooltip="Actuario que firma la nota técnica del producto ante SUDEASEG."
+                      error={actuarialFieldErrors.actuaryName}
+                    >
                       <Input
                         maxLength={FIELD_LIMITS.actuarial.actuaryName}
                         value={actuarial.actuaryName}
@@ -952,7 +1005,12 @@ export function ProductWizardPage() {
                         }}
                       />
                     </FormField>
-                    <FormField label="Cédula de identidad" hint="Formato V-12345678 (V, E, J, G o P)." error={actuarialFieldErrors.actuaryCedula}>
+                    <FormField
+                      label="Cédula del actuario"
+                      hint="Formato V-12345678 (V, E, J, G o P)."
+                      tooltip="Documento de identidad del actuario responsable."
+                      error={actuarialFieldErrors.actuaryCedula}
+                    >
                       <Input
                         maxLength={FIELD_LIMITS.actuarial.actuaryCedula}
                         value={actuarial.actuaryCedula}
@@ -974,7 +1032,12 @@ export function ProductWizardPage() {
                         }
                       />
                     </FormField>
-                    <FormField label="Registro SUDEASEG" hint="Mayúsculas, números y guiones. Máximo 50 (ej. ACT-2024-001)." error={actuarialFieldErrors.actuarySudeasegNumber}>
+                    <FormField
+                      label="Registro SUDEASEG del actuario"
+                      hint="Mayúsculas, números y guiones. Máximo 50 (ej. ACT-2024-001)."
+                      tooltip="Número de inscripción del actuario en el registro de SUDEASEG."
+                      error={actuarialFieldErrors.actuarySudeasegNumber}
+                    >
                       <Input
                         maxLength={FIELD_LIMITS.actuarial.actuarySudeasegNumber}
                         value={actuarial.actuarySudeasegNumber}
@@ -1009,7 +1072,10 @@ export function ProductWizardPage() {
                       key={i}
                       className="space-y-3 rounded-2xl border border-border/60 bg-card p-5 shadow-sm"
                     >
-                      <FormField label={`Exclusión ${i + 1}`}>
+                      <FormField
+                        label={`Exclusión ${i + 1}`}
+                        tooltip="Texto de un caso que la póliza no cubre, tal como saldrá en las condiciones del producto."
+                      >
                         <Textarea
                           maxLength={FIELD_LIMITS.legal.exclusionText}
                           value={ex.text}
@@ -1186,7 +1252,11 @@ export function ProductWizardPage() {
                     identificador único.
                   </p>
                   <FormGrid className="mt-4">
-                    <FormField label="Identificador (clave)" hint="Mayúsculas, números y guiones. Ej. CARTA_SOLVENCIA">
+                    <FormField
+                      label="Identificador (clave)"
+                      hint="Mayúsculas, números y guiones. Ej. CARTA_SOLVENCIA"
+                      tooltip="Código interno del documento que se le pedirá al cliente. Debe ser único dentro del producto."
+                    >
                       <Input
                         maxLength={60}
                         value={customDocKey}
@@ -1197,7 +1267,11 @@ export function ProductWizardPage() {
                         }
                       />
                     </FormField>
-                    <FormField label="Nombre visible" hint="Texto que verá el cliente.">
+                    <FormField
+                      label="Nombre visible"
+                      hint="Texto que verá el cliente."
+                      tooltip="Nombre del documento tal como aparece en la lista de recaudos del flujo de emisión."
+                    >
                       <Input
                         maxLength={120}
                         value={customDocLabel}
@@ -1371,14 +1445,20 @@ export function ProductWizardPage() {
                       <div className="space-y-4">
                         {product?.status !== 'APPROVED_ACTIVE' && (
                           <FormGrid>
-                            <FormField label="N° providencia SUDEASEG (opcional)">
+                            <FormField
+                              label="N° providencia SUDEASEG (opcional)"
+                              tooltip="Número de la providencia con que SUDEASEG aprobó el producto. Si la cargas, al activar el producto queda en estado Aprobado."
+                            >
                               <Input
                                 value={providenciaNumero}
                                 onChange={(e) => setProvidenciaNumero(e.target.value)}
                                 placeholder="FSAA-1-1-0000-2026"
                               />
                             </FormField>
-                            <FormField label="Fecha Gaceta de aprobación (opcional)">
+                            <FormField
+                              label="Fecha Gaceta de aprobación (opcional)"
+                              tooltip="Fecha de publicación en Gaceta Oficial de la aprobación del producto."
+                            >
                               <Input
                                 type="date"
                                 value={providenciaFecha}

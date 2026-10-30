@@ -94,7 +94,7 @@ export function Sis2000TarifaFormPage() {
   return (
     <Sis2000NestJsonForm
       title={isEdit ? `Editar tarifa ${ctarifa}` : 'Nueva tarifa'}
-      subtitle={`POST/PUT nest-api /api/v1/tarifas → matarifa · ${ccobertura}`}
+      subtitle={`POST/PATCH nest-api /api/v1/configurador/tarifas → matarifa · ${ccobertura}`}
       backHref={backHref}
       backLabel={`Tarifas ${ccobertura}`}
       jsonText={jsonText}

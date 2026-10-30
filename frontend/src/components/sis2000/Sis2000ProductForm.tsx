@@ -50,7 +50,7 @@ function renderField(
 ) {
   if (def.createOnly && !isNew) {
     return (
-      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} tooltip={def.tooltip}>
         <Input value={String(form[def.key] ?? '')} disabled readOnly />
       </FormField>
     );
@@ -65,6 +65,7 @@ function renderField(
         id={def.key}
         label={fieldLabel(def)}
         description={def.hint}
+        tooltip={def.tooltip}
         checked={Boolean(form[def.key])}
         onChange={(v) => onPatch(def.key, v as Sis2000ProductInput[typeof def.key])}
         className={wideClass}
@@ -80,7 +81,7 @@ function renderField(
           ? 'true'
           : 'false';
     return (
-      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} tooltip={def.tooltip} className={wideClass}>
         <Select
           value={current}
           onValueChange={(v) =>
@@ -105,7 +106,7 @@ function renderField(
 
   if (def.type === 'select' && def.key === 'xform') {
     return (
-      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} tooltip={def.tooltip} className={wideClass}>
         <Select
           value={form.xform}
           onValueChange={(v) => {
@@ -137,7 +138,7 @@ function renderField(
 
   if (def.type === 'number') {
     return (
-      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
+      <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} tooltip={def.tooltip} className={wideClass}>
         <Input
           type="number"
           value={displayInputValue(form, def.key)}
@@ -153,7 +154,7 @@ function renderField(
   }
 
   return (
-    <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} className={wideClass}>
+    <FormField key={def.key} label={fieldLabel(def)} hint={def.hint} tooltip={def.tooltip} className={wideClass}>
       <Input
         value={displayInputValue(form, def.key)}
         onChange={(e) => {

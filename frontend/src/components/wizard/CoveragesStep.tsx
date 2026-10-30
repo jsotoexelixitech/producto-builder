@@ -209,7 +209,11 @@ export function CoveragesStep({
         description="Catálogo CORE, suma asegurada, cálculo de prima y sub-límites."
       >
         <FormGrid>
-          <FormField label="Cobertura CORE" span={2}>
+          <FormField
+            label="Cobertura CORE"
+            span={2}
+            tooltip="Cobertura del catálogo CORE del ramo. Al elegirla se llenan el nombre y el código; con «Texto manual» la cobertura queda sin código CORE."
+          >
             <Select
               value={selectedCoreCode}
               onValueChange={applyCoreSelection}
@@ -232,14 +236,21 @@ export function CoveragesStep({
 
           {selectedCoreCode === '__new__' && (
             <>
-              <FormField label="Nombre nueva cobertura CORE" span={2}>
+              <FormField
+                label="Nombre nueva cobertura CORE"
+                span={2}
+                tooltip="Nombre con que se registra la cobertura en el catálogo CORE al pulsar «Registrar en CORE»."
+              >
                 <Input
                   value={newCoreName}
                   placeholder="Ej. Atención médica domiciliaria"
                   onChange={(e) => setNewCoreName(e.target.value)}
                 />
               </FormField>
-              <FormField label="Código contable (opcional)">
+              <FormField
+                label="Código contable (opcional)"
+                tooltip="Código contable de la nueva cobertura en el catálogo CORE."
+              >
                 <Input
                   value={newCoreAccounting}
                   placeholder="10-99"
@@ -259,7 +270,11 @@ export function CoveragesStep({
             </>
           )}
 
-          <FormField label="Nombre de la cobertura" span={2}>
+          <FormField
+            label="Nombre de la cobertura"
+            span={2}
+            tooltip="Nombre con que la cobertura aparece en el producto, los planes y el flujo de emisión."
+          >
             <Input
               maxLength={FIELD_LIMITS.coverage.name}
               value={draft.name}
@@ -270,7 +285,10 @@ export function CoveragesStep({
             />
           </FormField>
 
-          <FormField label="Código contable">
+          <FormField
+            label="Código de cobertura (CORE / contable)"
+            tooltip="Es el código con que la cobertura se envía al CORE. Si lo cambias aquí, también reemplaza el código de la cobertura CORE elegida arriba."
+          >
             <Input
               maxLength={30}
               value={draft.accountingCode ?? draft.coberturaInternaCode ?? ''}
@@ -283,7 +301,10 @@ export function CoveragesStep({
             />
           </FormField>
 
-          <FormField label="Tipo de cálculo">
+          <FormField
+            label="Tipo de cálculo"
+            tooltip="Prima fija: escribes el monto de la prima. Tasa porcentual: la prima se calcula como suma asegurada × tasa / 100."
+          >
             <Select
               value={draft.premiumCalculationType ?? 'PRIMA_FIJA'}
               onValueChange={(v) =>
@@ -300,7 +321,10 @@ export function CoveragesStep({
             </Select>
           </FormField>
 
-          <FormField label="Suma asegurada mínima">
+          <FormField
+            label="Suma asegurada mínima"
+            tooltip="Suma más baja que se puede contratar. Si no hay suma asegurada fija, el cálculo con tasa usa esta."
+          >
             <Input
               type="number"
               min={0}
@@ -313,7 +337,10 @@ export function CoveragesStep({
               }
             />
           </FormField>
-          <FormField label="Suma asegurada">
+          <FormField
+            label="Suma asegurada"
+            tooltip="Monto máximo que paga la cobertura. Si la cobertura usa tasa, la prima se calcula sobre esta suma."
+          >
             <Input
               type="number"
               min={0}
@@ -328,7 +355,11 @@ export function CoveragesStep({
           </FormField>
 
           {isRate ? (
-            <FormField label="Tasa (%)" hint="Prima = suma × tasa / 100">
+            <FormField
+              label="Tasa (%)"
+              hint="Prima = suma × tasa / 100"
+              tooltip="Porcentaje que se aplica a la suma asegurada para obtener la prima de la cobertura."
+            >
               <Input
                 type="number"
                 min={0}
@@ -343,7 +374,10 @@ export function CoveragesStep({
               />
             </FormField>
           ) : (
-            <FormField label="Prima de la cobertura">
+            <FormField
+              label="Prima de la cobertura"
+              tooltip="Monto fijo de prima de esta cobertura. Es la tarifa base que se propone al armar los planes."
+            >
               <Input
                 type="number"
                 min={0}
@@ -359,11 +393,19 @@ export function CoveragesStep({
             </FormField>
           )}
 
-          <FormField label="Prima calculada" hint="Vista previa según tipo de cálculo.">
+          <FormField
+            label="Prima calculada"
+            hint="Vista previa según tipo de cálculo."
+            tooltip="Solo lectura: la prima que quedará guardada para esta cobertura con los datos actuales."
+          >
             <Input readOnly value={formatMoney(draftComputedPremium)} className="bg-muted/30" />
           </FormField>
 
-          <FormField label="Sub-límite (% de cobertura madre)" hint="Patrimoniales: límite hijo como % de la madre.">
+          <FormField
+            label="Sub-límite (% de cobertura madre)"
+            hint="Patrimoniales: límite hijo como % de la madre."
+            tooltip="Solo aplica si la cobertura depende de otra. Si no tiene suma propia, su suma asegurada es este % de la suma de la cobertura madre."
+          >
             <Input
               type="number"
               min={0}
@@ -378,7 +420,10 @@ export function CoveragesStep({
             />
           </FormField>
 
-          <FormField label="Carencia (días)">
+          <FormField
+            label="Carencia (días)"
+            tooltip="Días desde el inicio de la póliza durante los que esta cobertura todavía no responde. Hoy solo se guarda en el configurador."
+          >
             <Input
               type="number"
               min={0}
@@ -396,7 +441,11 @@ export function CoveragesStep({
             />
           </FormField>
 
-          <FormField label="Depende de otra cobertura" span={2}>
+          <FormField
+            label="Depende de otra cobertura"
+            span={2}
+            tooltip="Marca esta cobertura como hija de otra (cobertura madre). Se usa con el sub-límite para calcular su suma asegurada."
+          >
             <Select
               value={draft.dependsOnCoverageName ?? '__none__'}
               onValueChange={(v) =>

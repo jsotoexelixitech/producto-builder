@@ -1,8 +1,11 @@
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 interface FormFieldProps {
   label?: string;
   hint?: string;
+  /** Qué hace el campo (ícono de ayuda junto al título). */
+  tooltip?: string;
   error?: string;
   htmlFor?: string;
   className?: string;
@@ -13,6 +16,7 @@ interface FormFieldProps {
 export function FormField({
   label,
   hint,
+  tooltip,
   error,
   htmlFor,
   className,
@@ -22,12 +26,15 @@ export function FormField({
   return (
     <div className={cn('flex flex-col gap-1.5', span === 2 && 'sm:col-span-2', className)}>
       {label && (
-        <label
-          htmlFor={htmlFor}
-          className="text-[0.78rem] font-bold tracking-wide text-slate-600"
-        >
-          {label}
-        </label>
+        <div className="flex items-center gap-1.5">
+          <label
+            htmlFor={htmlFor}
+            className="text-[0.78rem] font-bold tracking-wide text-slate-600"
+          >
+            {label}
+          </label>
+          {tooltip && <InfoTip text={tooltip} />}
+        </div>
       )}
       {children}
       {error ? (

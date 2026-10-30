@@ -85,7 +85,7 @@ export function Sis2000CoberturaFormPage() {
   return (
     <Sis2000NestJsonForm
       title={isEdit ? `Editar cobertura ${ccobertura}` : 'Nueva cobertura'}
-      subtitle={`POST/PUT nest-api /api/v1/coberturas → macoberturas · ramo ${cramo}`}
+      subtitle={`POST/PATCH nest-api /api/v1/configurador/coberturas → macoberturas · ramo ${cramo}`}
       backHref={backHref}
       backLabel={`Coberturas ramo ${cramo}`}
       jsonText={jsonText}

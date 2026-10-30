@@ -217,7 +217,10 @@ export function PlansStep({
             description="Nombre, tag, coberturas incluidas y tarifas por cobertura."
           >
             <FormGrid>
-              <FormField label="Nombre del plan">
+              <FormField
+                label="Nombre del plan"
+                tooltip="Nombre con que el cliente ve y elige el plan en el flujo de emisión."
+              >
                 <Input
                   maxLength={FIELD_LIMITS.plan.name}
                   value={draft.name}
@@ -230,6 +233,7 @@ export function PlansStep({
               <FormField
                 label="Tag del plan"
                 hint="Etiqueta corta visible al cliente (ej. Esencial, Recomendado)."
+                tooltip="Distintivo que se muestra sobre la tarjeta del plan. Si lo dejas vacío se muestra «Plan»."
               >
                 <Input
                   maxLength={FIELD_LIMITS.plan.badge}
@@ -243,6 +247,7 @@ export function PlansStep({
               <FormField
                 label="Prima total del plan"
                 hint="Suma de las tarifas configuradas abajo."
+                tooltip="Solo lectura: suma de las tarifas de las coberturas marcadas. Es el precio del plan que se guarda."
               >
                 <Input
                   readOnly
@@ -254,6 +259,7 @@ export function PlansStep({
                 <ToggleField
                   id="draft-plan-recommended"
                   label="Marcar como recomendado"
+                  tooltip="Destaca este plan como la opción sugerida al cliente."
                   checked={!!draft.isRecommended}
                   onChange={(v) => patchDraft({ isRecommended: v })}
                 />
@@ -261,6 +267,7 @@ export function PlansStep({
               <FormField
                 label="Asignación comercial"
                 hint="Restringe el plan a un corredor, corretaje, canal o punto específico."
+                tooltip="Quién puede vender este plan. Con «Todos los canales» no hay restricción; con otro tipo, indica abajo el nombre o código del corredor, canal o punto."
               >
                 <Select
                   value={channelType}
@@ -284,6 +291,7 @@ export function PlansStep({
                 <FormField
                   label="Nombre / código"
                   hint="Ej. corredor, red o sucursal que verá solo este plan."
+                  tooltip="Corredor, red o sucursal al que queda restringido el plan."
                 >
                   {channelSuggestions.length > 0 ? (
                     <Select
@@ -357,7 +365,11 @@ export function PlansStep({
                         </span>
                       </label>
                       {checked && (
-                        <FormField label="Tarifa en este plan" className="w-full sm:w-36">
+                        <FormField
+                          label="Tarifa en este plan"
+                          className="w-full sm:w-36"
+                          tooltip="Prima de esta cobertura dentro de este plan. Arranca con la tarifa base del paso Coberturas y puedes cambiarla solo para este plan."
+                        >
                           <Input
                             type="number"
                             min={0}
