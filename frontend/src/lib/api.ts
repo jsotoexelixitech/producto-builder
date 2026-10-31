@@ -25,6 +25,17 @@ import { appRoute, moduleApiBase } from '@/lib/app-base';
 
 const BASE = moduleApiBase();
 
+/** Error de la API con su código HTTP (p. ej. 409 cuando el registro ya existe en Sis2000). */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 function formatApiErrors(messages: string[]): string {
   const map: Record<string, string> = {
     'commercialName must be longer than or equal to 3 characters':
@@ -77,17 +88,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     const msg = err.message;
     if (Array.isArray(msg)) {
-      throw new Error(formatApiErrors(msg));
+      throw new ApiError(formatApiErrors(msg), res.status);
     }
     if (typeof msg === 'string') {
-      throw new Error(msg);
+      throw new ApiError(msg, res.status);
     }
     if (err.violations) {
-      throw new Error(
+      throw new ApiError(
         err.violations.map((v: { message: string }) => v.message).join('. '),
+        res.status,
       );
     }
-    throw new Error(JSON.stringify(err));
+    throw new ApiError(JSON.stringify(err), res.status);
   }
   return res.json();
 }
