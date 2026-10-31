@@ -3,7 +3,7 @@ export type Sis2000NestRow = Record<string, unknown>;
 
 /** Usuario Sis2000 de la integración Exelixi (el mismo de las emisiones nest-api). */
 export const SIS2000_DEFAULT_CUSUARIO = 20364172;
-/** Solo para el filtro de consulta de planes por productor (no se usa al crear planes). */
+/** Filtro de consulta de planes por productor y productor sugerido al crear planes en Combos de coberturas. */
 export const SIS2000_DEFAULT_PRODUCTOR = 80080;
 export const SIS2000_DEFAULT_CENTIDAD = 'P';
 export const SIS2000_DEFAULT_CITEM = '80080';
@@ -67,16 +67,22 @@ function normalizeParentescoRow(row: Record<string, unknown>): Record<string, un
   };
 }
 
+/** Códigos numéricos ('70') → número; los alfanuméricos se dejan como texto (Number('A1') sería NaN). */
+function codigoSis2000(value: unknown): unknown {
+  const s = String(value).trim();
+  return /^\d+$/.test(s) ? Number(s) : s;
+}
+
 function normalizePlanCobertura(
   cob: Record<string, unknown>,
   planType: Sis2000PlanType,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...cob };
   if (out.ccobertura != null && out.ccobertura !== '') {
-    out.ccobertura = Number(out.ccobertura);
+    out.ccobertura = codigoSis2000(out.ccobertura);
   }
   if (out.ctarifa != null && out.ctarifa !== '') {
-    out.ctarifa = Number(out.ctarifa);
+    out.ctarifa = codigoSis2000(out.ctarifa);
   }
   if (planType === 'personas') {
     out.bobligatoria = out.bobligatoria ?? true;
@@ -92,6 +98,7 @@ function normalizePlanCobertura(
     if (out.msumamax != null) out.msumamax = Number(out.msumamax);
     if (out.msumamin != null) out.msumamin = Number(out.msumamin);
     if (out.mprima != null) out.mprima = Number(out.mprima);
+    if (out.pprima != null) out.pprima = Number(out.pprima);
   }
   return out;
 }
@@ -152,7 +159,8 @@ export function defaultPlanPayload(options: DefaultPlanOptions = {}): Sis2000Cre
 
 /**
  * Errores que impedirían crear un plan útil en Sis2000 (vacío = se puede guardar).
- * En cosas la prima sale de maplantar.mprima: spMantPlanes no recibe tasa por cobertura.
+ * En cosas cada cobertura cotiza con prima fija (maplantar.mprima) o con tasa en % sobre la suma
+ * (maplantar.pprima, que nest-api graba después de spMantPlanes): basta una de las dos.
  */
 export function validatePlanPayload(payload: Record<string, unknown>): string[] {
   const errores: string[] = [];
@@ -178,7 +186,9 @@ export function validatePlanPayload(payload: Record<string, unknown>): string[] 
     if (!String(c.ctarifa ?? '').trim()) errores.push(`${n}: falta ctarifa.`);
     if (type === 'cosas') {
       if (!(Number(c.msumamax) > 0)) errores.push(`${n}: msumamax debe ser mayor a 0.`);
-      if (!(Number(c.mprima) > 0)) errores.push(`${n}: mprima debe ser mayor a 0 (es la prima que cotiza el plan).`);
+      if (!(Number(c.mprima) > 0) && !(Number(c.pprima) > 0)) {
+        errores.push(`${n}: necesita prima fija (mprima) o tasa (pprima) mayor a 0.`);
+      }
     } else {
       const parentescos = Array.isArray(c.parentescos) ? (c.parentescos as Record<string, unknown>[]) : [];
       if (parentescos.length === 0) errores.push(`${n}: agrega al menos un parentesco.`);
