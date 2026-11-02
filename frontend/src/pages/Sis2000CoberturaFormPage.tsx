@@ -1,10 +1,95 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
-import { defaultCoberturaPayload, normalizeCatalogCreatePayload, normalizeCatalogUpdatePayload } from '@/lib/sis2000-nest-api';
+import {
+  defaultCoberturaPayload,
+  normalizeCatalogCreatePayload,
+  normalizeCatalogUpdatePayload,
+  type Sis2000NestRow,
+} from '@/lib/sis2000-nest-api';
 import { Sis2000NestJsonForm } from '@/components/sis2000/Sis2000NestJsonForm';
+import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
+import { AppShell } from '@/components/layout/AppShell';
+import { Alert } from '@/components/ui/alert';
+import { SectionPanel } from '@/components/ui/section-panel';
 
+/** Nueva cobertura: formulario. Editar: JSON (como antes). */
 export function Sis2000CoberturaFormPage() {
+  const { cramo: cramoParam, ccobertura } = useParams<{ cramo: string; ccobertura?: string }>();
+  if (!ccobertura) return <NuevaCoberturaPage cramo={Number(cramoParam ?? '18')} />;
+  return <CoberturaJsonFormPage />;
+}
+
+/** Alta con formulario (cobertura + tarifa + tasa vigente). */
+function NuevaCoberturaPage({ cramo }: { cramo: number }) {
+  const navigate = useNavigate();
+  const [existentes, setExistentes] = useState<Sis2000NestRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ramoValido = Number.isInteger(cramo) && cramo > 0;
+  const backHref = `/sis2000/ramo/${cramo}/coberturas`;
+
+  useEffect(() => {
+    setExistentes(null);
+    setError(null);
+    if (!ramoValido) return;
+    api
+      .listSis2000CoberturasByRamo(cramo)
+      .then(setExistentes)
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : 'No se pudieron leer las coberturas del ramo'),
+      );
+  }, [cramo, ramoValido]);
+
+  return (
+    <AppShell title={`Nueva cobertura · ramo ${cramo}`}>
+      <Link
+        to={backHref}
+        className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Coberturas ramo {cramo}
+      </Link>
+      <h1 className="mb-1 text-lg font-bold">Nueva cobertura en el ramo {cramo}</h1>
+      <p className="mb-4 text-xs text-muted-foreground">
+        nest-api POST /api/v1/configurador/coberturas y /tarifas → macoberturas, matarifa y
+        matarifa_d. Para meterla en un plan del producto, ve a{' '}
+        <Link to="/sis2000/combos" className="text-primary underline-offset-2 hover:underline">
+          Combos de coberturas
+        </Link>
+        .
+      </p>
+      {!ramoValido ? (
+        <Alert variant="error">Ramo inválido.</Alert>
+      ) : error ? (
+        <Alert variant="error">{error}</Alert>
+      ) : existentes == null ? (
+        <div className="h-64 animate-pulse rounded-2xl bg-muted/60" />
+      ) : (
+        <SectionPanel
+          title="Datos de la cobertura"
+          description="Los campos con * son obligatorios."
+          icon={Shield}
+        >
+          <Sis2000NuevaCoberturaForm
+            cramo={cramo}
+            existentes={existentes}
+            onCreada={(c) =>
+              navigate(backHref, {
+                state: {
+                  aviso: `Cobertura ${c.ccobertura} (tarifa ${c.ctarifa}) creada en el ramo ${c.cramo}.`,
+                },
+              })
+            }
+            onCancelar={() => navigate(backHref)}
+          />
+        </SectionPanel>
+      )}
+    </AppShell>
+  );
+}
+
+function CoberturaJsonFormPage() {
   const { cramo: cramoParam, ccobertura: routeCobertura } = useParams<{
     cramo: string;
     ccobertura?: string;

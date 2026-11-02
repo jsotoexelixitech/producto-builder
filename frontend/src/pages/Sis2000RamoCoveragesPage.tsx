@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, RefreshCw, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNestRowValue, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
@@ -16,6 +16,7 @@ export function Sis2000RamoCoveragesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const aviso = (useLocation().state as { aviso?: string } | null)?.aviso ?? null;
 
   async function load() {
     setLoading(true);
@@ -73,6 +74,12 @@ export function Sis2000RamoCoveragesPage() {
           </Link>
         </div>
       </div>
+
+      {aviso && (
+        <Alert variant="success" className="mb-4">
+          {aviso}
+        </Alert>
+      )}
 
       <div className="mb-4 max-w-md">
         <Input

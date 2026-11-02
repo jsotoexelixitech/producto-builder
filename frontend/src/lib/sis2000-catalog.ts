@@ -371,3 +371,49 @@ export function validateSis2000ProductForSave(form: Sis2000ProductInput): string
   }
   return errors;
 }
+
+/** Un producto de maproductos para los selectores (sin repetir la fila SysIP y la fila `*-nexus`). */
+export interface Sis2000ProductoOpcion {
+  /** Valor del selector: cproducto + cramo. */
+  clave: string;
+  cproducto: string;
+  cramo: number;
+  /** Fila representativa: la de SysIP si existe (su xform define personas/cosas). */
+  producto: Sis2000Product;
+  /** Todos los xform del producto (SysIP y Nexus). */
+  formularios: string[];
+  tieneNexus: boolean;
+}
+
+const esXformNexus = (xform: unknown) => /nexus/i.test(String(xform ?? ''));
+
+/**
+ * maproductos tiene por cada producto una fila SysIP y otra `*-nexus` (mismo cproducto y cramo,
+ * distinto xform). Agrupa por (cproducto, cramo) en el orden de llegada y marca si tiene versión Nexus.
+ */
+export function agruparProductosSis2000(rows: Sis2000Product[]): Sis2000ProductoOpcion[] {
+  const grupos = new Map<string, Sis2000ProductoOpcion>();
+  for (const p of rows) {
+    const cproducto = String(p.cproducto ?? '').trim();
+    if (!cproducto) continue;
+    const cramo = Number(p.cramo) > 0 ? Number(p.cramo) : 0;
+    const clave = `${cproducto}|${cramo}`;
+    const xform = String(p.xform ?? '').trim();
+    const grupo = grupos.get(clave);
+    if (!grupo) {
+      grupos.set(clave, {
+        clave,
+        cproducto,
+        cramo,
+        producto: p,
+        formularios: xform ? [xform] : [],
+        tieneNexus: esXformNexus(xform),
+      });
+      continue;
+    }
+    if (xform && !grupo.formularios.includes(xform)) grupo.formularios.push(xform);
+    if (esXformNexus(xform)) grupo.tieneNexus = true;
+    else if (esXformNexus(grupo.producto.xform)) grupo.producto = p;
+  }
+  return [...grupos.values()];
+}

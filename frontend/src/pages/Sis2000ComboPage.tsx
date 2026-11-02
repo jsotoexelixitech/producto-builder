@@ -12,7 +12,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import type { Sis2000Product } from '@/lib/sis2000-catalog';
+import { agruparProductosSis2000, type Sis2000Product } from '@/lib/sis2000-catalog';
 import {
   defaultPlanPayload,
   formatTarifaDescripcion,
@@ -23,6 +23,7 @@ import {
   type Sis2000NestRow,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -259,7 +260,8 @@ export function Sis2000ComboPage() {
   const [productos, setProductos] = useState<Sis2000Product[]>([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
   const [errorProductos, setErrorProductos] = useState<string | null>(null);
-  const [cproducto, setCproducto] = useState('');
+  /** Producto elegido: clave cproducto|cramo (maproductos repite cada producto en SysIP y Nexus). */
+  const [claveProducto, setClaveProducto] = useState('');
 
   const [catalogo, setCatalogo] = useState<{ cramo: number; coberturas: CoberturaRamo[] } | null>(
     null,
@@ -275,6 +277,10 @@ export function Sis2000ComboPage() {
   const generacion = useRef(0);
   /** Coberturas cuyas tarifas ya se pidieron en la carga actual. */
   const solicitadas = useRef(new Set<string>());
+  /** Coberturas creadas aquí que deben entrar marcadas cuando lleguen sus tarifas. */
+  const porIncluir = useRef(new Set<string>());
+  const [mostrarNuevaCobertura, setMostrarNuevaCobertura] = useState(false);
+  const [avisoCobertura, setAvisoCobertura] = useState<string | null>(null);
 
   const [cplan, setCplan] = useState('');
   const [xplan, setXplan] = useState('');
@@ -316,11 +322,13 @@ export function Sis2000ComboPage() {
       .catch(() => undefined);
   }, []);
 
-  const productosValidos = useMemo(() => productos.filter((p) => texto(p.cproducto)), [productos]);
-  const producto = useMemo(
-    () => productosValidos.find((p) => texto(p.cproducto) === cproducto) ?? null,
-    [productosValidos, cproducto],
+  const opcionesProducto = useMemo(() => agruparProductosSis2000(productos), [productos]);
+  const opcionProducto = useMemo(
+    () => opcionesProducto.find((o) => o.clave === claveProducto) ?? null,
+    [opcionesProducto, claveProducto],
   );
+  const producto = opcionProducto?.producto ?? null;
+  const cproducto = opcionProducto?.cproducto ?? '';
   const cramo = producto && Number(producto.cramo) > 0 ? Number(producto.cramo) : 0;
   const esPersonas = texto(producto?.xform).toLowerCase().startsWith('person');
 
@@ -381,9 +389,13 @@ export function Sis2000ComboPage() {
         const rows = await api.listSis2000Tarifas(ramo, c.ccobertura);
         if (gen !== generacion.current) return;
         setTarifas((prev) => ({ ...prev, [c.ccobertura]: { estado: 'ok', tarifas: rows } }));
-        setFilas((prev) =>
-          prev[c.ccobertura] ? prev : { ...prev, [c.ccobertura]: filaInicial(c.ccobertura, rows, hoy) },
-        );
+        setFilas((prev) => {
+          if (prev[c.ccobertura]) return prev;
+          const fila = filaInicial(c.ccobertura, rows, hoy);
+          // Cobertura recién creada desde esta pantalla: entra marcada en el combo.
+          if (porIncluir.current.delete(c.ccobertura) && fila.ctarifa) fila.incluir = true;
+          return { ...prev, [c.ccobertura]: fila };
+        });
       } catch (e) {
         if (gen !== generacion.current) return;
         setTarifas((prev) => ({
@@ -674,9 +686,47 @@ export function Sis2000ComboPage() {
     (cotizacion ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
 
   function elegirProducto(valor: string) {
-    setCproducto(valor);
+    setClaveProducto(valor);
     setIntentoCrear(false);
+    setMostrarNuevaCobertura(false);
+    setAvisoCobertura(null);
     limpiarResultado();
+  }
+
+  /**
+   * Vuelve a leer las coberturas del ramo sin perder lo ya marcado: solo se piden las tarifas de las
+   * coberturas nuevas (las demás siguen en `solicitadas`).
+   */
+  async function refrescarCoberturas() {
+    if (!cramo) return;
+    const ramo = cramo;
+    const gen = generacion.current;
+    try {
+      const rows = await api.listSis2000CoberturasByRamo(ramo);
+      if (gen !== generacion.current) return;
+      const coberturas = rows.map(aCoberturaRamo).filter((c) => c.ccobertura);
+      setCatalogo({ cramo: ramo, coberturas });
+    } catch (e) {
+      if (gen !== generacion.current) return;
+      setErrorCoberturas(e instanceof Error ? e.message : 'Error al recargar coberturas');
+    }
+  }
+
+  function coberturaCreada(ccobertura: string, ctarifa: string) {
+    porIncluir.current.add(ccobertura);
+    setMostrarNuevaCobertura(false);
+    setSearch('');
+    setAvisoCobertura(
+      `Cobertura ${ccobertura} (tarifa ${ctarifa}) creada en el ramo ${cramo}. Ya aparece en la tabla, marcada para este combo.`,
+    );
+    limpiarResultado();
+    void refrescarCoberturas();
+  }
+
+  function cerrarNuevaCobertura() {
+    setMostrarNuevaCobertura(false);
+    // Si la cobertura quedó grabada sin tarifa, que se vea en la tabla («sin tarifa vigente»).
+    void refrescarCoberturas();
   }
 
   function recargar() {
@@ -736,21 +786,18 @@ export function Sis2000ComboPage() {
               {cargandoProductos && !productos.length ? (
                 <div className="h-[42px] animate-pulse rounded-xl bg-muted/60" />
               ) : (
-                <Select value={cproducto} onValueChange={elegirProducto}>
+                <Select value={claveProducto} onValueChange={elegirProducto}>
                   <SelectTrigger aria-label="Producto Sis2000">
                     <SelectValue placeholder="Elige un producto…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
-                    {productosValidos.map((p) => {
-                      const codigo = texto(p.cproducto);
-                      const ramo = Number(p.cramo) > 0 ? Number(p.cramo) : 0;
-                      return (
-                        <SelectItem key={codigo} value={codigo} disabled={!ramo}>
-                          {codigo} · {texto(p.xdescripcion_l) || 'Sin nombre'} ·{' '}
-                          {ramo ? `ramo ${ramo}` : 'sin ramo'}
-                        </SelectItem>
-                      );
-                    })}
+                    {opcionesProducto.map((o) => (
+                      <SelectItem key={o.clave} value={o.clave} disabled={!o.cramo}>
+                        {o.cproducto} · {texto(o.producto.xdescripcion_l) || 'Sin nombre'} ·{' '}
+                        {o.cramo ? `ramo ${o.cramo}` : 'sin ramo'}
+                        {o.tieneNexus ? ' · también en Nexus' : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
@@ -758,16 +805,35 @@ export function Sis2000ComboPage() {
             {cramo > 0 && (
               <div className="flex flex-wrap items-center gap-3 pb-2">
                 <Badge>Ramo {cramo}</Badge>
-                <Link
-                  to={`/sis2000/ramo/${cramo}/coberturas/new`}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                {opcionProducto && opcionProducto.formularios.length > 1 && (
+                  <span
+                    className="text-xs text-muted-foreground"
+                    title="maproductos tiene una fila por formulario (SysIP y Nexus); el plan es el mismo para ambas."
+                  >
+                    Formularios: {opcionProducto.formularios.join(' · ')}
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAvisoCobertura(null);
+                    setMostrarNuevaCobertura((v) => !v);
+                  }}
+                  disabled={!catalogo || catalogo.cramo !== cramo}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Nueva cobertura en este ramo
-                </Link>
+                </Button>
               </div>
             )}
           </div>
+          {avisoCobertura && (
+            <Alert variant="success" className="mt-3">
+              {avisoCobertura}
+            </Alert>
+          )}
           {errorProductos && (
             <Alert variant="error" className="mt-3">
               {errorProductos}
@@ -785,6 +851,23 @@ export function Sis2000ComboPage() {
             </Alert>
           )}
         </SectionPanel>
+
+        {cramo > 0 && mostrarNuevaCobertura && catalogo && catalogo.cramo === cramo && (
+          <SectionPanel
+            title={`Nueva cobertura en el ramo ${cramo}`}
+            description="nest-api POST /api/v1/configurador/coberturas y /tarifas → macoberturas, matarifa y matarifa_d. Al crearla queda marcada en este combo."
+            icon={Plus}
+          >
+            <Sis2000NuevaCoberturaForm
+              key={cramo}
+              cramo={cramo}
+              existentes={catalogo.coberturas.map((c) => c.fila)}
+              monedaSugerida={cmoneda || '$'}
+              onCreada={(c) => coberturaCreada(c.ccobertura, c.ctarifa)}
+              onCancelar={cerrarNuevaCobertura}
+            />
+          </SectionPanel>
+        )}
 
         {cramo > 0 && (
           <SectionPanel

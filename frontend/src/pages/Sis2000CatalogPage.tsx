@@ -59,8 +59,8 @@ export function Sis2000CatalogPage() {
     );
   }, [products, search]);
 
-  function toggleDetail(cproducto: string) {
-    setExpandedCode((prev) => (prev === cproducto ? null : cproducto));
+  function toggleDetail(clave: string) {
+    setExpandedCode((prev) => (prev === clave ? null : clave));
   }
 
   return (
@@ -165,9 +165,11 @@ export function Sis2000CatalogPage() {
                 </thead>
                 <tbody>
                   {filtered.map((p) => {
-                    const isExpanded = expandedCode === p.cproducto;
+                    // maproductos repite cproducto (fila SysIP y fila *-nexus): la clave incluye xform.
+                    const claveFila = `${p.cproducto}|${p.cramo ?? ''}|${p.xform ?? ''}`;
+                    const isExpanded = expandedCode === claveFila;
                     return (
-                      <Fragment key={p.cproducto}>
+                      <Fragment key={claveFila}>
                         <tr
                           className={cn(
                             'border-b border-border/40 transition-colors',
@@ -202,7 +204,7 @@ export function Sis2000CatalogPage() {
                                 variant={isExpanded ? 'default' : 'outline'}
                                 size="sm"
                                 className={cn(!isExpanded && 'border-primary/30 text-primary')}
-                                onClick={() => toggleDetail(p.cproducto)}
+                                onClick={() => toggleDetail(claveFila)}
                               >
                                 {isExpanded ? (
                                   <EyeOff className="h-3.5 w-3.5" />
