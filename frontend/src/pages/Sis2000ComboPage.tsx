@@ -6,6 +6,7 @@ import {
   Calculator,
   FileText,
   Package,
+  Pencil,
   Plus,
   RefreshCw,
   Send,
@@ -15,13 +16,23 @@ import { api, ApiError } from '@/lib/api';
 import { agruparProductosSis2000, type Sis2000Product } from '@/lib/sis2000-catalog';
 import {
   defaultPlanPayload,
+  esSumaCalculada,
   formatTarifaDescripcion,
+  indexarSumaConfig,
   normalizePlanPayloadForApi,
   sis2000PlanMasterId,
+  textoSumaCalculada,
+  validarSumaConfig,
   validatePlanPayload,
+  type CoberturaSumaConfig,
+  type CoberturaSumaConfigPorCodigo,
   type Sis2000NestRow,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import {
+  CoberturaSumaConfigFields,
+  type SumaConfigValores,
+} from '@/components/sis2000/CoberturaSumaConfigFields';
 import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
 import {
   PRODUCTORES_DEFAULT,
@@ -120,6 +131,9 @@ interface VistaCobertura {
   tarifa: Sis2000NestRow | undefined;
   fila: FilaCombo | undefined;
   obligatoria: boolean;
+  /** Suma asegurada FIJA o CALCULADA al emitir (Postgres del configurador). */
+  sumaConfig: CoberturaSumaConfig | undefined;
+  calculada: boolean;
 }
 
 type VistaIncluida = VistaCobertura & { fila: FilaCombo; tarifa: Sis2000NestRow };
@@ -287,6 +301,14 @@ export function Sis2000ComboPage() {
   const porIncluir = useRef(new Set<string>());
   const [mostrarNuevaCobertura, setMostrarNuevaCobertura] = useState(false);
   const [avisoCobertura, setAvisoCobertura] = useState<string | null>(null);
+  /** Suma asegurada por cobertura del ramo (FIJA / CALCULADA al emitir), por ccobertura. */
+  const [sumaConfig, setSumaConfig] = useState<CoberturaSumaConfigPorCodigo>({});
+  /** Cobertura cuya suma (FIJA / CALCULADA) se está editando. */
+  const [editandoSuma, setEditandoSuma] = useState<string | null>(null);
+  const [formSuma, setFormSuma] = useState<SumaConfigValores>({ tipoSuma: 'FIJA', unidadCalculo: '', etiquetaCuadro: '' });
+  const [intentoSuma, setIntentoSuma] = useState(false);
+  const [guardandoSuma, setGuardandoSuma] = useState(false);
+  const [errorSuma, setErrorSuma] = useState<string | null>(null);
 
   const [cplan, setCplan] = useState('');
   const [xplan, setXplan] = useState('');
@@ -346,12 +368,21 @@ export function Sis2000ComboPage() {
     setCatalogo(null);
     setTarifas({});
     setFilas({});
+    setSumaConfig({});
+    setEditandoSuma(null);
     setErrorCoberturas(null);
     if (!cramo) {
       setCargandoCoberturas(false);
       return;
     }
     setCargandoCoberturas(true);
+    // La configuración de suma es propia del configurador: si falla, las coberturas se tratan como FIJA.
+    api
+      .listSis2000CoberturaSumaConfig(cramo)
+      .then((rows) => {
+        if (gen === generacion.current) setSumaConfig(indexarSumaConfig(rows));
+      })
+      .catch(() => undefined);
     api
       .listSis2000CoberturasByRamo(cramo)
       .then((rows) => {
@@ -422,6 +453,7 @@ export function Sis2000ComboPage() {
         const vigentes = carga?.estado === 'ok' ? carga.tarifas.filter(esVigente) : [];
         const fila = filas[cobertura.ccobertura];
         const tarifa = vigentes.find((t) => texto(t.ctarifa) === fila?.ctarifa) ?? vigentes[0];
+        const config = sumaConfig[cobertura.ccobertura.toUpperCase()];
         return {
           cobertura,
           carga,
@@ -429,9 +461,11 @@ export function Sis2000ComboPage() {
           tarifa,
           fila,
           obligatoria: esObligatoria(tarifa, cobertura.ccobertura),
+          sumaConfig: config,
+          calculada: esSumaCalculada(config),
         };
       }),
-    [visibles, tarifas, filas],
+    [visibles, tarifas, filas, sumaConfig],
   );
 
   const incluidas = useMemo(
@@ -542,6 +576,7 @@ export function Sis2000ComboPage() {
     let sumaMaxima = 0;
     let prima = 0;
     for (const v of incluidas) {
+      if (v.calculada) continue; // la suma llega al emitir
       const suma = numero(v.fila.msumamax);
       const tasa = numero(v.fila.pprima);
       sumaMaxima = Math.max(sumaMaxima, suma);
@@ -567,14 +602,27 @@ export function Sis2000ComboPage() {
     payload.frecuencias = FRECUENCIAS.filter((f) => frecuencias.includes(f.ifrecuencia)).map(
       (f) => ({ ...f }),
     );
-    payload.coberturas = incluidas.map((v) => ({
-      ccobertura: v.cobertura.ccobertura,
-      ctarifa: v.fila.ctarifa,
-      msumamin: numero(v.fila.msumamin),
-      msumamax: numero(v.fila.msumamax),
-      mprima: numero(v.fila.mprima),
-      pprima: numero(v.fila.pprima),
-    }));
+    payload.coberturas = incluidas.map((v) =>
+      v.calculada
+        ? // Suma calculada al emitir: se graba en 0 y nest-api no exige suma ni prima/tasa.
+          {
+            ccobertura: v.cobertura.ccobertura,
+            ctarifa: v.fila.ctarifa,
+            msumamin: 0,
+            msumamax: 0,
+            mprima: 0,
+            pprima: 0,
+            suma_calculada: true,
+          }
+        : {
+            ccobertura: v.cobertura.ccobertura,
+            ctarifa: v.fila.ctarifa,
+            msumamin: numero(v.fila.msumamin),
+            msumamax: numero(v.fila.msumamax),
+            mprima: numero(v.fila.mprima),
+            pprima: numero(v.fila.pprima),
+          },
+    );
     return normalizePlanPayloadForApi({ ...payload }, 'create');
   }
 
@@ -604,6 +652,7 @@ export function Sis2000ComboPage() {
       const tasa = numero(v.fila.pprima);
       const prima = numero(v.fila.mprima);
       if (!v.fila.ctarifa) errores.push(`${n}: falta la tarifa.`);
+      if (v.calculada) continue; // suma, tasa y prima llegan al emitir
       if (!(max > 0)) errores.push(`${n}: la suma máxima debe ser mayor a 0.`);
       if (min > max) errores.push(`${n}: la suma mínima es mayor que la máxima.`);
       if (min < 0 || tasa < 0 || prima < 0) errores.push(`${n}: no admite montos negativos.`);
@@ -613,7 +662,7 @@ export function Sis2000ComboPage() {
     if (basica) {
       const maxBasica = numero(basica.fila.msumamax);
       for (const v of incluidas) {
-        if (v === basica || v.obligatoria) continue;
+        if (v === basica || v.obligatoria || v.calculada) continue;
         const max = numero(v.fila.msumamax);
         if (max > maxBasica) {
           errores.push(
@@ -705,6 +754,12 @@ export function Sis2000ComboPage() {
     if (!cramo) return;
     const ramo = cramo;
     const gen = generacion.current;
+    api
+      .listSis2000CoberturaSumaConfig(ramo)
+      .then((rows) => {
+        if (gen === generacion.current) setSumaConfig(indexarSumaConfig(rows));
+      })
+      .catch(() => undefined);
     try {
       const rows = await api.listSis2000CoberturasByRamo(ramo);
       if (gen !== generacion.current) return;
@@ -716,8 +771,9 @@ export function Sis2000ComboPage() {
     }
   }
 
-  function coberturaCreada(ccobertura: string, ctarifa: string) {
+  function coberturaCreada(ccobertura: string, ctarifa: string, config: CoberturaSumaConfig | null) {
     porIncluir.current.add(ccobertura);
+    if (config) setSumaConfig((prev) => ({ ...prev, [ccobertura.toUpperCase()]: config }));
     setMostrarNuevaCobertura(false);
     setSearch('');
     setAvisoCobertura(
@@ -731,6 +787,42 @@ export function Sis2000ComboPage() {
     setMostrarNuevaCobertura(false);
     // Si la cobertura quedó grabada sin tarifa, que se vea en la tabla («sin tarifa vigente»).
     void refrescarCoberturas();
+  }
+
+  function abrirEditorSuma(v: VistaCobertura) {
+    const c = v.sumaConfig;
+    setFormSuma({
+      tipoSuma: c?.tipoSuma ?? 'FIJA',
+      unidadCalculo: texto(c?.unidadCalculo),
+      etiquetaCuadro: texto(c?.etiquetaCuadro),
+    });
+    setIntentoSuma(false);
+    setErrorSuma(null);
+    setEditandoSuma(v.cobertura.ccobertura);
+  }
+
+  const erroresSuma = validarSumaConfig(formSuma);
+
+  async function guardarSuma() {
+    if (!editandoSuma) return;
+    setIntentoSuma(true);
+    if (Object.keys(erroresSuma).length) return;
+    setGuardandoSuma(true);
+    setErrorSuma(null);
+    try {
+      const guardada = await api.upsertSis2000CoberturaSumaConfig(cramo, editandoSuma, {
+        tipoSuma: formSuma.tipoSuma,
+        unidadCalculo: formSuma.unidadCalculo.trim() || undefined,
+        etiquetaCuadro: formSuma.etiquetaCuadro.trim() || undefined,
+      });
+      setSumaConfig((prev) => ({ ...prev, [editandoSuma.toUpperCase()]: guardada }));
+      setEditandoSuma(null);
+      limpiarResultado();
+    } catch (e) {
+      setErrorSuma(e instanceof Error ? e.message : 'No se pudo guardar la suma de la cobertura');
+    } finally {
+      setGuardandoSuma(false);
+    }
   }
 
   function recargar() {
@@ -867,7 +959,7 @@ export function Sis2000ComboPage() {
               cramo={cramo}
               existentes={catalogo.coberturas.map((c) => c.fila)}
               monedaSugerida={cmoneda || '$'}
-              onCreada={(c) => coberturaCreada(c.ccobertura, c.ctarifa)}
+              onCreada={(c) => coberturaCreada(c.ccobertura, c.ctarifa, c.sumaConfig)}
               onCancelar={cerrarNuevaCobertura}
             />
           </SectionPanel>
@@ -979,6 +1071,20 @@ export function Sis2000ComboPage() {
                                 Inactiva
                               </Badge>
                             )}
+                            {v.calculada && (
+                              <Badge variant="actuarial" className="ml-2 px-2 py-0 text-[10px]">
+                                Suma calculada al emitir
+                              </Badge>
+                            )}
+                            <button
+                              type="button"
+                              className="ml-2 inline-flex items-center align-middle text-muted-foreground hover:text-foreground"
+                              title="Suma asegurada: fija o calculada al emitir"
+                              aria-label={`Editar suma asegurada de la cobertura ${c.ccobertura}`}
+                              onClick={() => abrirEditorSuma(v)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
                           </td>
                           <td className="px-3 py-2 text-xs">{celdaTarifa(v)}</td>
                           <td className="px-3 py-2 text-xs">
@@ -988,7 +1094,15 @@ export function Sis2000ComboPage() {
                               <Badge>Opcional</Badge>
                             )}
                           </td>
-                          {MONTOS.map((m) => (
+                          {v.calculada ? (
+                            <td colSpan={MONTOS.length} className="px-3 py-2 text-xs font-medium text-amber-800">
+                              {textoSumaCalculada(v.sumaConfig)}
+                              <span className="ml-1 font-normal text-muted-foreground">
+                                · unidades × valor por unidad; en el plan se graba en 0
+                              </span>
+                            </td>
+                          ) : (
+                          MONTOS.map((m) => (
                             <td key={m.campo} className="px-2 py-2 text-right">
                               {fila && habilitada ? (
                                 <Input
@@ -1005,7 +1119,8 @@ export function Sis2000ComboPage() {
                                 <span className="text-xs">—</span>
                               )}
                             </td>
-                          ))}
+                          ))
+                          )}
                         </tr>
                       );
                     })}
@@ -1023,6 +1138,33 @@ export function Sis2000ComboPage() {
                   {incluidas.length} incluida{incluidas.length === 1 ? '' : 's'}
                   {sinTarifa ? ` · ${sinTarifa} sin tarifa vigente` : ''}
                 </p>
+              </div>
+            )}
+
+            {editandoSuma && (
+              <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Suma asegurada · cobertura {editandoSuma}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Se guarda en el configurador (no en Sis2000). Aplica a esta cobertura en cualquier plan del ramo.
+                </p>
+                {errorSuma && <Alert variant="error">{errorSuma}</Alert>}
+                <CoberturaSumaConfigFields
+                  idPrefix={`suma-${editandoSuma}`}
+                  valores={formSuma}
+                  errores={intentoSuma ? erroresSuma : {}}
+                  disabled={guardandoSuma}
+                  onChange={(cambios) => setFormSuma((prev) => ({ ...prev, ...cambios }))}
+                />
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button type="button" variant="outline" disabled={guardandoSuma} onClick={() => setEditandoSuma(null)}>
+                    Cancelar
+                  </Button>
+                  <Button type="button" disabled={guardandoSuma} onClick={() => void guardarSuma()}>
+                    {guardandoSuma ? 'Guardando…' : 'Guardar suma asegurada'}
+                  </Button>
+                </div>
               </div>
             )}
           </SectionPanel>

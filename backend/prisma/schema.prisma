@@ -411,3 +411,25 @@ model ProductStateHistory {
 
   @@index([productId])
 }
+
+/// Cómo se obtiene la suma asegurada de una cobertura de Sis2000 (cramo + ccobertura).
+/// CALCULADA = unidades × valor por unidad, ambos llegan al emitir. Sis2000 no tiene columnas para esto.
+enum TipoSumaAsegurada {
+  FIJA
+  CALCULADA
+}
+
+model CoberturaSumaConfig {
+  id             String            @id @default(uuid())
+  cramo          Int
+  ccobertura     String
+  tipoSuma       TipoSumaAsegurada @default(FIJA)
+  /// Nombre genérico de la unidad en el sistema (opcional).
+  unidadCalculo  String?
+  /// Palabra que sale en el cuadro póliza (obligatoria si CALCULADA).
+  etiquetaCuadro String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([cramo, ccobertura])
+}

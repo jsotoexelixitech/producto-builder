@@ -123,6 +123,8 @@ export function aPlan(p: Obj) {
         msumamax: num(c.msumamax),
         mprima: num(c.mprima),
         pprima: num(c.pprima),
+        // Suma calculada al emitir: nest-api permite msumamax 0 y sin prima/tasa; no va a spMantPlanes.
+        suma_calculada: aBooleano(c.suma_calculada),
         bobligatoria: aBooleano(c.bobligatoria),
         parentescos: Array.isArray(c.parentescos)
           ? (c.parentescos as Obj[]).map((r) => limpio({

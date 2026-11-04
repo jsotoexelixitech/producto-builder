@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Sis2000NestRow } from '@/lib/sis2000-nest-api';
+import type { CoberturaSumaConfig, Sis2000NestRow } from '@/lib/sis2000-nest-api';
 import {
   formNuevaCobertura,
   nombreCortoPorDefecto,
   payloadCobertura,
+  payloadSumaConfig,
   payloadTarifa,
   validarNuevaCobertura,
   type ErroresNuevaCobertura,
   type NuevaCoberturaForm,
 } from '@/lib/sis2000-nueva-cobertura';
+import { CoberturaSumaConfigFields } from '@/components/sis2000/CoberturaSumaConfigFields';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FormField, FormGrid } from '@/components/ui/form-field';
@@ -34,6 +36,8 @@ export interface CoberturaCreada {
   cramo: number;
   ccobertura: string;
   ctarifa: string;
+  /** Suma asegurada (FIJA / CALCULADA) guardada en el configurador; null si quedó FIJA. */
+  sumaConfig: CoberturaSumaConfig | null;
 }
 
 interface Props {
@@ -66,6 +70,8 @@ export function Sis2000NuevaCoberturaForm({
   const [error, setError] = useState<string | null>(null);
   /** Código de la cobertura ya grabada cuando falló la tarifa (se reintenta solo la tarifa). */
   const [coberturaGrabada, setCoberturaGrabada] = useState<string | null>(null);
+  /** Configuración de suma ya guardada en el configurador (se reintenta si falló). */
+  const [sumaGrabada, setSumaGrabada] = useState<CoberturaSumaConfig | null>(null);
 
   useEffect(() => {
     api
@@ -139,9 +145,25 @@ export function Sis2000NuevaCoberturaForm({
       setGuardando(false);
       return;
     }
+    // Suma calculada al emitir: vive en la Postgres del configurador (Sis2000 no tiene columnas para esto).
+    let sumaConfig = sumaGrabada;
+    if (form.tipoSuma === 'CALCULADA' && !sumaConfig) {
+      try {
+        sumaConfig = await api.upsertSis2000CoberturaSumaConfig(cramo, ccobertura, payloadSumaConfig(form));
+        setSumaGrabada(sumaConfig);
+      } catch (ex) {
+        setError(
+          `La cobertura ${ccobertura} quedó creada en el ramo ${cramo}, pero no se pudo guardar «Suma calculada al emitir»: ${
+            ex instanceof Error ? ex.message : 'error desconocido'
+          }. Pulsa «Crear tarifa» para reintentar.`,
+        );
+        setGuardando(false);
+        return;
+      }
+    }
     try {
       await api.createSis2000Tarifa(payloadTarifa(cramo, { ...form, ccobertura }));
-      onCreada({ cramo, ccobertura, ctarifa: form.ctarifa.trim().toUpperCase() });
+      onCreada({ cramo, ccobertura, ctarifa: form.ctarifa.trim().toUpperCase(), sumaConfig });
     } catch (ex) {
       setError(
         `La cobertura ${ccobertura} quedó creada en el ramo ${cramo}, pero su tarifa no: ${
@@ -280,6 +302,15 @@ export function Sis2000NuevaCoberturaForm({
           />
           Obligatoria (entra siempre en los planes que la incluyan)
         </label>
+        <div className="mt-4">
+          <CoberturaSumaConfigFields
+            idPrefix="nc-suma"
+            valores={form}
+            errores={{ unidadCalculo: err('unidadCalculo'), etiquetaCuadro: err('etiquetaCuadro') }}
+            disabled={Boolean(sumaGrabada)}
+            onChange={(cambios) => setForm((prev) => ({ ...prev, ...cambios }))}
+          />
+        </div>
       </div>
 
       <div>
@@ -367,6 +398,12 @@ export function Sis2000NuevaCoberturaForm({
 
       <div>
         <h5 className={SUBTITULO}>Tarifa y tasa vigente</h5>
+        {form.tipoSuma === 'CALCULADA' && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Con suma calculada al emitir, la suma máxima y la tasa o prima de la tarifa son opcionales (se graban
+            en 0 si las dejas vacías).
+          </p>
+        )}
         <FormGrid>
           <FormField
             label="Código de tarifa (ctarifa) *"
@@ -427,9 +464,9 @@ export function Sis2000NuevaCoberturaForm({
             />
           </FormField>
           <FormField
-            label="Suma máxima *"
+            label={form.tipoSuma === 'CALCULADA' ? 'Suma máxima' : 'Suma máxima *'}
             htmlFor="nc-msumamax"
-            tooltip="Suma asegurada máxima (matarifa_d.msumamax). Debe ser mayor a 0."
+            tooltip="Suma asegurada máxima (matarifa_d.msumamax). Debe ser mayor a 0, salvo con suma calculada al emitir."
             error={err('msumamax')}
           >
             <Input
@@ -467,7 +504,7 @@ export function Sis2000NuevaCoberturaForm({
         <FormGrid className="mt-3">
           {form.modo === 'tasa' ? (
             <FormField
-              label="Tasa % *"
+              label={form.tipoSuma === 'CALCULADA' ? 'Tasa %' : 'Tasa % *'}
               htmlFor="nc-pprima"
               hint="0,5 = 0,5 % de la suma asegurada."
               tooltip="Tasa en % (matarifa_d.pprima)."
@@ -484,7 +521,7 @@ export function Sis2000NuevaCoberturaForm({
             </FormField>
           ) : (
             <FormField
-              label="Prima fija *"
+              label={form.tipoSuma === 'CALCULADA' ? 'Prima fija' : 'Prima fija *'}
               htmlFor="nc-mprima"
               tooltip="Prima fija de la cobertura (matarifa_d.mprima)."
               error={err('mprima')}

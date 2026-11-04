@@ -347,6 +347,25 @@ export const api = {
       { method: 'PUT', body: JSON.stringify(body) },
     ),
 
+  // Suma asegurada por cobertura (FIJA / CALCULADA al emitir) — Postgres del configurador
+  listSis2000CoberturaSumaConfig: (cramo: number) =>
+    request<import('@/lib/sis2000-nest-api').CoberturaSumaConfig[]>(
+      `/core/sis2000/suma-config/${encodeURIComponent(String(cramo))}`,
+    ),
+  upsertSis2000CoberturaSumaConfig: (
+    cramo: number,
+    ccobertura: string,
+    body: {
+      tipoSuma: import('@/lib/sis2000-nest-api').TipoSumaAsegurada;
+      unidadCalculo?: string;
+      etiquetaCuadro?: string;
+    },
+  ) =>
+    request<import('@/lib/sis2000-nest-api').CoberturaSumaConfig>(
+      `/core/sis2000/suma-config/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccobertura)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+
   // Tarifas
   getSis2000TarifasDefinicion: () =>
     request<unknown>('/core/sis2000/tarifas/definicion'),

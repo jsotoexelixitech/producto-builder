@@ -10,6 +10,54 @@ export const SIS2000_DEFAULT_CITEM = '80080';
 
 export type Sis2000PlanType = 'personas' | 'cosas';
 
+// ── Suma asegurada por cobertura (Postgres del configurador: /core/sis2000/suma-config) ─────────
+
+export type TipoSumaAsegurada = 'FIJA' | 'CALCULADA';
+export const UNIDAD_CALCULO_DEFAULT = 'Unidad de cálculo';
+
+/** FIJA = la de hoy. CALCULADA = unidades × valor por unidad, ambos llegan al emitir. */
+export interface CoberturaSumaConfig {
+  cramo: number;
+  ccobertura: string;
+  tipoSuma: TipoSumaAsegurada;
+  /** Nombre genérico de la unidad en el sistema. */
+  unidadCalculo?: string | null;
+  /** Palabra que sale en el cuadro póliza (obligatoria si CALCULADA). */
+  etiquetaCuadro?: string | null;
+}
+
+export type CoberturaSumaConfigPorCodigo = Record<string, CoberturaSumaConfig>;
+
+export function esSumaCalculada(config: CoberturaSumaConfig | undefined | null): boolean {
+  return config?.tipoSuma === 'CALCULADA';
+}
+
+/** Texto de la fila del plan para una cobertura CALCULADA: «Se calcula al emitir (Etiqueta)». */
+export function textoSumaCalculada(config: CoberturaSumaConfig | undefined | null): string {
+  const etiqueta = String(config?.etiquetaCuadro ?? '').trim();
+  return `Se calcula al emitir${etiqueta ? ` (${etiqueta})` : ''}`;
+}
+
+export function indexarSumaConfig(rows: CoberturaSumaConfig[]): CoberturaSumaConfigPorCodigo {
+  const out: CoberturaSumaConfigPorCodigo = {};
+  for (const r of rows) out[String(r.ccobertura).trim().toUpperCase()] = r;
+  return out;
+}
+
+/** Errores del bloque «Suma calculada al emitir» (vacío = válido). */
+export function validarSumaConfig(f: {
+  tipoSuma: TipoSumaAsegurada;
+  unidadCalculo: string;
+  etiquetaCuadro: string;
+}): { unidadCalculo?: string; etiquetaCuadro?: string } {
+  const e: { unidadCalculo?: string; etiquetaCuadro?: string } = {};
+  if (f.tipoSuma !== 'CALCULADA') return e;
+  if (!f.etiquetaCuadro.trim()) e.etiquetaCuadro = 'Indica la etiqueta que sale en el cuadro póliza.';
+  else if (f.etiquetaCuadro.trim().length > 40) e.etiquetaCuadro = 'Máximo 40 caracteres.';
+  if (f.unidadCalculo.trim().length > 60) e.unidadCalculo = 'Máximo 60 caracteres.';
+  return e;
+}
+
 export interface DefaultPlanOptions {
   type?: Sis2000PlanType;
   cramo?: number;
@@ -103,6 +151,7 @@ function normalizePlanCobertura(
     if (out.msumamin != null) out.msumamin = Number(out.msumamin);
     if (out.mprima != null) out.mprima = Number(out.mprima);
     if (out.pprima != null) out.pprima = Number(out.pprima);
+    if (out.suma_calculada != null) out.suma_calculada = out.suma_calculada === true;
   }
   return out;
 }
@@ -195,6 +244,8 @@ export function validatePlanPayload(payload: Record<string, unknown>): string[] 
     if (!String(c.ccobertura ?? '').trim()) errores.push(`${n}: falta ccobertura.`);
     if (!String(c.ctarifa ?? '').trim()) errores.push(`${n}: falta ctarifa.`);
     if (type === 'cosas') {
+      // suma_calculada: la suma llega al emitir (unidades × valor por unidad); se graba 0 sin prima ni tasa.
+      if (c.suma_calculada === true) return;
       if (!(Number(c.msumamax) > 0)) errores.push(`${n}: msumamax debe ser mayor a 0.`);
       if (!(Number(c.mprima) > 0) && !(Number(c.pprima) > 0)) {
         errores.push(`${n}: necesita prima fija (mprima) o tasa (pprima) mayor a 0.`);

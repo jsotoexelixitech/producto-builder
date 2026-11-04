@@ -1,6 +1,10 @@
 // Formulario "Nueva cobertura" (macoberturas + matarifa + matarifa_d) para nest-api v1/configurador.
 // Una cobertura sin tarifa vigente no se puede usar en un plan, por eso se crean juntas.
-import type { Sis2000NestRow } from '@/lib/sis2000-nest-api';
+import {
+  validarSumaConfig,
+  type Sis2000NestRow,
+  type TipoSumaAsegurada,
+} from '@/lib/sis2000-nest-api';
 
 export type ModoPrima = 'tasa' | 'prima';
 
@@ -27,6 +31,12 @@ export interface NuevaCoberturaForm {
   modo: ModoPrima;
   pprima: string;
   mprima: string;
+  /** FIJA = como hoy. CALCULADA = la suma llega al emitir (unidades × valor por unidad). */
+  tipoSuma: TipoSumaAsegurada;
+  /** Nombre genérico de la unidad en el sistema (opcional). */
+  unidadCalculo: string;
+  /** Palabra que sale en el cuadro póliza (obligatoria si CALCULADA). */
+  etiquetaCuadro: string;
 }
 
 export type ErroresNuevaCobertura = Partial<Record<keyof NuevaCoberturaForm, string>>;
@@ -76,6 +86,9 @@ export function formNuevaCobertura(
     modo: 'tasa',
     pprima: '',
     mprima: '',
+    tipoSuma: 'FIJA',
+    unidadCalculo: '',
+    etiquetaCuadro: '',
   };
 }
 
@@ -122,7 +135,14 @@ export function validarNuevaCobertura(
     e.fhasta = 'Debe ser igual o posterior a «Vigente desde».';
   }
 
-  if (!esNumero(f.msumamax) || Number(f.msumamax) <= 0) e.msumamax = 'La suma máxima debe ser mayor a 0.';
+  // Con suma calculada al emitir la suma máxima y la tasa/prima de la tarifa son opcionales (0 si vacías).
+  const calculada = f.tipoSuma === 'CALCULADA';
+  Object.assign(e, validarSumaConfig(f));
+  if (calculada) {
+    if (f.msumamax.trim() && (!esNumero(f.msumamax) || Number(f.msumamax) < 0)) e.msumamax = 'Debe ser 0 o mayor.';
+  } else if (!esNumero(f.msumamax) || Number(f.msumamax) <= 0) {
+    e.msumamax = 'La suma máxima debe ser mayor a 0.';
+  }
   if (f.msumamin.trim()) {
     if (!esNumero(f.msumamin) || Number(f.msumamin) < 0) e.msumamin = 'Debe ser 0 o mayor.';
     else if (esNumero(f.msumamax) && Number(f.msumamin) > Number(f.msumamax)) {
@@ -132,9 +152,13 @@ export function validarNuevaCobertura(
   if (!e.msumamax && decimales(f.msumamax) > 2) e.msumamax = 'Máximo 2 decimales.';
   if (!e.msumamin && decimales(f.msumamin) > 2) e.msumamin = 'Máximo 2 decimales.';
   if (f.modo === 'tasa') {
-    if (!esNumero(f.pprima) || Number(f.pprima) <= 0) e.pprima = 'La tasa debe ser mayor a 0.';
+    if (calculada && !f.pprima.trim()) {
+      // opcional
+    } else if (!esNumero(f.pprima) || Number(f.pprima) <= 0) e.pprima = 'La tasa debe ser mayor a 0.';
     else if (Number(f.pprima) > 100) e.pprima = 'La tasa es un porcentaje (máx. 100).';
     else if (decimales(f.pprima) > 6) e.pprima = 'Máximo 6 decimales.';
+  } else if (calculada && !f.mprima.trim()) {
+    // opcional
   } else if (!esNumero(f.mprima) || Number(f.mprima) <= 0) {
     e.mprima = 'La prima fija debe ser mayor a 0.';
   } else if (decimales(f.mprima) > 2) {
@@ -173,9 +197,9 @@ export function payloadTarifa(cramo: number, f: NuevaCoberturaForm): Record<stri
     fdesde: f.fdesde,
     fhasta: f.fhasta || undefined,
     msumamin: f.msumamin.trim() ? Number(f.msumamin) : 0,
-    msumamax: Number(f.msumamax),
-    pprima: f.modo === 'tasa' ? Number(f.pprima) : 0,
-    mprima: f.modo === 'prima' ? Number(f.mprima) : 0,
+    msumamax: f.msumamax.trim() ? Number(f.msumamax) : 0,
+    pprima: f.modo === 'tasa' && f.pprima.trim() ? Number(f.pprima) : 0,
+    mprima: f.modo === 'prima' && f.mprima.trim() ? Number(f.mprima) : 0,
   };
   return {
     cramo,
@@ -185,5 +209,14 @@ export function payloadTarifa(cramo: number, f: NuevaCoberturaForm): Record<stri
     xtarifa: f.xdescripcion_l.trim().toUpperCase(),
     bobligatoria: f.obligatoria,
     detalles: [detalle],
+  };
+}
+
+/** Cuerpo de PUT /core/sis2000/suma-config/:cramo/:ccobertura (Postgres del configurador, no Sis2000). */
+export function payloadSumaConfig(f: Pick<NuevaCoberturaForm, 'tipoSuma' | 'unidadCalculo' | 'etiquetaCuadro'>) {
+  return {
+    tipoSuma: f.tipoSuma,
+    unidadCalculo: f.unidadCalculo.trim() || undefined,
+    etiquetaCuadro: f.etiquetaCuadro.trim() || undefined,
   };
 }

@@ -266,8 +266,9 @@ export function Sis2000PlanFormPage() {
       </p>
       <p className="mb-4 text-xs text-amber-800 dark:text-amber-200">
         Indica los productores que pueden vender el plan (o all_productor: true). En planes de cosas
-        cada cobertura lleva prima fija (mprima) o tasa (pprima, en %). Solo catálogo — no emite
-        pólizas.
+        cada cobertura lleva prima fija (mprima) o tasa (pprima, en %); si su suma se calcula al
+        emitir, agrega <code>&quot;suma_calculada&quot;: true</code> a la cobertura y deja suma, prima y
+        tasa en 0. Solo catálogo — no emite pólizas.
       </p>
 
       {error && <Alert variant="error" className="mb-3">{error}</Alert>}
