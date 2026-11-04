@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -24,6 +25,11 @@ export class Sis2000NestController {
   constructor(private readonly coreService: CoreService) {}
 
   // ── Catálogos auxiliares → combos en formularios ─────────────────────────
+
+  @Get('catalogos/productores')
+  listProductores(@Query('q') q?: string) {
+    return this.coreService.listSis2000Productores(q ?? '');
+  }
 
   @Get('catalogos/monedas')
   listMonedas() {

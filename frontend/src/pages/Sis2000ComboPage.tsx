@@ -18,12 +18,18 @@ import {
   formatTarifaDescripcion,
   normalizePlanPayloadForApi,
   sis2000PlanMasterId,
-  SIS2000_DEFAULT_PRODUCTOR,
   validatePlanPayload,
   type Sis2000NestRow,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
 import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
+import {
+  PRODUCTORES_DEFAULT,
+  ProductoresSelector,
+  productoresToPayloadFields,
+  validarProductores,
+  type ProductoresSelection,
+} from '@/components/sis2000/ProductoresSelector';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -289,8 +295,8 @@ export function Sis2000ComboPage() {
   const [cmoneda, setCmoneda] = useState('$');
   const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [frecuencias, setFrecuencias] = useState<string[]>(['A']);
-  const [todosProductores, setTodosProductores] = useState(false);
-  const [cproductor, setCproductor] = useState(String(SIS2000_DEFAULT_PRODUCTOR));
+  /** Quién puede vender el plan: lista de productores (por defecto 80080) o todos. */
+  const [productoresSel, setProductoresSel] = useState<ProductoresSelection>(PRODUCTORES_DEFAULT);
 
   const [intentoCrear, setIntentoCrear] = useState(false);
   const [creando, setCreando] = useState(false);
@@ -551,13 +557,13 @@ export function Sis2000ComboPage() {
       cramo,
       cproducto,
       cplan: cplan.trim(),
-      cproductor: todosProductores ? undefined : Number(cproductor),
+      ...productoresToPayloadFields(productoresSel),
     });
     payload.xplan = xplan.trim();
     payload.fdesde = fdesde;
     payload.fhasta = fhasta;
     payload.cmoneda = cmoneda.trim();
-    payload.all_productor = todosProductores;
+    payload.all_productor = productoresSel.todos;
     payload.frecuencias = FRECUENCIAS.filter((f) => frecuencias.includes(f.ifrecuencia)).map(
       (f) => ({ ...f }),
     );
@@ -585,10 +591,8 @@ export function Sis2000ComboPage() {
     else if (fdesde > fhasta) errores.push('La vigencia «desde» es posterior a «hasta».');
     if (!cmoneda.trim()) errores.push('Indica la moneda del plan.');
     if (!frecuencias.length) errores.push('Marca al menos una frecuencia de pago.');
-    const productor = Number(cproductor);
-    if (!todosProductores && !(Number.isInteger(productor) && productor > 0)) {
-      errores.push('Indica el código del productor que puede vender el plan o marca «Todos los productores».');
-    }
+    const errorProductores = validarProductores(productoresSel);
+    if (errorProductores) errores.push(errorProductores);
 
     if (!incluidas.length) errores.push('Incluye al menos una cobertura en el combo.');
     const nombre = (v: VistaCobertura) =>
@@ -1134,38 +1138,7 @@ export function Sis2000ComboPage() {
                 label="Quién puede venderlo"
                 tooltip="Productor que ve el plan en SysIP (mausuplan) o todos los productores."
               >
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className={ETIQUETA_OPCION}>
-                    <input
-                      type="radio"
-                      name="combo-visibilidad"
-                      className="h-4 w-4 accent-primary"
-                      checked={!todosProductores}
-                      onChange={() => setTodosProductores(false)}
-                    />
-                    Un productor
-                  </label>
-                  <Input
-                    aria-label="Código del productor (cproductor)"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={cproductor}
-                    disabled={todosProductores}
-                    onChange={(e) => setCproductor(e.target.value)}
-                    className="w-36"
-                  />
-                  <label className={ETIQUETA_OPCION}>
-                    <input
-                      type="radio"
-                      name="combo-visibilidad"
-                      className="h-4 w-4 accent-primary"
-                      checked={todosProductores}
-                      onChange={() => setTodosProductores(true)}
-                    />
-                    Todos los productores
-                  </label>
-                </div>
+                <ProductoresSelector idPrefix="combo-prod" value={productoresSel} onChange={setProductoresSel} />
               </FormField>
             </FormGrid>
           </SectionPanel>

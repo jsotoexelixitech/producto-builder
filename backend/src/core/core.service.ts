@@ -441,6 +441,11 @@ export class CoreService implements OnModuleInit {
 
   // ── nest-api catalog:sis2000 + partner/starter/plan ─────────────────────
 
+  async listSis2000Productores(q = '') {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000Productores(q);
+  }
+
   async listSis2000CatalogMonedas() {
     this.assertPartnerConfigured();
     return this.partnerBridge.listCatalogMonedas();

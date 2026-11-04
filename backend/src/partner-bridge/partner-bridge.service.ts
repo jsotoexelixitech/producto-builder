@@ -241,6 +241,16 @@ export class PartnerBridgeService {
 
   // Lectura y escritura por el módulo propio de nest-api (v1/configurador, scope configurador:write).
 
+  /** Productores (maproduc) para asignar a un plan; filtro por nombre o código. */
+  async listSis2000Productores(q = ''): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/configurador/productores?q=${encodeURIComponent(q)}`,
+      ),
+    );
+  }
+
   async listSis2000CoberturasByRamo(cramo: string): Promise<Record<string, unknown>[]> {
     return this.unwrapDataArray(
       await this.request<NestEnvelope<unknown[]>>(

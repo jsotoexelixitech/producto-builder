@@ -294,6 +294,10 @@ export const api = {
     ),
 
   // Catálogos auxiliares (combos formulario plan)
+  listSis2000Productores: (q = '') =>
+    request<{ cproductor: number; xproductor: string }[]>(
+      `/core/sis2000/catalogos/productores?q=${encodeURIComponent(q)}`,
+    ),
   listSis2000CatalogMonedas: () =>
     request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/catalogos/monedas'),
   listSis2000CatalogRamosInternos: () =>

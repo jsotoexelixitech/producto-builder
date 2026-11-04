@@ -12,6 +12,13 @@ import {
   type Sis2000PlanType,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import {
+  PRODUCTORES_DEFAULT,
+  ProductoresSelector,
+  productoresFromPayload,
+  productoresToPayloadFields,
+  type ProductoresSelection,
+} from '@/components/sis2000/ProductoresSelector';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
@@ -38,9 +45,8 @@ export function Sis2000PlanFormPage() {
   const [planType, setPlanType] = useState<Sis2000PlanType>('personas');
   const [cproductoQuick, setCproductoQuick] = useState(queryCproducto);
   const [cramoQuick, setCramoQuick] = useState(queryCramo);
-  /** Quién ve el plan en mausuplan: un productor (por defecto 80080) o todos (all_productor: true). */
-  const [productoresModo, setProductoresModo] = useState<'uno' | 'todos'>('uno');
-  const [cproductorQuick, setCproductorQuick] = useState(String(SIS2000_DEFAULT_PRODUCTOR));
+  /** Quién ve el plan en mausuplan: lista de productores (por defecto 80080) o todos (all_productor: true). */
+  const [productoresSel, setProductoresSel] = useState<ProductoresSelection>(PRODUCTORES_DEFAULT);
   const [cplanQuick, setCplanQuick] = useState('');
   const [cotizando, setCotizando] = useState(false);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
@@ -60,23 +66,19 @@ export function Sis2000PlanFormPage() {
       preserveCplan?: string;
     }) => {
       const type = opts?.type ?? planType;
+      const prod = productoresToPayloadFields(productoresSel);
       const payload = defaultPlanPayload({
         type,
         cramo: opts?.cramo ?? (Number(cramoQuick) || undefined),
         cproducto: opts?.cproducto ?? cproductoQuick,
-        cproductor:
-          productoresModo === 'todos'
-            ? undefined
-            : (opts?.cproductor ?? (Number(cproductorQuick) || undefined)),
+        cproductor: opts?.cproductor,
+        productores: prod.productores,
+        all_productor: prod.all_productor,
         cplan: opts?.preserveCplan ?? cplanQuick,
       });
-      if (productoresModo === 'todos') {
-        payload.all_productor = true;
-        payload.productores = [];
-      }
       setJsonText(JSON.stringify(payload, null, 2));
     },
-    [planType, cramoQuick, cproductoQuick, cproductorQuick, cplanQuick, productoresModo],
+    [planType, cramoQuick, cproductoQuick, cplanQuick, productoresSel],
   );
 
   useEffect(() => {
@@ -141,6 +143,7 @@ export function Sis2000PlanFormPage() {
         setCproductoQuick(String(match.cproducto ?? '').trim());
         const merged = normalizePlanPayloadForApi({ ...match, operation: 'U' }, 'update');
         setPlanType(inferPlanType(merged));
+        setProductoresSel(productoresFromPayload(merged as Record<string, unknown>));
         setJsonText(JSON.stringify(merged, null, 2));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar plan');
@@ -155,13 +158,14 @@ export function Sis2000PlanFormPage() {
       parsed.cproducto = cproductoQuick.trim();
       parsed.cramo = Number(cramoQuick) || 0;
       parsed.cplan = cplanQuick.trim();
-      if (productoresModo === 'todos') {
+      const prod = productoresToPayloadFields(productoresSel);
+      if (prod.all_productor) {
         parsed.all_productor = true;
         parsed.productores = [];
-      } else if (Number(cproductorQuick) > 0) {
+      } else if (prod.productores.length) {
         parsed.all_productor = false;
         parsed.all_canal = false;
-        parsed.productores = [{ cproductor: Number(cproductorQuick) }];
+        parsed.productores = prod.productores;
       }
       const normalized = normalizePlanPayloadForApi(parsed, isEdit ? 'update' : 'create');
       setJsonText(JSON.stringify(normalized, null, 2));
@@ -315,41 +319,12 @@ export function Sis2000PlanFormPage() {
             placeholder="T908V5"
           />
         </div>
-        <div>
+        <div className="sm:col-span-2 lg:col-span-3">
           <div className="flex items-center gap-1.5">
-            <Label>Productores</Label>
-            <InfoTip text="«Solo 80080» deja ese productor como el único que ve el plan (mausuplan). «Todos» lo habilita para todos los productores (all_productor: true). Se aplica con «Aplicar campos al JSON» o «Plantilla completa»." />
+            <Label>Productores que pueden vender el plan</Label>
+            <InfoTip text="Busca por nombre o código y selecciona uno o varios productores (mausuplan); por defecto 80080. «Todos» lo habilita para todos (all_productor: true). Se aplica con «Aplicar campos al JSON» o «Plantilla completa»." />
           </div>
-          <Select
-            value={productoresModo}
-            onValueChange={(v) => {
-              const modo = v as 'uno' | 'todos';
-              setProductoresModo(modo);
-              if (modo === 'uno' && !(Number(cproductorQuick) > 0)) {
-                setCproductorQuick(String(SIS2000_DEFAULT_PRODUCTOR));
-              }
-            }}
-          >
-            <SelectTrigger aria-label="Productores que pueden vender el plan">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="uno">Solo {SIS2000_DEFAULT_PRODUCTOR}</SelectItem>
-              <SelectItem value="todos">Todos los productores</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="cprod-q">Productor que puede venderlo (cproductor)</Label>
-            <InfoTip text="Solo aplica con «Solo 80080»: puedes cambiar el código por otro productor. Para varios productores edita la lista «productores» del JSON." />
-          </div>
-          <Input
-            id="cprod-q"
-            value={cproductorQuick}
-            disabled={productoresModo === 'todos'}
-            onChange={(e) => setCproductorQuick(e.target.value)}
-          />
+          <ProductoresSelector idPrefix="plan-prod" value={productoresSel} onChange={setProductoresSel} />
         </div>
         <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
           <Button type="button" variant="outline" size="sm" onClick={() => applyTemplate()}>

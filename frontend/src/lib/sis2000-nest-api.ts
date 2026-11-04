@@ -16,6 +16,10 @@ export interface DefaultPlanOptions {
   cproducto?: string;
   cplan?: string;
   cproductor?: number;
+  /** Lista de productores (uno o varios); tiene prioridad sobre cproductor. */
+  productores?: Array<{ cproductor: number }>;
+  /** true = todos los productores (all_productor). */
+  all_productor?: boolean;
   ccobertura?: number;
   ctarifa?: number;
   ctablatar?: string;
@@ -137,9 +141,15 @@ export function defaultPlanPayload(options: DefaultPlanOptions = {}): Sis2000Cre
     itiporen: 'A',
     idevolucion: 'N',
     iestado: 'V',
-    all_productor: false,
+    all_productor: options.all_productor === true,
     all_canal: false,
-    productores: options.cproductor ? [{ cproductor: options.cproductor }] : [],
+    productores: options.all_productor === true
+      ? []
+      : (options.productores?.length
+          ? options.productores.map((p) => ({ cproductor: Number(p.cproductor) }))
+          : options.cproductor
+            ? [{ cproductor: options.cproductor }]
+            : []),
     frecuencias: [{ ifrecuencia: 'A', xfrecuencia: 'Anual', ndias: 365 }],
     coberturas: [],
   };
