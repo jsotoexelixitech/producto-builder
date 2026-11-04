@@ -6,6 +6,7 @@ import {
   defaultPlanPayload,
   inferPlanType,
   normalizePlanPayloadForApi,
+  SIS2000_DEFAULT_PRODUCTOR,
   validatePlanPayload,
   type Sis2000NestRow,
   type Sis2000PlanType,
@@ -37,7 +38,9 @@ export function Sis2000PlanFormPage() {
   const [planType, setPlanType] = useState<Sis2000PlanType>('personas');
   const [cproductoQuick, setCproductoQuick] = useState(queryCproducto);
   const [cramoQuick, setCramoQuick] = useState(queryCramo);
-  const [cproductorQuick, setCproductorQuick] = useState('');
+  /** Quién ve el plan en mausuplan: un productor (por defecto 80080) o todos (all_productor: true). */
+  const [productoresModo, setProductoresModo] = useState<'uno' | 'todos'>('uno');
+  const [cproductorQuick, setCproductorQuick] = useState(String(SIS2000_DEFAULT_PRODUCTOR));
   const [cplanQuick, setCplanQuick] = useState('');
   const [cotizando, setCotizando] = useState(false);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
@@ -61,12 +64,19 @@ export function Sis2000PlanFormPage() {
         type,
         cramo: opts?.cramo ?? (Number(cramoQuick) || undefined),
         cproducto: opts?.cproducto ?? cproductoQuick,
-        cproductor: opts?.cproductor ?? (Number(cproductorQuick) || undefined),
+        cproductor:
+          productoresModo === 'todos'
+            ? undefined
+            : (opts?.cproductor ?? (Number(cproductorQuick) || undefined)),
         cplan: opts?.preserveCplan ?? cplanQuick,
       });
+      if (productoresModo === 'todos') {
+        payload.all_productor = true;
+        payload.productores = [];
+      }
       setJsonText(JSON.stringify(payload, null, 2));
     },
-    [planType, cramoQuick, cproductoQuick, cproductorQuick, cplanQuick],
+    [planType, cramoQuick, cproductoQuick, cproductorQuick, cplanQuick, productoresModo],
   );
 
   useEffect(() => {
@@ -94,7 +104,12 @@ export function Sis2000PlanFormPage() {
         setCproductoQuick(cproducto);
         setCramoQuick(cramo ? String(cramo) : '');
         setPlanType(type);
-        const payload = defaultPlanPayload({ type, cramo, cproducto });
+        const payload = defaultPlanPayload({
+          type,
+          cramo,
+          cproducto,
+          cproductor: SIS2000_DEFAULT_PRODUCTOR,
+        });
         setJsonText(JSON.stringify(payload, null, 2));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al inicializar plantilla');
@@ -140,7 +155,10 @@ export function Sis2000PlanFormPage() {
       parsed.cproducto = cproductoQuick.trim();
       parsed.cramo = Number(cramoQuick) || 0;
       parsed.cplan = cplanQuick.trim();
-      if (parsed.all_productor !== true && Number(cproductorQuick) > 0) {
+      if (productoresModo === 'todos') {
+        parsed.all_productor = true;
+        parsed.productores = [];
+      } else if (Number(cproductorQuick) > 0) {
         parsed.all_productor = false;
         parsed.all_canal = false;
         parsed.productores = [{ cproductor: Number(cproductorQuick) }];
@@ -299,12 +317,37 @@ export function Sis2000PlanFormPage() {
         </div>
         <div>
           <div className="flex items-center gap-1.5">
+            <Label>Productores</Label>
+            <InfoTip text="«Solo 80080» deja ese productor como el único que ve el plan (mausuplan). «Todos» lo habilita para todos los productores (all_productor: true). Se aplica con «Aplicar campos al JSON» o «Plantilla completa»." />
+          </div>
+          <Select
+            value={productoresModo}
+            onValueChange={(v) => {
+              const modo = v as 'uno' | 'todos';
+              setProductoresModo(modo);
+              if (modo === 'uno' && !(Number(cproductorQuick) > 0)) {
+                setCproductorQuick(String(SIS2000_DEFAULT_PRODUCTOR));
+              }
+            }}
+          >
+            <SelectTrigger aria-label="Productores que pueden vender el plan">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="uno">Solo {SIS2000_DEFAULT_PRODUCTOR}</SelectItem>
+              <SelectItem value="todos">Todos los productores</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5">
             <Label htmlFor="cprod-q">Productor que puede venderlo (cproductor)</Label>
-            <InfoTip text="Al pulsar «Aplicar campos al JSON» deja este productor como el único que ve el plan. Para varios productores edita la lista «productores» del JSON, o usa all_productor: true para todos." />
+            <InfoTip text="Solo aplica con «Solo 80080»: puedes cambiar el código por otro productor. Para varios productores edita la lista «productores» del JSON." />
           </div>
           <Input
             id="cprod-q"
             value={cproductorQuick}
+            disabled={productoresModo === 'todos'}
             onChange={(e) => setCproductorQuick(e.target.value)}
           />
         </div>
