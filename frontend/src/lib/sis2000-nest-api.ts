@@ -311,7 +311,8 @@ export function normalizeCatalogCreatePayload(
 ): Record<string, unknown> {
   const out = { ...payload };
   const op = String(out.operation ?? 'C').toUpperCase();
-  out.operation = op === 'U' || op === 'D' ? op : 'C';
+  // Borrar planes no está permitido: solo crear (C) o editar (U).
+  out.operation = op === 'U' ? 'U' : 'C';
   out.cusuario = Number(out.cusuario ?? SIS2000_DEFAULT_CUSUARIO);
   if (out.cramo != null) out.cramo = Number(out.cramo);
   if (out.ccobertura != null && out.ccobertura !== '') {

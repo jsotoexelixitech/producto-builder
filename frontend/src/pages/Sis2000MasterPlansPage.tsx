@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Layers, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Layers, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   formatNestRowValue,
@@ -19,7 +19,6 @@ export function Sis2000MasterPlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [ramoFilter, setRamoFilter] = useState('18');
   const [search, setSearch] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -48,30 +47,6 @@ export function Sis2000MasterPlansPage() {
       return JSON.stringify(p).toLowerCase().includes(q);
     });
   }, [plans, search, ramoFilter]);
-
-  async function handleDelete(id: string, cplan: string) {
-    if (
-      !window.confirm(
-        `¿Eliminar plan maestro ${cplan} (${id})? Esta acción usa DELETE en nest-api/spMantPlanes.`,
-      )
-    ) {
-      return;
-    }
-    setDeletingId(id);
-    setError(null);
-    try {
-      await api.deleteSis2000MasterPlan(id);
-      setPlans((prev) =>
-        prev.filter(
-          (p) => sis2000PlanMasterId(String(p.cramo ?? ''), String(p.cplan ?? '')) !== id,
-        ),
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo eliminar el plan');
-    } finally {
-      setDeletingId(null);
-    }
-  }
 
   return (
     <AppShell title="Planes maestro Sis2000">
@@ -157,15 +132,6 @@ export function Sis2000MasterPlansPage() {
                           >
                             Editar
                           </Link>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-destructive underline-offset-2 hover:underline disabled:opacity-50"
-                            disabled={deletingId === id}
-                            onClick={() => void handleDelete(id, cplan)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            {deletingId === id ? '…' : 'Eliminar'}
-                          </button>
                         </div>
                       )}
                     </td>

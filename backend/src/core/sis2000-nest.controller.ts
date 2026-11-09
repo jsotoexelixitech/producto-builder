@@ -7,8 +7,7 @@ import {
   Patch,
   Post,
   Put,
-  Query,
-} from '@nestjs/common';
+  Query, ForbiddenException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -227,7 +226,11 @@ export class Sis2000NestController {
     @CurrentUser() user: AuthUserPayload,
     @Query('motivo') motivo?: string,
   ) {
-    return this.coreService.deleteSis2000MasterPlan(id, contextoCambio(user, motivo));
+    // Borrar planes en Sis2000 no está permitido (spMantPlanes borra datos).
+    void id;
+    void user;
+    void motivo;
+    throw new ForbiddenException('Borrar planes en Sis2000 no está permitido desde el configurador.');
   }
 
   /** Cotiza un plan de cosas recién creado (solo lectura: no emite). */
