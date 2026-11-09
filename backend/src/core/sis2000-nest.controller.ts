@@ -4,12 +4,15 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import type { AuthUserPayload } from '../auth/auth.service';
 import { CoreService } from './core.service';
 import {
   Sis2000CoberturaParamDto,
@@ -18,17 +21,39 @@ import {
   Sis2000RamoParamDto,
   Sis2000TarifaParamDto,
 } from './dto/sis2000-nest.dto';
+import { contextoCambio, separarMotivo } from './respaldo/contexto';
 
-/** Proxy nest-api → sis2000_qa (coberturas, tarifas, catálogos, planes maestro). Escribir: PRODUCT_MANAGER o ADMIN. */
+type Cuerpo = Record<string, unknown>;
+
+/**
+ * Proxy nest-api → sis2000_qa (coberturas, tarifas, catálogos, planes maestro). Escribir: PRODUCT_MANAGER o ADMIN.
+ * Toda escritura guarda antes lo que había en Sis2000 (historial del configurador); `motivoCambio` en el cuerpo es
+ * opcional y no se envía a nest-api.
+ */
 @Controller('core/sis2000')
 export class Sis2000NestController {
   constructor(private readonly coreService: CoreService) {}
 
   // ── Catálogos auxiliares → combos en formularios ─────────────────────────
 
+  @Get('funciones')
+  funciones() {
+    return this.coreService.getSis2000Funciones();
+  }
+
   @Get('catalogos/productores')
   listProductores(@Query('q') q?: string) {
     return this.coreService.listSis2000Productores(q ?? '');
+  }
+
+  @Get('catalogos/canales')
+  listCanales(@Query('q') q?: string) {
+    return this.coreService.listSis2000Canales(q ?? '');
+  }
+
+  @Get('catalogos/proveedores')
+  listProveedores(@Query('q') q?: string) {
+    return this.coreService.listSis2000Proveedores(q ?? '');
   }
 
   @Get('catalogos/monedas')
@@ -83,20 +108,24 @@ export class Sis2000NestController {
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Post('coberturas')
-  createCobertura(@Body() body: Record<string, unknown>) {
-    return this.coreService.createSis2000Cobertura(body);
+  createCobertura(@Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.createSis2000Cobertura(cuerpo, contextoCambio(user, motivo));
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Put('coberturas/:cramo/:ccobertura')
   updateCobertura(
     @Param() params: Sis2000CoberturaParamDto,
-    @Body() body: Record<string, unknown>,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
   ) {
+    const { cuerpo, motivo } = separarMotivo(body);
     return this.coreService.updateSis2000Cobertura(
       String(params.cramo),
       params.ccobertura,
-      body,
+      cuerpo,
+      contextoCambio(user, motivo),
     );
   }
 
@@ -131,27 +160,32 @@ export class Sis2000NestController {
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Post('tarifas')
-  createTarifa(@Body() body: Record<string, unknown>) {
-    return this.coreService.createSis2000Tarifa(body);
+  createTarifa(@Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.createSis2000Tarifa(cuerpo, contextoCambio(user, motivo));
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Post('tarifas/detalles')
-  createTarifaDetalle(@Body() body: Record<string, unknown>) {
-    return this.coreService.createSis2000TarifaDetalle(body);
+  createTarifaDetalle(@Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.createSis2000TarifaDetalle(cuerpo, contextoCambio(user, motivo));
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Put('tarifas/:cramo/:ccobertura/:ctarifa')
   updateTarifa(
     @Param() params: Sis2000TarifaParamDto,
-    @Body() body: Record<string, unknown>,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
   ) {
+    const { cuerpo, motivo } = separarMotivo(body);
     return this.coreService.updateSis2000Tarifa(
       String(params.cramo),
       params.ccobertura,
       params.ctarifa,
-      body,
+      cuerpo,
+      contextoCambio(user, motivo),
     );
   }
 
@@ -162,25 +196,38 @@ export class Sis2000NestController {
     return this.coreService.listSis2000MasterPlans();
   }
 
+  /** Plan completo tal como está en Sis2000 (incluye productores y canales de mausuplan). */
+  @Get('plans/:id/sis2000')
+  leerPlan(@Param('id') id: string) {
+    return this.coreService.leerSis2000Plan(id);
+  }
+
   @Roles(UserRole.PRODUCT_MANAGER)
   @Post('plans')
-  createMasterPlan(@Body() body: Record<string, unknown>) {
-    return this.coreService.createSis2000MasterPlan(body);
+  createMasterPlan(@Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.createSis2000MasterPlan(cuerpo, contextoCambio(user, motivo));
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Put('plans/:id')
   updateMasterPlan(
     @Param('id') id: string,
-    @Body() body: Record<string, unknown>,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
   ) {
-    return this.coreService.updateSis2000MasterPlan(id, body);
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.updateSis2000MasterPlan(id, cuerpo, contextoCambio(user, motivo));
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Delete('plans/:id')
-  deleteMasterPlan(@Param('id') id: string) {
-    return this.coreService.deleteSis2000MasterPlan(id);
+  deleteMasterPlan(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUserPayload,
+    @Query('motivo') motivo?: string,
+  ) {
+    return this.coreService.deleteSis2000MasterPlan(id, contextoCambio(user, motivo));
   }
 
   /** Cotiza un plan de cosas recién creado (solo lectura: no emite). */
@@ -193,5 +240,45 @@ export class Sis2000NestController {
   @Post('plans/frecuencias')
   listPlanFrecuencias(@Body() dto: Sis2000PlanFrecuenciasDto) {
     return this.coreService.listSis2000PlanFrecuencias(dto.cplan, dto.cramo);
+  }
+
+  // ── Proveedores del plan (maplprov_per): por plan, aplica a todas sus coberturas ──
+
+  @Get('plans/:id/proveedores')
+  listPlanProveedores(@Param('id') id: string) {
+    return this.coreService.listSis2000PlanProveedores(id);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('plans/:id/proveedores')
+  agregarPlanProveedor(
+    @Param('id') id: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.agregarSis2000ProveedorPlan(id, cuerpo, contextoCambio(user, motivo));
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Patch('plans/:id/proveedores')
+  editarPlanProveedor(
+    @Param('id') id: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.editarSis2000ProveedorPlan(id, cuerpo, contextoCambio(user, motivo));
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('plans/:id/proveedores/baja')
+  bajaPlanProveedor(
+    @Param('id') id: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.bajaSis2000ProveedorPlan(id, cuerpo, contextoCambio(user, motivo));
   }
 }

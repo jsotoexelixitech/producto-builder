@@ -7,14 +7,30 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  aBajaProveedorPlan,
   aCrearCobertura,
   aCrearDetalleTarifa,
   aCrearTarifa,
   aEditarCobertura,
+  aEditarProveedorPlan,
   aEditarTarifa,
   aPlan,
+  aProveedorPlan,
   partirPlanId,
 } from './configurador.mapper';
+
+/**
+ * Canales alternos en planes (mausuplan centidad C vía spMantPlanes @canales). Apagado por defecto hasta confirmar en
+ * Sis2000_QA cómo graba spMantPlanes los canales; apagado se envía lo de siempre (all_canal false, canales []).
+ */
+export const canalesEnPlanHabilitado = () =>
+  ['1', 'true', 'si', 'sí'].includes(String(process.env.SIS2000_PLAN_CANALES ?? '').trim().toLowerCase());
+
+/** Cuerpo de v1/configurador/planes: aPlan + bandera de canales. */
+export function cuerpoPlan(payload: Record<string, unknown>) {
+  const body = aPlan(payload);
+  return canalesEnPlanHabilitado() ? body : { ...body, all_canal: false, canales: [] as number[] };
+}
 import {
   inferBranchFromPartnerRow,
   PartnerProductPayload,
@@ -251,6 +267,16 @@ export class PartnerBridgeService {
     );
   }
 
+  /** Canales alternos activos (macanalalt) para asignar a un plan; filtro por nombre o código. */
+  async listSis2000Canales(q = ''): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/configurador/canales?q=${encodeURIComponent(q)}`,
+      ),
+    );
+  }
+
   async listSis2000CoberturasByRamo(cramo: string): Promise<Record<string, unknown>[]> {
     return this.unwrapDataArray(
       await this.request<NestEnvelope<unknown[]>>(
@@ -393,7 +419,7 @@ export class PartnerBridgeService {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'POST',
       '/api/v1/configurador/planes',
-      aPlan(payload),
+      cuerpoPlan(payload),
       60_000,
     );
     return body.data ?? payload;
@@ -407,7 +433,7 @@ export class PartnerBridgeService {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'PUT',
       `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan)}`,
-      aPlan(payload),
+      cuerpoPlan(payload),
       60_000,
     );
     return body.data ?? payload;
@@ -421,6 +447,76 @@ export class PartnerBridgeService {
       undefined,
       60_000,
     );
+  }
+
+  /**
+   * Plan completo tal como está en Sis2000 (filas + forma de PlanDto). null si no existe.
+   * Un 404 de la ruta (nest-api sin este endpoint) es error: así no se confunde con «no existe».
+   */
+  async leerSis2000Plan(cramo: number, cplan: string): Promise<Record<string, unknown> | null> {
+    const body = await this.request<NestEnvelope<Record<string, unknown> | null>>(
+      'GET',
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}`,
+      undefined,
+      60_000,
+    );
+    if (!('data' in body)) throw new BadGatewayException('nest-api no devolvió el plan (falta data).');
+    return body.data ?? null;
+  }
+
+  // ── Proveedores del plan (maplprov_per): la relación es por plan, aplica a todas sus coberturas ──
+
+  async listSis2000Proveedores(q = ''): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/configurador/proveedores?q=${encodeURIComponent(q)}`,
+      ),
+    );
+  }
+
+  async listSis2000PlanProveedores(
+    cramo: number,
+    cplan: string,
+  ): Promise<{ escritura_habilitada: boolean; columna_cobertura: string | null; proveedores: Record<string, unknown>[] }> {
+    const body = await this.request<
+      NestEnvelope<{ escritura_habilitada?: boolean; columna_cobertura?: string | null; proveedores?: Record<string, unknown>[] }>
+    >('GET', `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/proveedores`);
+    if (!body.data || !Array.isArray(body.data.proveedores)) {
+      throw new BadGatewayException('nest-api no devolvió los proveedores del plan.');
+    }
+    return {
+      escritura_habilitada: body.data.escritura_habilitada === true,
+      columna_cobertura: body.data.columna_cobertura ?? null,
+      proveedores: body.data.proveedores,
+    };
+  }
+
+  async agregarSis2000ProveedorPlan(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/proveedores`,
+      aProveedorPlan(payload),
+    );
+    return body.data ?? payload;
+  }
+
+  async editarSis2000ProveedorPlan(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PATCH',
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/proveedores`,
+      aEditarProveedorPlan(payload),
+    );
+    return body.data ?? payload;
+  }
+
+  async bajaSis2000ProveedorPlan(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/proveedores/baja`,
+      aBajaProveedorPlan(payload),
+    );
+    return body.data ?? payload;
   }
 
   /**

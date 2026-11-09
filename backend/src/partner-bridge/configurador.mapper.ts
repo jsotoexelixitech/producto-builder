@@ -50,7 +50,45 @@ export function aEditarCobertura(p: Obj) {
     xabreviatura: texto(p.xabreviatura),
     bobligatoria: aBooleano(p.bobligatoria),
     iestado: estado(p.iestado),
+    // Reaseguro (nest-api 5946d34): se envía solo si viene en el cuerpo.
+    ccontrea: num(p.ccontrea),
+    cramorea: num(p.cramorea),
+    cramopcnd: num(p.cramopcnd),
   });
+}
+
+// ── Proveedores del plan (maplprov_per) ──────────────────────────────────────
+
+function claveProveedor(p: Obj) {
+  return { cci_rif: num(p.cci_rif), cclave_num: num(p.cclave_num), fdesde: fecha(p.fdesde) };
+}
+
+export function aProveedorPlan(p: Obj) {
+  return limpio({
+    ...claveProveedor(p),
+    fhasta: fecha(p.fhasta),
+    itiposerv: num(p.itiposerv),
+    mcosto: num(p.mcosto),
+    mcostoext: num(p.mcostoext),
+    cmoneda: texto(p.cmoneda),
+  });
+}
+
+export function aEditarProveedorPlan(p: Obj) {
+  const sinFin = aBooleano(p.sin_fin) === true;
+  return limpio({
+    ...claveProveedor(p),
+    fhasta: sinFin ? undefined : fecha(p.fhasta),
+    sin_fin: sinFin || undefined,
+    itiposerv: num(p.itiposerv),
+    mcosto: num(p.mcosto),
+    mcostoext: num(p.mcostoext),
+    cmoneda: texto(p.cmoneda),
+  });
+}
+
+export function aBajaProveedorPlan(p: Obj) {
+  return limpio({ ...claveProveedor(p), fhasta_baja: fecha(p.fhasta_baja) });
 }
 
 export function aDetalleTarifa(p: Obj) {

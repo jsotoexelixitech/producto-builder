@@ -433,3 +433,72 @@ model CoberturaSumaConfig {
 
   @@unique([cramo, ccobertura])
 }
+
+/// Entidades de Sis2000 que el configurador respalda antes de modificarlas (copia en esta Postgres, no en Sis2000).
+enum Sis2000EntidadRespaldo {
+  PRODUCTO
+  COBERTURA
+  TARIFA
+  PLAN
+  PLAN_PROVEEDORES
+}
+
+enum Sis2000TipoVersion {
+  CREACION
+  CAMBIO
+  ELIMINACION
+  RESTAURACION
+}
+
+/// PENDIENTE = se guardó lo que había y se está escribiendo en Sis2000; APLICADA / FALLIDA al terminar.
+enum Sis2000ResultadoVersion {
+  PENDIENTE
+  APLICADA
+  FALLIDA
+}
+
+/// Copia original de una entidad de Sis2000: lo que había antes de que el configurador la modificara por primera vez.
+/// Se guarda una sola vez y nunca se sobreescribe (un trigger de la migración lo impide). existia = false si la creó el configurador.
+model Sis2000Respaldo {
+  id            String                 @id @default(uuid())
+  entidad       Sis2000EntidadRespaldo
+  /// "cramo-ccobertura", "cramo-ccober-ctarifa", "cramo-cplan" o cproducto.
+  clave         String
+  existia       Boolean
+  original      Json?
+  usuarioId     String?
+  usuarioEmail  String?
+  usuarioNombre String?
+  createdAt     DateTime               @default(now())
+  versiones     Sis2000Version[]
+
+  @@unique([entidad, clave])
+}
+
+/// Cada escritura del configurador en Sis2000: lo que había antes (se guarda antes de escribir), lo que quedó,
+/// lo que se envió, qué cambió, quién, cuándo y por qué. Lo que había antes no se puede modificar después.
+model Sis2000Version {
+  id              String                  @id @default(uuid())
+  respaldoId      String
+  respaldo        Sis2000Respaldo         @relation(fields: [respaldoId], references: [id])
+  numero          Int
+  tipo            Sis2000TipoVersion
+  resultado       Sis2000ResultadoVersion @default(PENDIENTE)
+  anterior        Json?
+  estado          Json?
+  payload         Json?
+  /// [{ campo, antes, despues }]
+  cambios         Json?
+  motivo          String?
+  /// "ORIGINAL" o "<id de versión>:antes|despues" cuando es una restauración.
+  restauradaDesde String?
+  error           String?
+  usuarioId       String?
+  usuarioEmail    String?
+  usuarioNombre   String?
+  createdAt       DateTime                @default(now())
+  terminadaEn     DateTime?
+
+  @@unique([respaldoId, numero])
+  @@index([respaldoId, createdAt])
+}

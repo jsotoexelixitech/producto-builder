@@ -15,7 +15,10 @@ import {
   ProductStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PartnerBridgeService } from '../partner-bridge/partner-bridge.service';
+import {
+  canalesEnPlanHabilitado,
+  PartnerBridgeService,
+} from '../partner-bridge/partner-bridge.service';
 import {
   mapProductToPartnerPayload,
   resolveCproducto,
@@ -33,6 +36,9 @@ import {
   DEFAULT_SUB_BRANCHES,
 } from './core.constants';
 import { CreateCoreCoverageDto } from './dto/core.dto';
+import { partirPlanId } from '../partner-bridge/configurador.mapper';
+import { Sis2000HistorialService } from './respaldo/sis2000-historial.service';
+import type { ContextoCambio } from './respaldo/respaldo.types';
 
 @Injectable()
 export class CoreService implements OnModuleInit {
@@ -43,6 +49,8 @@ export class CoreService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly partnerBridge: PartnerBridgeService,
+    /** Toda escritura en Sis2000 pasa por aquí: respaldo previo + versión (Postgres del configurador). */
+    private readonly historial: Sis2000HistorialService,
   ) {
     this.coreApiUrl = (process.env.CORE_API_URL ?? '').replace(/\/$/, '');
     this.coreApiKey = process.env.CORE_API_KEY ?? '';
@@ -173,7 +181,7 @@ export class CoreService implements OnModuleInit {
     });
   }
 
-  async syncProductToCore(productId: string) {
+  async syncProductToCore(productId: string, ctx?: ContextoCambio) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: {
@@ -210,7 +218,12 @@ export class CoreService implements OnModuleInit {
       let coreCode = legacyCoreCode;
 
       if (this.partnerBridge.isConfigured()) {
-        partnerAction = await this.partnerBridge.syncProduct(partnerPayload);
+        partnerAction = await this.historial.escribirProducto(
+          partnerPayload.cproducto,
+          () => this.partnerBridge.syncProduct(partnerPayload),
+          partnerPayload,
+          ctx,
+        );
         coreCode = sis2000Code;
         remotePartner = true;
       }
@@ -387,21 +400,34 @@ export class CoreService implements OnModuleInit {
     return rowToPartnerForm(row);
   }
 
-  async createSis2000Product(dto: Sis2000ProductDto) {
+  async createSis2000Product(dto: Sis2000ProductDto, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    const payload = dtoToPartnerPayload(dto as unknown as Record<string, unknown>);
-    await this.partnerBridge.createProduct(payload);
+    const { motivoCambio: _motivo, ...datos } = dto;
+    const payload = dtoToPartnerPayload(datos as unknown as Record<string, unknown>);
+    await this.historial.escribirProducto(
+      payload.cproducto,
+      () => this.partnerBridge.createProduct(payload),
+      payload,
+      ctx,
+    );
     const row = await this.partnerBridge.getProductDetail(payload.cproducto);
     return { ok: true, action: 'created' as const, product: rowToPartnerForm(row) };
   }
 
-  async updateSis2000Product(cproducto: string, dto: Sis2000ProductDto) {
+  async updateSis2000Product(cproducto: string, dto: Sis2000ProductDto, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
+    const { motivoCambio: _motivo, ...datos } = dto;
     const payload = dtoToPartnerPayload({
-      ...(dto as unknown as Record<string, unknown>),
+      ...(datos as unknown as Record<string, unknown>),
       cproducto,
     });
-    await this.partnerBridge.updateProduct(cproducto, payload);
+    await this.historial.escribirProducto(
+      cproducto,
+      () => this.partnerBridge.updateProduct(cproducto, payload),
+      payload,
+      ctx,
+      true,
+    );
     const row = await this.partnerBridge.getProductDetail(cproducto);
     return { ok: true, action: 'updated' as const, product: rowToPartnerForm(row) };
   }
@@ -444,6 +470,57 @@ export class CoreService implements OnModuleInit {
   async listSis2000Productores(q = '') {
     this.assertPartnerConfigured();
     return this.partnerBridge.listSis2000Productores(q);
+  }
+
+  /** Canales alternos (macanalalt) para el selector del plan. */
+  async listSis2000Canales(q = '') {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000Canales(q);
+  }
+
+  /** Funciones que dependen de banderas del servidor (el front muestra u oculta según esto). */
+  getSis2000Funciones() {
+    return { canalesEnPlan: canalesEnPlanHabilitado() };
+  }
+
+  /** Plan completo tal como está en Sis2000 (filas, forma de PlanDto y advertencias). */
+  async leerSis2000Plan(id: string) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    const plan = await this.partnerBridge.leerSis2000Plan(cramo, cplan);
+    if (!plan) throw new NotFoundException(`No existe el plan ${cplan} en el ramo ${cramo}.`);
+    return plan;
+  }
+
+  // ── Proveedores del plan (maplprov_per): por plan, aplica a todas sus coberturas ──
+
+  async listSis2000Proveedores(q = '') {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000Proveedores(q);
+  }
+
+  async listSis2000PlanProveedores(id: string) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.partnerBridge.listSis2000PlanProveedores(cramo, cplan);
+  }
+
+  async agregarSis2000ProveedorPlan(id: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.agregarProveedorPlan(cramo, cplan, body, ctx);
+  }
+
+  async editarSis2000ProveedorPlan(id: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.editarProveedorPlan(cramo, cplan, body, ctx);
+  }
+
+  async bajaSis2000ProveedorPlan(id: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.bajaProveedorPlan(cramo, cplan, body, ctx);
   }
 
   async listSis2000CatalogMonedas() {
@@ -491,18 +568,19 @@ export class CoreService implements OnModuleInit {
     return this.partnerBridge.getSis2000Cobertura(cramo, ccobertura);
   }
 
-  async createSis2000Cobertura(body: Record<string, unknown>) {
+  async createSis2000Cobertura(body: Record<string, unknown>, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.createSis2000Cobertura(body);
+    return this.historial.crearCobertura(body, ctx);
   }
 
   async updateSis2000Cobertura(
     cramo: string,
     ccobertura: string,
     body: Record<string, unknown>,
+    ctx?: ContextoCambio,
   ) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.updateSis2000Cobertura(cramo, ccobertura, body);
+    return this.historial.editarCobertura(Number(cramo), ccobertura, body, ctx);
   }
 
   async getSis2000TarifasDefinicion() {
@@ -536,14 +614,14 @@ export class CoreService implements OnModuleInit {
     );
   }
 
-  async createSis2000Tarifa(body: Record<string, unknown>) {
+  async createSis2000Tarifa(body: Record<string, unknown>, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.createSis2000Tarifa(body);
+    return this.historial.crearTarifa(body, ctx);
   }
 
-  async createSis2000TarifaDetalle(body: Record<string, unknown>) {
+  async createSis2000TarifaDetalle(body: Record<string, unknown>, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.createSis2000TarifaDetalle(body);
+    return this.historial.crearDetalleTarifa(body, ctx);
   }
 
   async updateSis2000Tarifa(
@@ -551,14 +629,10 @@ export class CoreService implements OnModuleInit {
     ccobertura: string,
     ctarifa: string,
     body: Record<string, unknown>,
+    ctx?: ContextoCambio,
   ) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.updateSis2000Tarifa(
-      cramo,
-      ccobertura,
-      ctarifa,
-      body,
-    );
+    return this.historial.editarTarifa(Number(cramo), ccobertura, ctarifa, body, ctx);
   }
 
   async listSis2000MasterPlans() {
@@ -566,19 +640,19 @@ export class CoreService implements OnModuleInit {
     return this.partnerBridge.listSis2000MasterPlans();
   }
 
-  async createSis2000MasterPlan(body: Record<string, unknown>) {
+  async createSis2000MasterPlan(body: Record<string, unknown>, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.createSis2000MasterPlan(body);
+    return this.historial.crearPlan(body, ctx);
   }
 
-  async updateSis2000MasterPlan(id: string, body: Record<string, unknown>) {
+  async updateSis2000MasterPlan(id: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.updateSis2000MasterPlan(id, body);
+    return this.historial.editarPlan(id, body, ctx);
   }
 
-  async deleteSis2000MasterPlan(id: string) {
+  async deleteSis2000MasterPlan(id: string, ctx?: ContextoCambio) {
     this.assertPartnerConfigured();
-    await this.partnerBridge.deleteSis2000MasterPlan(id);
+    await this.historial.eliminarPlan(id, ctx);
     return { ok: true };
   }
 

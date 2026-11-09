@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ProductBranch, UserRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import type { AuthUserPayload } from '../auth/auth.service';
 import { CoreService } from './core.service';
+import { contextoCambio } from './respaldo/contexto';
 import {
   CreateCoreCoverageDto,
   ImportCoreProductDto,
@@ -44,8 +47,8 @@ export class CoreController {
   }
 
   @Post('products/:productId/sync')
-  syncProduct(@Param('productId') productId: string) {
-    return this.coreService.syncProductToCore(productId);
+  syncProduct(@Param('productId') productId: string, @CurrentUser() user: AuthUserPayload) {
+    return this.coreService.syncProductToCore(productId, contextoCambio(user));
   }
 
   @Get('sis2000/products')
@@ -60,8 +63,8 @@ export class CoreController {
 
   @Roles(UserRole.PRODUCT_MANAGER)
   @Post('sis2000/products')
-  createSis2000Product(@Body() dto: Sis2000ProductDto) {
-    return this.coreService.createSis2000Product(dto);
+  createSis2000Product(@Body() dto: Sis2000ProductDto, @CurrentUser() user: AuthUserPayload) {
+    return this.coreService.createSis2000Product(dto, contextoCambio(user, dto.motivoCambio));
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
@@ -69,8 +72,9 @@ export class CoreController {
   updateSis2000Product(
     @Param('cproducto') cproducto: string,
     @Body() dto: Sis2000ProductDto,
+    @CurrentUser() user: AuthUserPayload,
   ) {
-    return this.coreService.updateSis2000Product(cproducto, dto);
+    return this.coreService.updateSis2000Product(cproducto, dto, contextoCambio(user, dto.motivoCambio));
   }
 
   @Get('sis2000/products/:cproducto/plans')

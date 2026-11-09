@@ -139,4 +139,10 @@ export class Sis2000ProductDto {
   @IsString()
   @MaxLength(500)
   xurl_presentacion?: string;
+
+  /** Motivo del cambio para el historial del configurador; no se envía a Sis2000. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motivoCambio?: string;
 }
