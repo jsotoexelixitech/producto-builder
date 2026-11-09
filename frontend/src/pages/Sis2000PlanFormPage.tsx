@@ -6,6 +6,7 @@ import {
   defaultPlanPayload,
   inferPlanType,
   normalizePlanPayloadForApi,
+  sis2000PlanMasterId,
   SIS2000_DEFAULT_PRODUCTOR,
   validatePlanPayload,
   type Sis2000NestRow,
@@ -19,6 +20,16 @@ import {
   productoresToPayloadFields,
   type ProductoresSelection,
 } from '@/components/sis2000/ProductoresSelector';
+import {
+  CANALES_DEFAULT,
+  CanalesSelector,
+  canalesFromPayload,
+  canalesToPayloadFields,
+  type CanalesSelection,
+} from '@/components/sis2000/CanalesSelector';
+import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
+import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
+import { claveHistorial } from '@/lib/sis2000-historial';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
@@ -47,6 +58,16 @@ export function Sis2000PlanFormPage() {
   const [cramoQuick, setCramoQuick] = useState(queryCramo);
   /** Quién ve el plan en mausuplan: lista de productores (por defecto 80080) o todos (all_productor: true). */
   const [productoresSel, setProductoresSel] = useState<ProductoresSelection>(PRODUCTORES_DEFAULT);
+  /** Canales alternos (mausuplan centidad C). Solo se muestran y envían si el servidor lo habilita. */
+  const [canalesSel, setCanalesSel] = useState<CanalesSelection>(CANALES_DEFAULT);
+  const [canalesHabilitados, setCanalesHabilitados] = useState(false);
+  const [motivo, setMotivo] = useState('');
+  /** Sube al guardar: recarga el historial. */
+  const [version, setVersion] = useState(0);
+  /** Sube al restaurar: vuelve a leer el plan de Sis2000. */
+  const [recargarDatos, setRecargarDatos] = useState(0);
+  /** Plan creado en esta pantalla (para mostrar historial y proveedores sin salir). */
+  const [creadoId, setCreadoId] = useState<string | null>(null);
   const [cplanQuick, setCplanQuick] = useState('');
   const [cotizando, setCotizando] = useState(false);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
@@ -76,13 +97,19 @@ export function Sis2000PlanFormPage() {
         all_productor: prod.all_productor,
         cplan: opts?.preserveCplan ?? cplanQuick,
       });
-      setJsonText(JSON.stringify(payload, null, 2));
+      setJsonText(
+        JSON.stringify(canalesHabilitados ? { ...payload, ...canalesToPayloadFields(canalesSel) } : payload, null, 2),
+      );
     },
-    [planType, cramoQuick, cproductoQuick, cplanQuick, productoresSel],
+    [planType, cramoQuick, cproductoQuick, cplanQuick, productoresSel, canalesSel, canalesHabilitados],
   );
 
   useEffect(() => {
     void api.listSis2000CatalogMonedas().then(setMonedas).catch(() => undefined);
+    void api
+      .getSis2000Funciones()
+      .then((f) => setCanalesHabilitados(f.canalesEnPlan === true))
+      .catch(() => setCanalesHabilitados(false));
   }, []);
 
   useEffect(() => {
@@ -144,12 +171,21 @@ export function Sis2000PlanFormPage() {
         const merged = normalizePlanPayloadForApi({ ...match, operation: 'U' }, 'update');
         setPlanType(inferPlanType(merged));
         setProductoresSel(productoresFromPayload(merged as Record<string, unknown>));
+        setCanalesSel(canalesFromPayload(merged as Record<string, unknown>));
         setJsonText(JSON.stringify(merged, null, 2));
+        // Productores y canales reales de mausuplan (lectura completa del plan); si falla se queda lo del catálogo.
+        try {
+          const leido = await api.leerSis2000Plan(id);
+          setProductoresSel(productoresFromPayload(leido.plan));
+          setCanalesSel(canalesFromPayload(leido.plan));
+        } catch {
+          /* nest-api sin la lectura completa: se usan los datos del catálogo */
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar plan');
       }
     })();
-  }, [id, isEdit]);
+  }, [id, isEdit, recargarDatos]);
 
   function mergeQuickFieldsIntoJson() {
     try {
@@ -167,6 +203,7 @@ export function Sis2000PlanFormPage() {
         parsed.all_canal = false;
         parsed.productores = prod.productores;
       }
+      if (canalesHabilitados) Object.assign(parsed, canalesToPayloadFields(canalesSel));
       const normalized = normalizePlanPayloadForApi(parsed, isEdit ? 'update' : 'create');
       setJsonText(JSON.stringify(normalized, null, 2));
       setSuccess('Campos rápidos aplicados al JSON');
@@ -210,15 +247,19 @@ export function Sis2000PlanFormPage() {
         setError(errores.join(' '));
         return;
       }
+      const cuerpo = { ...payload, motivoCambio: motivo || undefined };
       if (isEdit && id) {
-        await api.updateSis2000MasterPlan(id, payload);
-        setSuccess(`Plan ${id} actualizado (visibilidad productor incluida)`);
+        await api.updateSis2000MasterPlan(id, cuerpo);
+        setSuccess(`Plan ${id} actualizado (visibilidad productor incluida; lo anterior quedó en el historial)`);
       } else {
-        await api.createSis2000MasterPlan(payload);
-        setSuccess(`Plan ${String(payload.cplan)} creado en Sis2000. Puedes cotizarlo antes de salir.`);
+        await api.createSis2000MasterPlan(cuerpo);
+        setSuccess(`Plan ${String(payload.cplan)} creado en Sis2000. Puedes cotizarlo y asignarle proveedores antes de salir.`);
         setCplanQuick(String(payload.cplan));
         setCramoQuick(String(payload.cramo));
+        setCreadoId(sis2000PlanMasterId(Number(payload.cramo), String(payload.cplan)));
       }
+      setMotivo('');
+      setVersion((v) => v + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar plan');
     } finally {
@@ -244,6 +285,9 @@ export function Sis2000PlanFormPage() {
       setCotizando(false);
     }
   }
+
+  /** "cramo-cplan" del plan que ya existe en Sis2000 (editando o recién creado aquí). */
+  const planId = isEdit && id ? id : creadoId;
 
   const totalCotizacion = (campo: string) =>
     (cotizacion ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
@@ -327,6 +371,15 @@ export function Sis2000PlanFormPage() {
           </div>
           <ProductoresSelector idPrefix="plan-prod" value={productoresSel} onChange={setProductoresSel} />
         </div>
+        {canalesHabilitados && (
+          <div className="sm:col-span-2 lg:col-span-3">
+            <div className="flex items-center gap-1.5">
+              <Label>Canales alternos que pueden vender el plan</Label>
+              <InfoTip text="Busca por nombre o código y selecciona uno o varios canales alternos (mausuplan, entidad C); «Todos» lo habilita para todos los canales (all_canal: true). Sin canales, el plan solo se vende por productores. Se aplica con «Aplicar campos al JSON» o «Plantilla completa»." />
+            </div>
+            <CanalesSelector idPrefix="plan-canal" value={canalesSel} onChange={setCanalesSel} />
+          </div>
+        )}
         <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
           <Button type="button" variant="outline" size="sm" onClick={() => applyTemplate()}>
             <RefreshCw className="h-3.5 w-3.5" />
@@ -365,6 +418,11 @@ export function Sis2000PlanFormPage() {
           spellCheck={false}
         />
       )}
+
+      <div className="mb-3 max-w-xl">
+        <Label htmlFor="plan-motivo">Motivo del cambio (opcional, queda en el historial)</Label>
+        <Input id="plan-motivo" value={motivo} maxLength={500} onChange={(e) => setMotivo(e.target.value)} />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={save} disabled={saving || loadingInit}>
@@ -413,6 +471,24 @@ export function Sis2000PlanFormPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {planId && (
+        <>
+          <ProveedoresPlanPanel planId={planId} onCambio={() => setVersion((v) => v + 1)} />
+          <HistorialPanel
+            entidad="PLAN"
+            clave={claveHistorial.plan(planId.split('-')[0], planId.split('-').slice(1).join('-'))}
+            recargar={version}
+            onRestaurado={() => setRecargarDatos((n) => n + 1)}
+          />
+          <HistorialPanel
+            titulo="Historial de proveedores"
+            entidad="PLAN_PROVEEDORES"
+            clave={claveHistorial.plan(planId.split('-')[0], planId.split('-').slice(1).join('-'))}
+            recargar={version}
+          />
+        </>
       )}
     </AppShell>
   );

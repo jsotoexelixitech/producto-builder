@@ -41,6 +41,13 @@ import {
   validarProductores,
   type ProductoresSelection,
 } from '@/components/sis2000/ProductoresSelector';
+import {
+  CANALES_DEFAULT,
+  CanalesSelector,
+  canalesToPayloadFields,
+  type CanalesSelection,
+} from '@/components/sis2000/CanalesSelector';
+import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -319,6 +326,16 @@ export function Sis2000ComboPage() {
   const [frecuencias, setFrecuencias] = useState<string[]>(['A']);
   /** Quién puede vender el plan: lista de productores (por defecto 80080) o todos. */
   const [productoresSel, setProductoresSel] = useState<ProductoresSelection>(PRODUCTORES_DEFAULT);
+  /** Canales alternos (mausuplan C): solo si el servidor lo habilita (SIS2000_PLAN_CANALES). */
+  const [canalesSel, setCanalesSel] = useState<CanalesSelection>(CANALES_DEFAULT);
+  const [canalesHabilitados, setCanalesHabilitados] = useState(false);
+
+  useEffect(() => {
+    void api
+      .getSis2000Funciones()
+      .then((f) => setCanalesHabilitados(f.canalesEnPlan === true))
+      .catch(() => setCanalesHabilitados(false));
+  }, []);
 
   const [intentoCrear, setIntentoCrear] = useState(false);
   const [creando, setCreando] = useState(false);
@@ -599,6 +616,7 @@ export function Sis2000ComboPage() {
     payload.fhasta = fhasta;
     payload.cmoneda = cmoneda.trim();
     payload.all_productor = productoresSel.todos;
+    if (canalesHabilitados) Object.assign(payload, canalesToPayloadFields(canalesSel));
     payload.frecuencias = FRECUENCIAS.filter((f) => frecuencias.includes(f.ifrecuencia)).map(
       (f) => ({ ...f }),
     );
@@ -1282,6 +1300,15 @@ export function Sis2000ComboPage() {
               >
                 <ProductoresSelector idPrefix="combo-prod" value={productoresSel} onChange={setProductoresSel} />
               </FormField>
+              {canalesHabilitados && (
+                <FormField
+                  span={2}
+                  label="Canales alternos que pueden venderlo"
+                  tooltip="Canales alternos (mausuplan, entidad C) que ven el plan: ninguno, uno o varios, o todos."
+                >
+                  <CanalesSelector idPrefix="combo-canal" value={canalesSel} onChange={setCanalesSel} />
+                </FormField>
+              )}
             </FormGrid>
           </SectionPanel>
 
@@ -1405,6 +1432,13 @@ export function Sis2000ComboPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {planCreado && (
+          <ProveedoresPlanPanel
+            key={sis2000PlanMasterId(planCreado.cramo, planCreado.cplan)}
+            planId={sis2000PlanMasterId(planCreado.cramo, planCreado.cplan)}
+          />
         )}
       </div>
     </AppShell>

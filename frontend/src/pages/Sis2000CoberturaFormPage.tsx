@@ -9,6 +9,8 @@ import {
   type Sis2000NestRow,
 } from '@/lib/sis2000-nest-api';
 import { Sis2000NestJsonForm } from '@/components/sis2000/Sis2000NestJsonForm';
+import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
+import { claveHistorial } from '@/lib/sis2000-historial';
 import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
 import { AppShell } from '@/components/layout/AppShell';
 import { Alert } from '@/components/ui/alert';
@@ -106,6 +108,10 @@ function CoberturaJsonFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [definicionHint, setDefinicionHint] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState('');
+  /** Sube al guardar o restaurar: recarga el historial y, al restaurar, los datos de Sis2000. */
+  const [version, setVersion] = useState(0);
+  const [recargarDatos, setRecargarDatos] = useState(0);
 
   useEffect(() => {
     if (!isEdit) {
@@ -122,7 +128,7 @@ function CoberturaJsonFormPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Error al cargar cobertura'))
       .finally(() => setLoading(false));
-  }, [cramo, ccobertura, isEdit]);
+  }, [cramo, ccobertura, isEdit, recargarDatos]);
 
   async function loadDefinicion() {
     setLoadingDef(true);
@@ -149,8 +155,10 @@ function CoberturaJsonFormPage() {
       const raw = JSON.parse(jsonText) as Record<string, unknown>;
       if (isEdit) {
         const payload = normalizeCatalogUpdatePayload(raw);
-        await api.updateSis2000Cobertura(cramo, ccobertura, payload);
-        setSuccess(`Cobertura ${ccobertura} actualizada`);
+        await api.updateSis2000Cobertura(cramo, ccobertura, { ...payload, motivoCambio: motivo || undefined });
+        setSuccess(`Cobertura ${ccobertura} actualizada (lo anterior quedó en el historial)`);
+        setMotivo('');
+        setVersion((v) => v + 1);
       } else {
         const payload = normalizeCatalogCreatePayload(raw);
         payload.cramo = payload.cramo ?? cramo;
@@ -184,6 +192,17 @@ function CoberturaJsonFormPage() {
       onLoadDefinicion={() => void loadDefinicion()}
       loadingDefinicion={loadingDef}
       definicionHint={definicionHint ?? undefined}
-    />
+      motivo={isEdit ? motivo : undefined}
+      onMotivoChange={isEdit ? setMotivo : undefined}
+    >
+      {isEdit && (
+        <HistorialPanel
+          entidad="COBERTURA"
+          clave={claveHistorial.cobertura(cramo, ccobertura)}
+          recargar={version}
+          onRestaurado={() => setRecargarDatos((n) => n + 1)}
+        />
+      )}
+    </Sis2000NestJsonForm>
   );
 }

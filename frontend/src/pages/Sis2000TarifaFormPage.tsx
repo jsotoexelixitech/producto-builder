@@ -6,6 +6,8 @@ import {
   normalizeTarifaPayloadForApi,
 } from '@/lib/sis2000-nest-api';
 import { Sis2000NestJsonForm } from '@/components/sis2000/Sis2000NestJsonForm';
+import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
+import { claveHistorial } from '@/lib/sis2000-historial';
 
 export function Sis2000TarifaFormPage() {
   const { cramo: cramoParam, ccobertura = '', ctarifa: routeTarifa } = useParams<{
@@ -25,6 +27,9 @@ export function Sis2000TarifaFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [definicionHint, setDefinicionHint] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [version, setVersion] = useState(0);
+  const [recargarDatos, setRecargarDatos] = useState(0);
 
   useEffect(() => {
     if (!isEdit) {
@@ -45,7 +50,7 @@ export function Sis2000TarifaFormPage() {
         setLoading(false);
       }
     })();
-  }, [cramo, ccobertura, ctarifa, isEdit]);
+  }, [cramo, ccobertura, ctarifa, isEdit, recargarDatos]);
 
   async function loadDefinicion() {
     setLoadingDef(true);
@@ -71,8 +76,10 @@ export function Sis2000TarifaFormPage() {
           { ...raw, operation: 'U' },
           ccobertura,
         );
-        await api.updateSis2000Tarifa(cramo, ccobertura, ctarifa, payload);
-        setSuccess(`Tarifa ${ctarifa} actualizada`);
+        await api.updateSis2000Tarifa(cramo, ccobertura, ctarifa, { ...payload, motivoCambio: motivo || undefined });
+        setSuccess(`Tarifa ${ctarifa} actualizada (lo anterior quedó en el historial)`);
+        setMotivo('');
+        setVersion((v) => v + 1);
       } else {
         const payload = normalizeTarifaPayloadForApi(raw, ccobertura);
         payload.cramo = payload.cramo ?? cramo;
@@ -108,6 +115,17 @@ export function Sis2000TarifaFormPage() {
       onLoadDefinicion={() => void loadDefinicion()}
       loadingDefinicion={loadingDef}
       definicionHint={definicionHint ?? undefined}
-    />
+      motivo={isEdit ? motivo : undefined}
+      onMotivoChange={isEdit ? setMotivo : undefined}
+    >
+      {isEdit && (
+        <HistorialPanel
+          entidad="TARIFA"
+          clave={claveHistorial.tarifa(cramo, ccobertura, ctarifa)}
+          recargar={version}
+          onRestaurado={() => setRecargarDatos((n) => n + 1)}
+        />
+      )}
+    </Sis2000NestJsonForm>
   );
 }

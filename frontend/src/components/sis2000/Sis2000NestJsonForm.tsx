@@ -21,6 +21,11 @@ interface Sis2000NestJsonFormProps {
   loadingDefinicion?: boolean;
   definicionHint?: string;
   toolbar?: React.ReactNode;
+  /** Motivo del cambio (opcional): queda en el historial del configurador. Si no se pasa, no se muestra. */
+  motivo?: string;
+  onMotivoChange?: (value: string) => void;
+  /** Contenido bajo el botón de guardar (p. ej. el historial). */
+  children?: React.ReactNode;
 }
 
 export function Sis2000NestJsonForm({
@@ -40,6 +45,9 @@ export function Sis2000NestJsonForm({
   loadingDefinicion = false,
   definicionHint,
   toolbar,
+  motivo,
+  onMotivoChange,
+  children,
 }: Sis2000NestJsonFormProps) {
   return (
     <AppShell title={title}>
@@ -91,10 +99,27 @@ export function Sis2000NestJsonForm({
         />
       )}
 
+      {onMotivoChange && (
+        <div className="mb-3 max-w-xl">
+          <label htmlFor="motivo-cambio" className="mb-1 block text-xs font-medium">
+            Motivo del cambio (opcional, queda en el historial)
+          </label>
+          <input
+            id="motivo-cambio"
+            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
+            value={motivo ?? ''}
+            maxLength={500}
+            onChange={(e) => onMotivoChange(e.target.value)}
+          />
+        </div>
+      )}
+
       <Button type="button" onClick={onSave} disabled={saving || loading}>
         <Save className="h-4 w-4" />
         {saving ? 'Guardando…' : saveLabel}
       </Button>
+
+      {children}
     </AppShell>
   );
 }

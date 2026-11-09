@@ -298,6 +298,66 @@ export const api = {
     request<{ cproductor: number; xproductor: string }[]>(
       `/core/sis2000/catalogos/productores?q=${encodeURIComponent(q)}`,
     ),
+  listSis2000Canales: (q = '') =>
+    request<{ ccanalalt: number; xcanalalt: string; ctipocanal?: string | null }[]>(
+      `/core/sis2000/catalogos/canales?q=${encodeURIComponent(q)}`,
+    ),
+  /** Banderas del servidor (p. ej. canales en planes). */
+  getSis2000Funciones: () => request<{ canalesEnPlan: boolean }>('/core/sis2000/funciones'),
+
+  // Historial y restauración (copia original + versiones en la Postgres del configurador)
+  getSis2000Historial: (entidad: import('@/lib/sis2000-historial').EntidadHistorial, clave: string) =>
+    request<import('@/lib/sis2000-historial').HistorialRespuesta>(
+      `/core/sis2000/historial/${entidad}/${encodeURIComponent(clave)}`,
+    ),
+  vistaPreviaRestauracion: (
+    entidad: import('@/lib/sis2000-historial').EntidadHistorial,
+    clave: string,
+    destino: string,
+    momento: import('@/lib/sis2000-historial').MomentoVersion = 'despues',
+  ) =>
+    request<import('@/lib/sis2000-historial').VistaPreviaRestauracion>(
+      `/core/sis2000/historial/${entidad}/${encodeURIComponent(clave)}/vista-previa?destino=${encodeURIComponent(destino)}&momento=${momento}`,
+    ),
+  restaurarSis2000: (
+    entidad: import('@/lib/sis2000-historial').EntidadHistorial,
+    clave: string,
+    body: { destino: string; momento?: import('@/lib/sis2000-historial').MomentoVersion; motivo: string },
+  ) =>
+    request<import('@/lib/sis2000-historial').RestauracionRespuesta>(
+      `/core/sis2000/historial/${entidad}/${encodeURIComponent(clave)}/restaurar`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  // Proveedores del plan (maplprov_per): se asignan al plan y aplican a todas sus coberturas
+  listSis2000Proveedores: (q = '') =>
+    request<import('@/lib/sis2000-proveedores').ProveedorCatalogo[]>(
+      `/core/sis2000/catalogos/proveedores?q=${encodeURIComponent(q)}`,
+    ),
+  listSis2000PlanProveedores: (planId: string) =>
+    request<import('@/lib/sis2000-proveedores').ProveedoresPlanRespuesta>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/proveedores`,
+    ),
+  agregarSis2000PlanProveedor: (planId: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/proveedores`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  editarSis2000PlanProveedor: (planId: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/proveedores`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  bajaSis2000PlanProveedor: (planId: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/proveedores/baja`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  /** Plan completo tal como está en Sis2000 (incluye productores y canales de mausuplan). */
+  leerSis2000Plan: (planId: string) =>
+    request<{ type: string; plan: Record<string, unknown>; advertencias: string[] }>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/sis2000`,
+    ),
   listSis2000CatalogMonedas: () =>
     request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/catalogos/monedas'),
   listSis2000CatalogRamosInternos: () =>
