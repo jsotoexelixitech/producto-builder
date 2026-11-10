@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,6 +18,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   canalesEnPlanHabilitado,
+  cobroDiasHabilitado,
   PartnerBridgeService,
 } from '../partner-bridge/partner-bridge.service';
 import {
@@ -480,7 +482,36 @@ export class CoreService implements OnModuleInit {
 
   /** Funciones que dependen de banderas del servidor (el front muestra u oculta según esto). */
   getSis2000Funciones() {
-    return { canalesEnPlan: canalesEnPlanHabilitado() };
+    return { canalesEnPlan: canalesEnPlanHabilitado(), cobroDias: cobroDiasHabilitado() };
+  }
+
+  // ── Tipo de emisión «Cobro por días» (prima diaria × días); solo con SIS2000_PLAN_COBRO_DIAS=1 ──
+
+  private assertCobroDias() {
+    this.assertPartnerConfigured();
+    if (!cobroDiasHabilitado()) {
+      throw new ForbiddenException(
+        'El cobro por días está desactivado en este servidor (bandera SIS2000_PLAN_COBRO_DIAS del builder).',
+      );
+    }
+  }
+
+  async leerSis2000CobroDias(id: string) {
+    this.assertCobroDias();
+    const { cramo, cplan } = partirPlanId(id);
+    return { data: await this.partnerBridge.leerSis2000CobroDias(cramo, cplan) };
+  }
+
+  async guardarSis2000CobroDias(id: string, body: Record<string, unknown>) {
+    this.assertCobroDias();
+    const { cramo, cplan } = partirPlanId(id);
+    return { data: await this.partnerBridge.guardarSis2000CobroDias(cramo, cplan, body) };
+  }
+
+  async cotizarSis2000CobroDias(id: string, body: Record<string, unknown>) {
+    this.assertCobroDias();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.partnerBridge.cotizarSis2000CobroDias(cramo, cplan, body);
   }
 
   /** Plan completo tal como está en Sis2000 (filas, forma de PlanDto y advertencias). */

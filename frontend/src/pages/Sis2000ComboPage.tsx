@@ -48,6 +48,7 @@ import {
   type CanalesSelection,
 } from '@/components/sis2000/CanalesSelector';
 import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
+import { CobroDiasPanel } from '@/components/sis2000/CobroDiasPanel';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1324,6 +1325,16 @@ export function Sis2000ComboPage() {
             className="mt-0"
             planId={planCreado ? sis2000PlanMasterId(planCreado.cramo, planCreado.cplan) : null}
           />
+          {/* Tipo de emisión (cobro por días): solo cuando el plan ya existe; si no se activa, nada cambia. */}
+          {planCreado && (
+            <CobroDiasPanel
+              key={`cd-${proveedoresKey}`}
+              className="mt-0"
+              planId={sis2000PlanMasterId(planCreado.cramo, planCreado.cplan)}
+              coberturas={incluidas.map((v) => ({ ccobertura: v.cobertura.ccobertura, nombre: v.cobertura.descripcion }))}
+              cmonedaDefault={cmoneda.trim() || '$'}
+            />
+          )}
           </div>
 
           <Card className="h-fit">

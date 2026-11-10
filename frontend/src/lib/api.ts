@@ -303,7 +303,24 @@ export const api = {
       `/core/sis2000/catalogos/canales?q=${encodeURIComponent(q)}`,
     ),
   /** Banderas del servidor (p. ej. canales en planes). */
-  getSis2000Funciones: () => request<{ canalesEnPlan: boolean }>('/core/sis2000/funciones'),
+  getSis2000Funciones: () =>
+    request<{ canalesEnPlan: boolean; cobroDias?: boolean }>('/core/sis2000/funciones'),
+
+  // Tipo de emisión «Cobro por días» (prima diaria × días); bandera SIS2000_PLAN_COBRO_DIAS del builder
+  leerSis2000CobroDias: (planId: string) =>
+    request<{ data: import('@/lib/sis2000-cobro-dias').CobroDiasConfig | null }>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/cobro-dias`,
+    ),
+  guardarSis2000CobroDias: (planId: string, body: Record<string, unknown>) =>
+    request<{ data: import('@/lib/sis2000-cobro-dias').CobroDiasConfig | null }>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/cobro-dias`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  cotizarSis2000CobroDias: (planId: string, body: { fdesde: string; fhasta: string } | { dias: number }) =>
+    request<import('@/lib/sis2000-cobro-dias').CobroDiasCotizacion>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/cobro-dias/cotizar`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   // Historial y restauración (copia original + versiones en la Postgres del configurador)
   getSis2000Historial: (entidad: import('@/lib/sis2000-historial').EntidadHistorial, clave: string) =>

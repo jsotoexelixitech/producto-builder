@@ -284,4 +284,23 @@ export class Sis2000NestController {
     const { cuerpo, motivo } = separarMotivo(body);
     return this.coreService.bajaSis2000ProveedorPlan(id, cuerpo, contextoCambio(user, motivo));
   }
+
+  // ── Tipo de emisión «Cobro por días» (prima diaria × días); bandera SIS2000_PLAN_COBRO_DIAS ──
+
+  @Get('plans/:id/cobro-dias')
+  leerCobroDias(@Param('id') id: string) {
+    return this.coreService.leerSis2000CobroDias(id);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Put('plans/:id/cobro-dias')
+  guardarCobroDias(@Param('id') id: string, @Body() body: Cuerpo) {
+    return this.coreService.guardarSis2000CobroDias(id, separarMotivo(body).cuerpo);
+  }
+
+  /** Simulación (solo lectura: no emite). */
+  @Post('plans/:id/cobro-dias/cotizar')
+  cotizarCobroDias(@Param('id') id: string, @Body() body: Cuerpo) {
+    return this.coreService.cotizarSis2000CobroDias(id, body);
+  }
 }

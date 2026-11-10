@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Calculator, RefreshCw, Save } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -29,6 +29,7 @@ import {
 } from '@/components/sis2000/CanalesSelector';
 import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
 import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
+import { CobroDiasPanel } from '@/components/sis2000/CobroDiasPanel';
 import { claveHistorial } from '@/lib/sis2000-historial';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -291,6 +292,22 @@ export function Sis2000PlanFormPage() {
   /** "cramo-cplan" del plan que ya existe en Sis2000 (editando o recién creado aquí). */
   const planId = isEdit && id ? id : creadoId;
 
+  /** Coberturas y moneda del JSON del plan (para el tipo de emisión «Cobro por días»). */
+  const datosJson = useMemo(() => {
+    try {
+      const p = JSON.parse(jsonText) as { cmoneda?: unknown; coberturas?: unknown };
+      const coberturas = (Array.isArray(p.coberturas) ? (p.coberturas as Array<Record<string, unknown>>) : [])
+        .map((c) => ({
+          ccobertura: String(c?.ccobertura ?? c?.ccober ?? '').trim(),
+          nombre: String(c?.xcobertura ?? c?.xdescripcion_l ?? c?.xdescripcion ?? '').trim(),
+        }))
+        .filter((c) => c.ccobertura);
+      return { coberturas, cmoneda: String(p.cmoneda ?? '').trim() || '$' };
+    } catch {
+      return { coberturas: [] as Array<{ ccobertura: string; nombre: string }>, cmoneda: '$' };
+    }
+  }, [jsonText]);
+
   const totalCotizacion = (campo: string) =>
     (cotizacion ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
 
@@ -480,6 +497,7 @@ export function Sis2000PlanFormPage() {
 
       {/* Visible también antes de crear el plan: lo elegido queda pendiente y se agrega al crearlo. */}
       <ProveedoresPlanPanel planId={planId} onCambio={() => setVersion((v) => v + 1)} />
+      <CobroDiasPanel planId={planId} coberturas={datosJson.coberturas} cmonedaDefault={datosJson.cmoneda} />
       {planId && (
         <>
           <HistorialPanel

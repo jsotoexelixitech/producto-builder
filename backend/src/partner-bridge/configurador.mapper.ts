@@ -190,3 +190,28 @@ export function partirPlanId(id: string): { cramo: number; cplan: string } {
   const [cramo, ...resto] = String(id).split('-');
   return { cramo: Number(cramo), cplan: resto.join('-').trim() };
 }
+
+// ── Cobro por días (prima diaria × días): v1/configurador/planes/:cramo/:cplan/cobro-dias ──
+
+/** PUT cobro-dias: { activo, dias_min, dias_max, cmoneda?, primas:[{ccober, prima_diaria}] }. nest-api valida reglas. */
+export function aCobroDias(p: Obj) {
+  return limpio({
+    activo: aBooleano(p.activo) === true,
+    dias_min: num(p.dias_min),
+    dias_max: num(p.dias_max),
+    cmoneda: texto(p.cmoneda),
+    primas: (Array.isArray(p.primas) ? (p.primas as unknown[]) : [])
+      .map((x) => {
+        const r = x as Obj;
+        return { ccober: texto(r.ccober ?? r.ccobertura), prima_diaria: num(r.prima_diaria) ?? 0 };
+      })
+      .filter((r) => r.ccober),
+  });
+}
+
+/** POST cobro-dias/cotizar: { fdesde, fhasta } o { dias }. */
+export function aCotizarCobroDias(p: Obj) {
+  const dias = num(p.dias);
+  if (dias != null) return { dias };
+  return limpio({ fdesde: fecha(p.fdesde), fhasta: fecha(p.fhasta) });
+}

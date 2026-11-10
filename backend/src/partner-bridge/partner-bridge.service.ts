@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import {
   aBajaProveedorPlan,
+  aCobroDias,
+  aCotizarCobroDias,
   aCrearCobertura,
   aCrearDetalleTarifa,
   aCrearTarifa,
@@ -25,6 +27,13 @@ import {
  */
 export const canalesEnPlanHabilitado = () =>
   ['1', 'true', 'si', 'sí'].includes(String(process.env.SIS2000_PLAN_CANALES ?? '').trim().toLowerCase());
+
+/**
+ * Tipo de emisión «Cobro por días» (prima diaria × días). Apagado por defecto: sin la bandera el builder no lee ni
+ * escribe v1/configurador/planes/:cramo/:cplan/cobro-dias y el front oculta la opción.
+ */
+export const cobroDiasHabilitado = () =>
+  ['1', 'true', 'si', 'sí'].includes(String(process.env.SIS2000_PLAN_COBRO_DIAS ?? '').trim().toLowerCase());
 
 /** Plan con sus canales (lo que se respalda en el historial): aPlan + bandera de canales. */
 export function cuerpoPlan(payload: Record<string, unknown>) {
@@ -553,6 +562,38 @@ export class PartnerBridgeService {
       aBajaProveedorPlan(payload),
     );
     return body.data ?? payload;
+  }
+
+  // ── Cobro por días (prima diaria × días) ──
+
+  private rutaCobroDias(cramo: number, cplan: string) {
+    return `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/cobro-dias`;
+  }
+
+  /** Configuración de cobro por días del plan; null si el plan no la tiene. */
+  async leerSis2000CobroDias(cramo: number, cplan: string): Promise<Record<string, unknown> | null> {
+    const body = await this.request<NestEnvelope<Record<string, unknown> | null>>('GET', this.rutaCobroDias(cramo, cplan));
+    return body.data ?? null;
+  }
+
+  async guardarSis2000CobroDias(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PUT',
+      this.rutaCobroDias(cramo, cplan),
+      aCobroDias(payload),
+      60_000,
+    );
+    return body.data ?? null;
+  }
+
+  /** Solo lectura: días × prima diaria por cobertura (nest-api cuenta los días inclusivos). */
+  async cotizarSis2000CobroDias(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>> & Record<string, unknown>>(
+      'POST',
+      `${this.rutaCobroDias(cramo, cplan)}/cotizar`,
+      aCotizarCobroDias(payload),
+    );
+    return body.data ?? body;
   }
 
   /**
