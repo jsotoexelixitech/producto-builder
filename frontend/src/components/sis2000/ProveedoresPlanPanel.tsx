@@ -104,7 +104,9 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
       setTrabajando(false);
       if (lote.length > fallidos.length) setOk(`${lote.length - fallidos.length} proveedor(es) agregado(s) al plan.`);
       if (errores.length) {
-        setError(`No se agregaron ${fallidos.length} proveedor(es) (agrégalos abajo cuando se pueda): ${errores.join(' · ')}`);
+        setError(
+          `El plan se creó, pero no se pudieron agregar ${fallidos.length} proveedor(es); agrégalos abajo: ${errores.join(' · ')}`,
+        );
       }
       cargar();
       onCambio?.();
@@ -251,7 +253,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   return (
     <SectionPanel
       title="Proveedores"
-      description="El proveedor se asigna al plan; aplica a todas sus coberturas. Al emitir pólizas de personas, los proveedores vigentes del plan se registran en cada póliza."
+      description="El proveedor aplica a todo el plan (Sis2000 no guarda proveedor por cobertura). Al emitir pólizas de personas, los proveedores vigentes del plan se registran en cada póliza."
       icon={Truck}
       className={cn('mt-6', className)}
     >

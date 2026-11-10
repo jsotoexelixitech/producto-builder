@@ -341,6 +341,8 @@ export function Sis2000ComboPage() {
   const [creando, setCreando] = useState(false);
   const [errorCrear, setErrorCrear] = useState<string | null>(null);
   const [planCreado, setPlanCreado] = useState<PlanCreado | null>(null);
+  /** Cambia solo al empezar otro plan tras uno ya creado: así los proveedores pendientes no se pierden al crear. */
+  const [proveedoresKey, setProveedoresKey] = useState(0);
   const [cotizando, setCotizando] = useState(false);
   const [errorCotizar, setErrorCotizar] = useState<string | null>(null);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
@@ -698,6 +700,7 @@ export function Sis2000ComboPage() {
 
   function limpiarResultado() {
     setErrorCrear(null);
+    if (planCreado) setProveedoresKey((k) => k + 1);
     setPlanCreado(null);
     setCotizacion(null);
     setErrorCotizar(null);
@@ -1189,8 +1192,8 @@ export function Sis2000ComboPage() {
         )}
 
         <div className="grid gap-5 lg:grid-cols-3">
+          <div className="min-w-0 space-y-5 lg:col-span-2">
           <SectionPanel
-            className="lg:col-span-2"
             title="Datos del plan"
             description="Cabecera del plan en Sis2000 (maplanes), frecuencias de pago (maplanes_frec) y quién puede venderlo (mausuplan)."
             icon={FileText}
@@ -1315,6 +1318,14 @@ export function Sis2000ComboPage() {
             </FormGrid>
           </SectionPanel>
 
+          {/* Igual que en Planes maestro: antes de crear quedan pendientes y se agregan al crear el plan. */}
+          <ProveedoresPlanPanel
+            key={proveedoresKey}
+            className="mt-0"
+            planId={planCreado ? sis2000PlanMasterId(planCreado.cramo, planCreado.cplan) : null}
+          />
+          </div>
+
           <Card className="h-fit">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Resumen del combo</CardTitle>
@@ -1437,12 +1448,6 @@ export function Sis2000ComboPage() {
           </div>
         )}
 
-        {planCreado && (
-          <ProveedoresPlanPanel
-            key={sis2000PlanMasterId(planCreado.cramo, planCreado.cplan)}
-            planId={sis2000PlanMasterId(planCreado.cramo, planCreado.cplan)}
-          />
-        )}
       </div>
     </AppShell>
   );
