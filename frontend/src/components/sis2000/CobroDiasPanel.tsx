@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator, CalendarDays, Save } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import {
@@ -56,6 +56,23 @@ function mensajeError(e: unknown, accion: string): string {
   return e instanceof Error ? e.message : `No se pudo ${accion}.`;
 }
 
+/** Coberturas del plan + las que ya tengan prima guardada (por si el plan cambió). */
+function filasDe(
+  coberturas: Array<{ ccobertura: string; nombre?: string }>,
+  config: CobroDiasConfig | null,
+): Array<{ ccobertura: string; nombre: string }> {
+  const out = new Map<string, string>();
+  for (const c of coberturas) {
+    const k = claveCober(c.ccobertura);
+    if (k && !out.has(k)) out.set(k, String(c.nombre ?? '').trim());
+  }
+  for (const p of config?.primas ?? []) {
+    const k = claveCober(p.ccober);
+    if (k && !out.has(k)) out.set(k, '');
+  }
+  return [...out.entries()].map(([ccobertura, nombre]) => ({ ccobertura, nombre }));
+}
+
 /**
  * Tipo de emisión del plan: «Estándar (por frecuencia)» o «Cobro por días» (prima diaria × días, con calendario al
  * emitir). Aditivo: si no se activa, el plan emite como siempre.
@@ -70,6 +87,8 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
+  /** Elegido antes de crear el plan (sin planId): se guarda en cuanto llega el planId, como los proveedores. */
+  const pendiente = useRef<CobroDiasForm | null>(null);
 
   // Simulación
   const [modoSim, setModoSim] = useState<'fechas' | 'dias'>('fechas');
@@ -105,6 +124,35 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
     if (!habilitado || !planId) return;
     setCargando(true);
     setError(null);
+    const previo = pendiente.current;
+    pendiente.current = null;
+    if (previo?.activo) {
+      // Plan recién creado con «Cobro por días» elegido antes: se guarda ahora.
+      const codigosPrevios = filasDe(coberturas, null).map((f) => f.ccobertura);
+      const errores = validarCobroDias(previo, codigosPrevios);
+      if (errores.length) {
+        setForm(previo);
+        setCambios(true);
+        setError(`El plan se creó, pero falta completar el cobro por días: ${errores.join(' ')}`);
+        setCargando(false);
+        return;
+      }
+      api
+        .guardarSis2000CobroDias(planId, cobroDiasFormAPayload(previo, codigosPrevios))
+        .then((r) => {
+          setConfig(r.data ?? null);
+          setForm(cobroDiasAForm(r.data ?? null, cmonedaDefault));
+          setCambios(false);
+          setOk('Cobro por días guardado junto con el plan.');
+        })
+        .catch((e) => {
+          setForm(previo);
+          setCambios(true);
+          setError(mensajeError(e, 'guardar el cobro por días del plan recién creado'));
+        })
+        .finally(() => setCargando(false));
+      return;
+    }
     api
       .leerSis2000CobroDias(planId)
       .then((r) => {
@@ -118,23 +166,16 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
   }, [habilitado, planId]);
 
   /** Coberturas del plan + las que ya tengan prima guardada (por si el plan cambió). */
-  const filas = useMemo(() => {
-    const out = new Map<string, string>();
-    for (const c of coberturas) {
-      const k = claveCober(c.ccobertura);
-      if (k && !out.has(k)) out.set(k, String(c.nombre ?? '').trim());
-    }
-    for (const p of config?.primas ?? []) {
-      const k = claveCober(p.ccober);
-      if (k && !out.has(k)) out.set(k, '');
-    }
-    return [...out.entries()].map(([ccobertura, nombre]) => ({ ccobertura, nombre }));
-  }, [coberturas, config]);
+  const filas = useMemo(() => filasDe(coberturas, config), [coberturas, config]);
   const codigos = filas.map((f) => f.ccobertura);
   const total = totalDiario(form, codigos);
 
   function cambiar(parcial: Partial<CobroDiasForm>) {
-    setForm((f) => ({ ...f, ...parcial }));
+    setForm((f) => {
+      const n = { ...f, ...parcial };
+      if (!planId) pendiente.current = n;
+      return n;
+    });
     setCambios(true);
     setOk(null);
   }
@@ -218,13 +259,13 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
           </Alert>
         )}
         {habilitado && !planId && (
-          <Alert variant="info">Guarda primero el plan para elegir su tipo de emisión.</Alert>
+          <Alert variant="info">Puedes elegirlo ahora: se guarda junto con el plan al crearlo.</Alert>
         )}
         {error && <Alert variant="error">{error}</Alert>}
         {ok && <Alert variant="success">{ok}</Alert>}
 
         <fieldset
-          disabled={!habilitado || !planId || cargando}
+          disabled={!habilitado || cargando}
           className="flex flex-wrap gap-2 disabled:opacity-60"
         >
           <legend className="sr-only">Tipo de emisión</legend>
@@ -256,7 +297,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
           )}
         </fieldset>
 
-        {habilitado && planId && form.activo && (
+        {habilitado && form.activo && (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
@@ -309,7 +350,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
 
             {filas.length === 0 ? (
               <Alert variant="warning">
-                El plan no tiene coberturas. Agrégalas al plan y guárdalo antes de poner la prima diaria.
+                El plan todavía no tiene coberturas. Agrégalas y aquí aparecerán para poner su prima diaria.
               </Alert>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border/50">
@@ -348,6 +389,14 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
                         {monto(total)} {monedaActual}
                       </td>
                     </tr>
+                    {!planId && total > 0 && (
+                      <tr className="text-muted-foreground">
+                        <td className="p-2">Ejemplo: 7 días</td>
+                        <td className="p-2 text-right">
+                          {monto(total * 7)} {monedaActual}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

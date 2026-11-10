@@ -1325,16 +1325,15 @@ export function Sis2000ComboPage() {
             className="mt-0"
             planId={planCreado ? sis2000PlanMasterId(planCreado.cramo, planCreado.cplan) : null}
           />
-          {/* Tipo de emisión (cobro por días): solo cuando el plan ya existe; si no se activa, nada cambia. */}
-          {planCreado && (
-            <CobroDiasPanel
-              key={`cd-${proveedoresKey}`}
-              className="mt-0"
-              planId={sis2000PlanMasterId(planCreado.cramo, planCreado.cplan)}
-              coberturas={incluidas.map((v) => ({ ccobertura: v.cobertura.ccobertura, nombre: v.cobertura.descripcion }))}
-              cmonedaDefault={cmoneda.trim() || '$'}
-            />
-          )}
+          {/* Tipo de emisión (cobro por días): como los proveedores, antes de crear queda pendiente y se guarda al
+              crear el plan. Si no se activa, nada cambia. */}
+          <CobroDiasPanel
+            key={`cd-${proveedoresKey}`}
+            className="mt-0"
+            planId={planCreado ? sis2000PlanMasterId(planCreado.cramo, planCreado.cplan) : null}
+            coberturas={incluidas.map((v) => ({ ccobertura: v.cobertura.ccobertura, nombre: v.cobertura.descripcion }))}
+            cmonedaDefault={cmoneda.trim() || '$'}
+          />
           </div>
 
           <Card className="h-fit">
