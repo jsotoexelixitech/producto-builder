@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Search, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SIS2000_DEFAULT_PRODUCTOR } from '@/lib/sis2000-nest-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BuscadorConLista, ChipSeleccion } from '@/components/ui/lista-flotante';
 import { cn } from '@/lib/utils';
 
 export interface ProductorItem {
@@ -66,7 +66,6 @@ export function ProductoresSelector({ value, onChange, idPrefix = 'prod', classN
   const [buscando, setBuscando] = useState(false);
   const [listaFallo, setListaFallo] = useState(false);
   const [manual, setManual] = useState('');
-  const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
     if (value.todos) return;
@@ -132,75 +131,35 @@ export function ProductoresSelector({ value, onChange, idPrefix = 'prod', classN
 
       {!value.todos && (
         <>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
             {value.productores.length === 0 && (
-              <span className="text-xs text-muted-foreground">Sin productores seleccionados.</span>
+              <span className="text-[0.72rem] leading-relaxed text-slate-500">Sin productores seleccionados.</span>
             )}
-            {value.productores.map((p) => (
-              <span
-                key={p.cproductor}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium"
-              >
-                {p.cproductor}
-                {p.xproductor ? ` · ${p.xproductor}` : ''}
-                <button
-                  type="button"
-                  aria-label={`Quitar productor ${p.cproductor}`}
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-background"
-                  onClick={() => quitar(p.cproductor)}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
+            {value.productores.map((c) => (
+              <ChipSeleccion
+                key={c.cproductor}
+                codigo={c.cproductor}
+                nombre={c.xproductor}
+                etiqueta="productor"
+                onQuitar={() => quitar(c.cproductor)}
+              />
             ))}
           </div>
 
-          <div className="relative">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={`${idPrefix}-buscar`}
-                aria-label="Buscar productor por nombre o código"
-                placeholder="Buscar productor por nombre o código…"
-                className="pl-7"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onFocus={() => setAbierto(true)}
-                onBlur={() => setTimeout(() => setAbierto(false), 150)}
-              />
-            </div>
-            {abierto && !listaFallo && (
-              <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-background shadow-md">
-                {buscando && <li className="px-3 py-1.5 text-xs text-muted-foreground">Buscando…</li>}
-                {!buscando && resultados.length === 0 && (
-                  <li className="px-3 py-1.5 text-xs text-muted-foreground">Sin resultados.</li>
-                )}
-                {resultados.map((r) => {
-                  const ya = seleccionados.has(r.cproductor);
-                  return (
-                    <li key={r.cproductor}>
-                      <button
-                        type="button"
-                        disabled={ya}
-                        className={cn(
-                          'flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted',
-                          ya && 'cursor-default opacity-50',
-                        )}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => agregar(r)}
-                      >
-                        <span>{r.xproductor || '(sin nombre)'}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{r.cproductor}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+          <BuscadorConLista
+            id={`${idPrefix}-buscar`}
+            placeholder="Buscar productor por nombre o código…"
+            q={q}
+            onQ={setQ}
+            opciones={resultados.map((r) => ({ codigo: r.cproductor, nombre: r.xproductor }))}
+            buscando={buscando}
+            listaFallo={listaFallo}
+            yaElegido={(codigo) => seleccionados.has(codigo)}
+            onElegir={(o) => agregar({ cproductor: o.codigo, xproductor: o.nombre })}
+          />
 
           {listaFallo && (
-            <p className="text-xs text-amber-700">
+            <p className="text-[0.72rem] leading-relaxed text-amber-700">
               No se pudo cargar la lista de productores; agrega el código manualmente.
             </p>
           )}

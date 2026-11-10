@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Search, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BuscadorConLista, ChipSeleccion } from '@/components/ui/lista-flotante';
 import { cn } from '@/lib/utils';
 
 export interface CanalItem {
@@ -62,7 +62,6 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
   const [buscando, setBuscando] = useState(false);
   const [listaFallo, setListaFallo] = useState(false);
   const [manual, setManual] = useState('');
-  const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
     if (value.todos || deshabilitado) return;
@@ -103,7 +102,7 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
 
   if (deshabilitado) {
     return (
-      <p className={cn('rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground', className)}>
+      <p className={cn('rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[0.72rem] leading-relaxed text-slate-500', className)}>
         Elegir canales está desactivado en este servidor (bandera SIS2000_PLAN_CANALES del builder). Mientras esté
         apagada el plan se guarda sin canales alternos (solo productores).
       </p>
@@ -112,7 +111,7 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
 
   return (
     <div className={cn('space-y-2', className)}>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[0.72rem] leading-relaxed text-slate-500">
         Los canales se agregan al plan y nunca se borran: quitar uno aquí no lo quita de Sis2000.
       </p>
       <div className="flex flex-wrap items-center gap-3">
@@ -140,75 +139,35 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
 
       {!value.todos && (
         <>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
             {value.canales.length === 0 && (
-              <span className="text-xs text-muted-foreground">Ningún canal alterno (solo productores).</span>
+              <span className="text-[0.72rem] leading-relaxed text-slate-500">Ningún canal alterno (solo productores).</span>
             )}
             {value.canales.map((c) => (
-              <span
+              <ChipSeleccion
                 key={c.ccanalalt}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium"
-              >
-                {c.ccanalalt}
-                {c.xcanalalt ? ` · ${c.xcanalalt}` : ''}
-                <button
-                  type="button"
-                  aria-label={`Quitar canal ${c.ccanalalt}`}
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-background"
-                  onClick={() => quitar(c.ccanalalt)}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
+                codigo={c.ccanalalt}
+                nombre={c.xcanalalt}
+                etiqueta="canal"
+                onQuitar={() => quitar(c.ccanalalt)}
+              />
             ))}
           </div>
 
-          <div className="relative">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={`${idPrefix}-buscar`}
-                aria-label="Buscar canal por nombre o código"
-                placeholder="Buscar canal por nombre o código…"
-                className="pl-7"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onFocus={() => setAbierto(true)}
-                onBlur={() => setTimeout(() => setAbierto(false), 150)}
-              />
-            </div>
-            {abierto && !listaFallo && (
-              <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-background shadow-md">
-                {buscando && <li className="px-3 py-1.5 text-xs text-muted-foreground">Buscando…</li>}
-                {!buscando && resultados.length === 0 && (
-                  <li className="px-3 py-1.5 text-xs text-muted-foreground">Sin resultados.</li>
-                )}
-                {resultados.map((r) => {
-                  const ya = seleccionados.has(r.ccanalalt);
-                  return (
-                    <li key={r.ccanalalt}>
-                      <button
-                        type="button"
-                        disabled={ya}
-                        className={cn(
-                          'flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted',
-                          ya && 'cursor-default opacity-50',
-                        )}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => agregar(r)}
-                      >
-                        <span>{r.xcanalalt || '(sin nombre)'}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{r.ccanalalt}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+          <BuscadorConLista
+            id={`${idPrefix}-buscar`}
+            placeholder="Buscar canal por nombre o código…"
+            q={q}
+            onQ={setQ}
+            opciones={resultados.map((r) => ({ codigo: r.ccanalalt, nombre: r.xcanalalt }))}
+            buscando={buscando}
+            listaFallo={listaFallo}
+            yaElegido={(codigo) => seleccionados.has(codigo)}
+            onElegir={(o) => agregar({ ccanalalt: o.codigo, xcanalalt: o.nombre })}
+          />
 
           {listaFallo && (
-            <p className="text-xs text-amber-700">
+            <p className="text-[0.72rem] leading-relaxed text-amber-700">
               No se pudo cargar la lista de canales; agrega el código manualmente.
             </p>
           )}

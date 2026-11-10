@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type InputHTMLAttributes } from 'react';
+import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes } from 'react';
 import { Plus, Search, Truck } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
@@ -15,6 +15,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ListaFlotante } from '@/components/ui/lista-flotante';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,8 @@ const costo = (p: ProveedorPlan) =>
  * personas, los vigentes se registran en cada póliza. Baja = cerrar la vigencia, nunca borrar.
  */
 export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
+  const buscadorRef = useRef<HTMLDivElement>(null);
+  const [listaAbierta, setListaAbierta] = useState(false);
   const [datos, setDatos] = useState<ProveedoresPlanRespuesta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -428,35 +431,44 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
                 </button>
               </p>
             ) : (
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <div ref={buscadorRef} className="relative">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   aria-label="Buscar proveedor por nombre o RIF"
                   placeholder="Buscar proveedor por nombre o RIF…"
-                  className="pl-7"
+                  className="pl-10"
+                  autoComplete="off"
                   value={q}
-                  onChange={(e) => setQ(e.target.value)}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setListaAbierta(true);
+                  }}
+                  onFocus={() => setListaAbierta(true)}
+                  onBlur={() => setListaAbierta(false)}
+                  onKeyDown={(e) => e.key === 'Escape' && setListaAbierta(false)}
                 />
-                {(buscando || catalogo.length > 0) && (
-                  <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-background shadow-md">
-                    {buscando && <li className="px-3 py-1.5 text-muted-foreground">Buscando…</li>}
-                    {catalogo.map((p) => (
-                      <li key={p.cci_rif}>
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-muted"
-                          onClick={() => elegir(p)}
-                        >
-                          <span>{p.xcliente || '(sin nombre)'}</span>
-                          <span className="ml-2 text-muted-foreground">
-                            {p.cid || p.cci_rif}
-                            {clavesDelProveedor(p).length ? ` · claves ${clavesDelProveedor(p).join(', ')}` : ''}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ListaFlotante
+                  anclaRef={buscadorRef}
+                  abierto={listaAbierta && (buscando || catalogo.length > 0)}
+                  className="text-xs"
+                >
+                  {buscando && <li className="px-3.5 py-2 text-slate-500">Buscando…</li>}
+                  {catalogo.map((p) => (
+                    <li key={p.cci_rif}>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-slate-800 hover:bg-slate-50"
+                        onClick={() => elegir(p)}
+                      >
+                        <span className="min-w-0 truncate">{p.xcliente || '(sin nombre)'}</span>
+                        <span className="shrink-0 text-slate-400">
+                          {p.cid || p.cci_rif}
+                          {clavesDelProveedor(p).length ? ` · claves ${clavesDelProveedor(p).join(', ')}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ListaFlotante>
               </div>
             )}
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
