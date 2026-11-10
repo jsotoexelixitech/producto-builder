@@ -19,8 +19,11 @@ import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
 
 interface Props {
-  /** "cramo-cplan" */
-  planId: string;
+  /**
+   * "cramo-cplan". null = el plan todavía no existe: los proveedores elegidos quedan pendientes y se agregan solos
+   * en cuanto llega el planId (al crear el plan en la misma pantalla).
+   */
+  planId: string | null;
   /** Se llama después de agregar, editar o dar de baja (p. ej. para recargar el historial). */
   onCambio?: () => void;
   className?: string;
@@ -62,7 +65,11 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   const [editando, setEditando] = useState<string | null>(null);
   const [edicion, setEdicion] = useState({ fhasta: '', itiposerv: '', mcostoext: '', mcosto: '', cmoneda: '' });
 
+  /** Elegidos antes de que exista el plan; se agregan al crearlo. */
+  const [pendientes, setPendientes] = useState<Array<{ form: ProveedorPlanForm; nombre: string }>>([]);
+
   const cargar = useCallback(() => {
+    if (!planId) return;
     setError(null);
     api
       .listSis2000PlanProveedores(planId)
@@ -73,6 +80,34 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Plan recién creado: agrega los pendientes (solo alta en maplprov_per); los que fallen se informan para agregarlos a mano.
+  useEffect(() => {
+    if (!planId || !pendientes.length) return;
+    const lote = pendientes;
+    setPendientes([]);
+    setTrabajando(true);
+    void (async () => {
+      const fallidos: typeof lote = [];
+      const errores: string[] = [];
+      for (const p of lote) {
+        try {
+          await api.agregarSis2000PlanProveedor(planId, proveedorFormToPayload(p.form));
+        } catch (e) {
+          fallidos.push(p);
+          errores.push(`${p.nombre}: ${e instanceof Error ? e.message : 'no se pudo agregar'}`);
+        }
+      }
+      setTrabajando(false);
+      if (lote.length > fallidos.length) setOk(`${lote.length - fallidos.length} proveedor(es) agregado(s) al plan.`);
+      if (errores.length) {
+        setError(`No se agregaron ${fallidos.length} proveedor(es) (agrégalos abajo cuando se pueda): ${errores.join(' · ')}`);
+      }
+      cargar();
+      onCambio?.();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId]);
 
   useEffect(() => {
     if (q.trim().length < 2) {
@@ -90,7 +125,8 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
     return () => clearTimeout(t);
   }, [q]);
 
-  const escribir = datos?.escritura_habilitada === true && !datos?.columna_cobertura;
+  /** Sin plan todavía se puede elegir (queda pendiente); con plan, según la bandera de nest-api. */
+  const escribir = !planId || (datos?.escritura_habilitada === true && !datos?.columna_cobertura);
   const lista = (datos?.proveedores ?? []).filter((p) => verBajas || p.vigente || p.fdesde > hoy());
 
   /** true si se guardó. */
@@ -127,6 +163,15 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
       setError(errores.join(' '));
       return;
     }
+    if (!planId) {
+      const nombre = elegido?.xcliente || form.cci_rif;
+      setPendientes((l) => [...l, { form, nombre }]);
+      setOk(`${nombre} se agregará al plan al crearlo.`);
+      setError(null);
+      setElegido(null);
+      setForm(PROVEEDOR_FORM_VACIO());
+      return;
+    }
     void ejecutar(
       () => api.agregarSis2000PlanProveedor(planId, { ...proveedorFormToPayload(form), motivoCambio: motivo || undefined }),
       `Proveedor ${elegido?.xcliente ?? form.cci_rif} agregado al plan.`,
@@ -138,6 +183,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   }
 
   function darDeBaja(p: ProveedorPlan) {
+    if (!planId) return;
     const fecha = p.fdesde > hoy() ? p.fdesde : hoy();
     if (!window.confirm(`¿Dar de baja a ${p.xcliente ?? p.cci_rif} (clave ${p.cclave_num}) con fecha ${fecha}? La fila no se borra.`)) {
       return;
@@ -167,6 +213,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   }
 
   function guardarEdicion(p: ProveedorPlan) {
+    if (!planId) return;
     const n = (v: string) => (v.trim() === '' ? undefined : Number(v));
     if (edicion.fhasta && edicion.fhasta < p.fdesde) {
       setError('La vigencia hasta es anterior a la vigencia desde.');
@@ -221,7 +268,43 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
           </Alert>
         )}
 
-        {!datos && !error && <div className="h-16 animate-pulse rounded-lg bg-muted/60" />}
+        <p className="text-muted-foreground">
+          Sis2000 guarda el proveedor por plan (la tabla de proveedores del plan no tiene cobertura). Si distintas coberturas
+          usan proveedores distintos, agrega todos: quedan en el plan y aplican a todas sus coberturas. Quitar un proveedor
+          es darlo de baja (cierra la vigencia); nunca se borra la fila.
+        </p>
+
+        {!planId && (
+          <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+            <p className="font-semibold">
+              El plan todavía no existe: los proveedores que elijas se agregan al plan en cuanto lo crees.
+            </p>
+            {pendientes.length === 0 ? (
+              <p className="text-muted-foreground">Ningún proveedor elegido.</p>
+            ) : (
+              <ul className="space-y-1">
+                {pendientes.map((p, i) => (
+                  <li key={`${p.form.cci_rif}/${p.form.cclave_num}/${p.form.fdesde}/${i}`} className="flex items-center justify-between gap-2">
+                    <span>
+                      {p.nombre} · clave {p.form.cclave_num} · desde {p.form.fdesde}
+                      {p.form.fhasta ? ` hasta ${p.form.fhasta}` : ' (sin fin)'}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setPendientes((l) => l.filter((_, j) => j !== i))}
+                    >
+                      Quitar
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {planId && !datos && !error && <div className="h-16 animate-pulse rounded-lg bg-muted/60" />}
 
         {datos && (
           <>
