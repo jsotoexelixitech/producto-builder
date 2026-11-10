@@ -1033,7 +1033,7 @@ export function Sis2000ComboPage() {
             )}
 
             {!cargandoCoberturas && !errorCoberturas && vistas.length > 0 && (
-              <div className="overflow-x-auto rounded-xl border border-border/60">
+              <div className="tabla-cabecera-fija rounded-xl border border-border/60">
                 <table className="w-full min-w-[1100px] text-left text-sm">
                   <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
                     <tr>
@@ -1300,15 +1300,18 @@ export function Sis2000ComboPage() {
               >
                 <ProductoresSelector idPrefix="combo-prod" value={productoresSel} onChange={setProductoresSel} />
               </FormField>
-              {canalesHabilitados && (
-                <FormField
-                  span={2}
-                  label="Canales alternos que pueden venderlo"
-                  tooltip="Canales alternos (mausuplan, entidad C) que ven el plan: ninguno, uno o varios, o todos."
-                >
-                  <CanalesSelector idPrefix="combo-canal" value={canalesSel} onChange={setCanalesSel} />
-                </FormField>
-              )}
+              <FormField
+                span={2}
+                label="Canales alternos que pueden venderlo"
+                tooltip="Canales alternos (mausuplan, entidad C) que ven el plan: ninguno, uno o varios, o todos. Se guardan por plan y solo se agregan (nunca se borran)."
+              >
+                <CanalesSelector
+                  idPrefix="combo-canal"
+                  value={canalesSel}
+                  onChange={setCanalesSel}
+                  deshabilitado={!canalesHabilitados}
+                />
+              </FormField>
             </FormGrid>
           </SectionPanel>
 

@@ -424,7 +424,7 @@ function PlanDetailBlock({
         {fullPlan.coberturas.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin coberturas en la respuesta.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border/50">
+          <div className="tabla-cabecera-fija rounded-lg border border-border/50">
             <table className="w-full min-w-[720px] text-left text-xs">
               <thead className="border-b border-border/50 bg-muted/20 uppercase text-muted-foreground">
                 <tr>

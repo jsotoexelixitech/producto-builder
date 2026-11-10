@@ -527,6 +527,25 @@ body {
   padding: 0.85rem 0;
 }
 
+/*
+ * Tabla con cabecera fija. El contenedor hace el scroll (vertical y horizontal): un overflow-x-auto solo deja el
+ * sticky atado al contenedor y la cabecera se pierde al bajar la página. Alto máximo = pantalla menos la barra
+ * superior (.app-topbar, ~4rem) y márgenes, así la cabecera nunca queda debajo de la barra. Fondo opaco y z-index
+ * sobre las filas (checkboxes, insignias).
+ */
+.tabla-cabecera-fija {
+  max-height: calc(100vh - 9rem);
+  overflow: auto;
+}
+
+.tabla-cabecera-fija thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: hsl(var(--muted));
+  box-shadow: inset 0 -1px 0 hsl(var(--border));
+}
+
 .app-back-link {
   display: inline-flex;
   shrink: 0;

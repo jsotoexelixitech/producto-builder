@@ -92,7 +92,7 @@ export function Sis2000RamoCoveragesPage() {
       {error && <Alert variant="error">{error}</Alert>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border border-border/60">
+        <div className="tabla-cabecera-fija rounded-xl border border-border/60">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
               <tr>

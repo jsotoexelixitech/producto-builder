@@ -503,7 +503,7 @@ export function CoveragesStep({
             No hay coberturas todavía. Usa el formulario de arriba para agregar la primera.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="tabla-cabecera-fija">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
