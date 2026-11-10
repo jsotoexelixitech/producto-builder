@@ -198,6 +198,10 @@ export function Sis2000ProductForm({ form, isNew, onPatch }: Sis2000ProductFormP
           </FormGrid>
         </SectionPanel>
       ))}
+      <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        Canales, productores y proveedores no se eligen en el producto: Sis2000 los guarda por plan. Elígelos al crear o
+        editar cada plan (Planes maestro o Combos de coberturas).
+      </p>
     </>
   );
 }

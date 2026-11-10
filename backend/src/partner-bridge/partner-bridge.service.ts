@@ -20,16 +20,29 @@ import {
 } from './configurador.mapper';
 
 /**
- * Canales alternos en planes (mausuplan centidad C vía spMantPlanes @canales). Apagado por defecto hasta confirmar en
- * Sis2000_QA cómo graba spMantPlanes los canales; apagado se envía lo de siempre (all_canal false, canales []).
+ * Canales alternos en planes (mausuplan centidad C). Apagado por defecto. Encendido, los canales elegidos se agregan
+ * con v1/configurador/planes/:cramo/:cplan/canales (solo alta: nunca borra); spMantPlanes nunca recibe canales.
  */
 export const canalesEnPlanHabilitado = () =>
   ['1', 'true', 'si', 'sí'].includes(String(process.env.SIS2000_PLAN_CANALES ?? '').trim().toLowerCase());
 
-/** Cuerpo de v1/configurador/planes: aPlan + bandera de canales. */
+/** Plan con sus canales (lo que se respalda en el historial): aPlan + bandera de canales. */
 export function cuerpoPlan(payload: Record<string, unknown>) {
   const body = aPlan(payload);
   return canalesEnPlanHabilitado() ? body : { ...body, all_canal: false, canales: [] as number[] };
+}
+
+/** Lo que recibe spMantPlanes: siempre sin canales (los canales van aparte y solo se agregan). */
+export function cuerpoSpMantPlanes(payload: Record<string, unknown>) {
+  return { ...aPlan(payload), all_canal: false, canales: [] as number[] };
+}
+
+/** Canales a agregar al plan (null si la bandera está apagada o no hay canales elegidos). */
+export function canalesAAgregar(payload: Record<string, unknown>): { all_canal?: true; canales?: number[] } | null {
+  if (!canalesEnPlanHabilitado()) return null;
+  const { all_canal, canales } = aPlan(payload) as { all_canal?: boolean; canales?: number[] };
+  if (all_canal === true) return { all_canal: true };
+  return canales?.length ? { canales } : null;
 }
 import {
   inferBranchFromPartnerRow,
@@ -416,13 +429,35 @@ export class PartnerBridgeService {
   async createSis2000MasterPlan(
     payload: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
+    const cuerpo = cuerpoSpMantPlanes(payload);
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'POST',
       '/api/v1/configurador/planes',
-      cuerpoPlan(payload),
+      cuerpo,
       60_000,
     );
+    await this.agregarCanalesPlan(Number(cuerpo.cramo), String(cuerpo.cplan ?? ''), payload);
     return body.data ?? payload;
+  }
+
+  /**
+   * Agrega al plan los canales elegidos (solo alta en mausuplan; nunca borra). Si falla, el plan ya quedó guardado:
+   * el error lo dice para que el usuario vuelva a guardar o revise los canales.
+   */
+  private async agregarCanalesPlan(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const canales = canalesAAgregar(payload);
+    if (!canales || !(cramo > 0) || !cplan.trim()) return;
+    try {
+      await this.request<NestEnvelope<unknown>>(
+        'POST',
+        `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/canales`,
+        canales,
+        60_000,
+      );
+    } catch (e) {
+      const msg = e instanceof HttpException ? e.message : String(e);
+      throw new BadGatewayException(`El plan ${cplan.trim()} se guardó, pero no se pudieron agregar los canales: ${msg}`);
+    }
   }
 
   async updateSis2000MasterPlan(
@@ -433,9 +468,10 @@ export class PartnerBridgeService {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(
       'PUT',
       `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan)}`,
-      cuerpoPlan(payload),
+      cuerpoSpMantPlanes(payload),
       60_000,
     );
+    await this.agregarCanalesPlan(cramo, cplan, payload);
     return body.data ?? payload;
   }
 

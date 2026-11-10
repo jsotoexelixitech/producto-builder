@@ -2,7 +2,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { diferencias, Sis2000RespaldoService } from '../src/core/respaldo/sis2000-respaldo.service';
 import { Sis2000HistorialService } from '../src/core/respaldo/sis2000-historial.service';
-import { cuerpoPlan, type PartnerBridgeService } from '../src/partner-bridge/partner-bridge.service';
+import { canalesAAgregar, cuerpoPlan, cuerpoSpMantPlanes, type PartnerBridgeService } from '../src/partner-bridge/partner-bridge.service';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import { MemoriaRespaldoRepo, Sis2000Simulado } from './respaldo-memoria';
 
@@ -246,6 +246,21 @@ describe('canales alternos en el plan (bandera SIS2000_PLAN_CANALES)', () => {
     } finally {
       delete process.env.SIS2000_PLAN_CANALES;
     }
+  });
+
+  it('spMantPlanes nunca recibe canales; se agregan aparte solo con la bandera encendida', () => {
+    process.env.SIS2000_PLAN_CANALES = '1';
+    try {
+      const sp = cuerpoSpMantPlanes(plan);
+      assert.equal(sp.all_canal, false);
+      assert.deepEqual(sp.canales, []);
+      assert.deepEqual(canalesAAgregar(plan), { canales: [8, 27] });
+      assert.deepEqual(canalesAAgregar({ ...plan, all_canal: true }), { all_canal: true });
+      assert.equal(canalesAAgregar({ ...plan, canales: [] }), null);
+    } finally {
+      delete process.env.SIS2000_PLAN_CANALES;
+    }
+    assert.equal(canalesAAgregar(plan), null);
   });
 });
 

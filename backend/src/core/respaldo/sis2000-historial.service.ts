@@ -543,6 +543,8 @@ export class Sis2000HistorialService {
     }
     if (!canalesEnPlanHabilitado() && (plan.all_canal === true || (Array.isArray(plan.canales) && plan.canales.length))) {
       adv.push('Los canales de esta versión no se reponen: la asignación de canales en planes está desactivada (SIS2000_PLAN_CANALES).');
+    } else if (plan.all_canal === true || (Array.isArray(plan.canales) && plan.canales.length)) {
+      adv.push('Los canales de esta versión se agregan si faltan; los canales que el plan tenga de más no se quitan (no se borra en mausuplan).');
     }
     return { plan };
   }

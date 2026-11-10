@@ -48,13 +48,15 @@ interface Props {
   onChange: (next: CanalesSelection) => void;
   idPrefix?: string;
   className?: string;
+  /** Bandera apagada en el servidor: se muestra el campo con la explicación, sin poder elegir. */
+  deshabilitado?: boolean;
 }
 
 /**
  * Selector de canales alternos: buscador por nombre o código (macanalalt vía nest-api), chips de seleccionados,
  * opción «Todos los canales» y alta manual por código si la lista no responde.
  */
-export function CanalesSelector({ value, onChange, idPrefix = 'canal', className }: Props) {
+export function CanalesSelector({ value, onChange, idPrefix = 'canal', className, deshabilitado = false }: Props) {
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState<CanalItem[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -63,7 +65,7 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
   const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
-    if (value.todos) return;
+    if (value.todos || deshabilitado) return;
     const t = setTimeout(() => {
       setBuscando(true);
       api
@@ -81,7 +83,7 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
         .finally(() => setBuscando(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, value.todos]);
+  }, [q, value.todos, deshabilitado]);
 
   const seleccionados = new Set(value.canales.map((c) => c.ccanalalt));
 
@@ -99,8 +101,20 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
     setManual('');
   }
 
+  if (deshabilitado) {
+    return (
+      <p className={cn('rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground', className)}>
+        Elegir canales está desactivado en este servidor (bandera SIS2000_PLAN_CANALES del builder). Mientras esté
+        apagada el plan se guarda sin canales alternos (solo productores).
+      </p>
+    );
+  }
+
   return (
     <div className={cn('space-y-2', className)}>
+      <p className="text-xs text-muted-foreground">
+        Los canales se agregan al plan y nunca se borran: quitar uno aquí no lo quita de Sis2000.
+      </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input

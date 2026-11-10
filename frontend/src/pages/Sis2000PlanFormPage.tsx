@@ -241,6 +241,8 @@ export function Sis2000PlanFormPage() {
     setSuccess(null);
     try {
       const raw = JSON.parse(jsonText) as Record<string, unknown>;
+      // Los canales elegidos en el selector van siempre (sin tener que «Aplicar campos al JSON»).
+      if (canalesHabilitados) Object.assign(raw, canalesToPayloadFields(canalesSel));
       const payload = normalizePlanPayloadForApi(raw, isEdit ? 'update' : 'create');
       const errores = validatePlanPayload(payload);
       if (errores.length) {
@@ -371,15 +373,18 @@ export function Sis2000PlanFormPage() {
           </div>
           <ProductoresSelector idPrefix="plan-prod" value={productoresSel} onChange={setProductoresSel} />
         </div>
-        {canalesHabilitados && (
-          <div className="sm:col-span-2 lg:col-span-3">
-            <div className="flex items-center gap-1.5">
-              <Label>Canales alternos que pueden vender el plan</Label>
-              <InfoTip text="Busca por nombre o código y selecciona uno o varios canales alternos (mausuplan, entidad C); «Todos» lo habilita para todos los canales (all_canal: true). Sin canales, el plan solo se vende por productores. Se aplica con «Aplicar campos al JSON» o «Plantilla completa»." />
-            </div>
-            <CanalesSelector idPrefix="plan-canal" value={canalesSel} onChange={setCanalesSel} />
+        <div className="sm:col-span-2 lg:col-span-3">
+          <div className="flex items-center gap-1.5">
+            <Label>Canales alternos que pueden vender el plan</Label>
+            <InfoTip text="Busca por nombre o código y selecciona uno o varios canales alternos (mausuplan, entidad C); «Todos» lo habilita para todos los canales (all_canal: true). Sin canales, el plan solo se vende por productores. Se aplica con «Aplicar campos al JSON» o «Plantilla completa». Los canales solo se agregan al plan: nunca se borran." />
           </div>
-        )}
+          <CanalesSelector
+            idPrefix="plan-canal"
+            value={canalesSel}
+            onChange={setCanalesSel}
+            deshabilitado={!canalesHabilitados}
+          />
+        </div>
         <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
           <Button type="button" variant="outline" size="sm" onClick={() => applyTemplate()}>
             <RefreshCw className="h-3.5 w-3.5" />
@@ -473,9 +478,10 @@ export function Sis2000PlanFormPage() {
         </div>
       )}
 
+      {/* Visible también antes de crear el plan: lo elegido queda pendiente y se agrega al crearlo. */}
+      <ProveedoresPlanPanel planId={planId} onCambio={() => setVersion((v) => v + 1)} />
       {planId && (
         <>
-          <ProveedoresPlanPanel planId={planId} onCambio={() => setVersion((v) => v + 1)} />
           <HistorialPanel
             entidad="PLAN"
             clave={claveHistorial.plan(planId.split('-')[0], planId.split('-').slice(1).join('-'))}
