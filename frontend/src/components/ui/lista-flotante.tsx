@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X } from 'lucide-react';
+import { ChevronDown, Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -77,6 +77,8 @@ export function ListaFlotante({ anclaRef, abierto, id, className, children }: Pr
 interface OpcionBuscador {
   codigo: number;
   nombre?: string;
+  /** Texto a la derecha en lugar del código (p. ej. RIF y claves del proveedor). */
+  detalle?: string;
 }
 
 interface BuscadorProps {
@@ -90,14 +92,31 @@ interface BuscadorProps {
   listaFallo: boolean;
   yaElegido: (codigo: number) => boolean;
   onElegir: (o: OpcionBuscador) => void;
+  /**
+   * Combobox: chevron ▾ a la derecha que abre y cierra la lista. Quien lo usa debe cargar opciones también con el
+   * texto vacío (listado inicial) para que al enfocar se vea la lista sin escribir.
+   */
+  mostrarAlEnfocar?: boolean;
 }
 
 /**
  * Buscador con ícono y lista flotante: se abre al enfocar, se cierra al salir del campo o con Escape,
  * y se navega con flechas + Enter. Lo usan los selectores de productores y canales.
  */
-export function BuscadorConLista({ id, placeholder, q, onQ, opciones, buscando, listaFallo, yaElegido, onElegir }: BuscadorProps) {
+export function BuscadorConLista({
+  id,
+  placeholder,
+  q,
+  onQ,
+  opciones,
+  buscando,
+  listaFallo,
+  yaElegido,
+  onElegir,
+  mostrarAlEnfocar = false,
+}: BuscadorProps) {
   const anclaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(-1);
   const visible = abierto && !listaFallo;
@@ -128,6 +147,7 @@ export function BuscadorConLista({ id, placeholder, q, onQ, opciones, buscando, 
     <div ref={anclaRef} className="relative">
       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <Input
+        ref={inputRef}
         id={id}
         role="combobox"
         aria-label={placeholder.replace(/…$/, '')}
@@ -136,7 +156,7 @@ export function BuscadorConLista({ id, placeholder, q, onQ, opciones, buscando, 
         aria-activedescendant={visible && activo >= 0 ? `${listaId}-${activo}` : undefined}
         autoComplete="off"
         placeholder={placeholder}
-        className="pl-10"
+        className={cn('pl-10', mostrarAlEnfocar && 'pr-10')}
         value={q}
         onChange={(e) => {
           onQ(e.target.value);
@@ -163,6 +183,26 @@ export function BuscadorConLista({ id, placeholder, q, onQ, opciones, buscando, 
           }
         }}
       />
+      {mostrarAlEnfocar && !listaFallo && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={visible ? 'Cerrar lista' : 'Abrir lista'}
+          className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          // No roba el foco: el input sigue enfocado y la lista no se cierra por el blur.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            if (visible) {
+              setAbierto(false);
+            } else {
+              inputRef.current?.focus();
+              setAbierto(true);
+            }
+          }}
+        >
+          <ChevronDown className={cn('h-4 w-4 transition-transform', visible && 'rotate-180')} />
+        </button>
+      )}
       <ListaFlotante anclaRef={anclaRef} abierto={visible} id={listaId}>
         {buscando && <li className="px-3.5 py-2 text-[0.72rem] text-slate-500">Buscando…</li>}
         {!buscando && opciones.length === 0 && (
@@ -186,7 +226,7 @@ export function BuscadorConLista({ id, placeholder, q, onQ, opciones, buscando, 
               onClick={() => !ya && onElegir(o)}
             >
               <span className="min-w-0 truncate">{o.nombre || '(sin nombre)'}</span>
-              <span className="shrink-0 font-mono text-xs text-slate-400">{ya ? `${o.codigo} · agregado` : o.codigo}</span>
+              <span className="shrink-0 font-mono text-xs text-slate-400">{ya ? `${o.detalle ?? o.codigo} · agregado` : (o.detalle ?? o.codigo)}</span>
             </li>
           );
         })}

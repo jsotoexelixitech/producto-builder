@@ -156,6 +156,7 @@ export function ProductoresSelector({ value, onChange, idPrefix = 'prod', classN
             listaFallo={listaFallo}
             yaElegido={(codigo) => seleccionados.has(codigo)}
             onElegir={(o) => agregar({ cproductor: o.codigo, xproductor: o.nombre })}
+            mostrarAlEnfocar
           />
 
           {listaFallo && (

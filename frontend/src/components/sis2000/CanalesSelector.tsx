@@ -164,6 +164,7 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
             listaFallo={listaFallo}
             yaElegido={(codigo) => seleccionados.has(codigo)}
             onElegir={(o) => agregar({ ccanalalt: o.codigo, xcanalalt: o.nombre })}
+            mostrarAlEnfocar
           />
 
           {listaFallo && (

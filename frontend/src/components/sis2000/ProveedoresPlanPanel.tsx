@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes } from 'react';
-import { Plus, Search, Truck } from 'lucide-react';
+import { useCallback, useEffect, useState, type InputHTMLAttributes } from 'react';
+import { Plus, Truck } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   clavesDelProveedor,
@@ -15,7 +15,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ListaFlotante } from '@/components/ui/lista-flotante';
+import { BuscadorConLista } from '@/components/ui/lista-flotante';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
 
@@ -51,8 +51,6 @@ const costo = (p: ProveedorPlan) =>
  * personas, los vigentes se registran en cada póliza. Baja = cerrar la vigencia, nunca borrar.
  */
 export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
-  const buscadorRef = useRef<HTMLDivElement>(null);
-  const [listaAbierta, setListaAbierta] = useState(false);
   const [datos, setDatos] = useState<ProveedoresPlanRespuesta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -63,6 +61,8 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   const [q, setQ] = useState('');
   const [catalogo, setCatalogo] = useState<ProveedorCatalogo[]>([]);
   const [buscando, setBuscando] = useState(false);
+  const [listaFallo, setListaFallo] = useState(false);
+  const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [elegido, setElegido] = useState<ProveedorCatalogo | null>(null);
   const [form, setForm] = useState<ProveedorPlanForm>(PROVEEDOR_FORM_VACIO);
   const [editando, setEditando] = useState<string | null>(null);
@@ -114,24 +114,47 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId]);
 
+  /** Sin plan todavía se puede elegir (queda pendiente); con plan, según la bandera de nest-api. */
+  const escribir = !planId || (datos?.escritura_habilitada === true && !datos?.columna_cobertura);
+
+  // Sin texto, nest-api devuelve el listado inicial (TOP 60 filas por nombre); con texto filtra por nombre o RIF.
   useEffect(() => {
-    if (q.trim().length < 2) {
-      setCatalogo([]);
-      return;
-    }
+    if (!escribir) return;
     const t = setTimeout(() => {
       setBuscando(true);
       api
         .listSis2000Proveedores(q.trim())
-        .then(setCatalogo)
-        .catch(() => setCatalogo([]))
+        .then((rows) => {
+          setCatalogo(rows ?? []);
+          setListaFallo(false);
+        })
+        .catch(() => {
+          setCatalogo([]);
+          setListaFallo(true);
+        })
         .finally(() => setBuscando(false));
-    }, 300);
+    }, 250);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, escribir]);
 
-  /** Sin plan todavía se puede elegir (queda pendiente); con plan, según la bandera de nest-api. */
-  const escribir = !planId || (datos?.escritura_habilitada === true && !datos?.columna_cobertura);
+  // Monedas: mismo catálogo que «Moneda (cmoneda)» de Datos del plan.
+  useEffect(() => {
+    api
+      .listSis2000CatalogMonedas()
+      .then((rows) => {
+        const vistas = new Set<string>();
+        const out: Array<{ codigo: string; nombre: string }> = [];
+        for (const m of rows ?? []) {
+          const codigo = String(m.cmoneda ?? m.codigo ?? m.cvalor ?? '').trim();
+          if (!codigo || vistas.has(codigo)) continue;
+          vistas.add(codigo);
+          out.push({ codigo, nombre: String(m.xmoneda ?? m.xdescripcion_l ?? m.xdescripcion ?? m.descripcion ?? '').trim() });
+        }
+        setMonedas(out);
+      })
+      .catch(() => undefined);
+  }, []);
+
   const lista = (datos?.proveedores ?? []).filter((p) => verBajas || p.vigente || p.fdesde > hoy());
 
   /** true si se guardó. */
@@ -159,7 +182,6 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
     const claves = clavesDelProveedor(p);
     setForm((f) => ({ ...f, cci_rif: String(p.cci_rif), cclave_num: String(claves[0] ?? f.cclave_num) }));
     setQ('');
-    setCatalogo([]);
   }
 
   function agregar() {
@@ -250,10 +272,31 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
     </div>
   );
 
+  /** Select de monedas del catálogo; si el valor actual no está en la lista, se agrega para no perderlo. */
+  const selectorMoneda = (id: string | undefined, valor: string, onValor: (v: string) => void) => {
+    const actual = valor.trim();
+    const opciones = actual && !monedas.some((m) => m.codigo === actual) ? [{ codigo: actual, nombre: '' }, ...monedas] : monedas;
+    return (
+      <select
+        id={id}
+        aria-label="Moneda"
+        className="h-10 w-full rounded-md border border-border bg-background px-2"
+        value={actual}
+        onChange={(e) => onValor(e.target.value)}
+      >
+        {opciones.map((m) => (
+          <option key={m.codigo} value={m.codigo}>
+            {m.nombre ? `${m.codigo} · ${m.nombre}` : m.codigo}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
   return (
     <SectionPanel
       title="Proveedores"
-      description="El proveedor aplica a todo el plan (Sis2000 no guarda proveedor por cobertura). Al emitir pólizas de personas, los proveedores vigentes del plan se registran en cada póliza."
+      description="El proveedor aplica a todo el plan; al emitir pólizas de personas se registra en cada póliza. Dar de baja cierra la vigencia, no borra."
       icon={Truck}
       className={cn('mt-6', className)}
     >
@@ -272,12 +315,6 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
             cobertura antes de poder escribir.
           </Alert>
         )}
-
-        <p className="text-muted-foreground">
-          Sis2000 guarda el proveedor por plan (la tabla de proveedores del plan no tiene cobertura). Si distintas coberturas
-          usan proveedores distintos, agrega todos: quedan en el plan y aplican a todas sus coberturas. Quitar un proveedor
-          es darlo de baja (cierra la vigencia); nunca se borra la fila.
-        </p>
 
         {!planId && (
           <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
@@ -383,12 +420,16 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
                                     value={edicion.mcosto}
                                     onChange={(e) => setEdicion({ ...edicion, mcosto: e.target.value })}
                                   />
-                                  <Input
-                                    aria-label="Moneda"
-                                    placeholder="Moneda"
-                                    value={edicion.cmoneda}
-                                    onChange={(e) => setEdicion({ ...edicion, cmoneda: e.target.value })}
-                                  />
+                                  {monedas.length ? (
+                                    selectorMoneda(undefined, edicion.cmoneda, (v) => setEdicion({ ...edicion, cmoneda: v }))
+                                  ) : (
+                                    <Input
+                                      aria-label="Moneda"
+                                      placeholder="Moneda"
+                                      value={edicion.cmoneda}
+                                      onChange={(e) => setEdicion({ ...edicion, cmoneda: e.target.value })}
+                                    />
+                                  )}
                                   <div className="flex gap-1.5">
                                     <Button type="button" size="sm" disabled={trabajando} onClick={() => guardarEdicion(p)}>
                                       Guardar
@@ -433,48 +474,39 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
                 </button>
               </p>
             ) : (
-              <div ref={buscadorRef} className="relative">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  aria-label="Buscar proveedor por nombre o RIF"
-                  placeholder="Buscar proveedor por nombre o RIF…"
-                  className="pl-10"
-                  autoComplete="off"
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setListaAbierta(true);
-                  }}
-                  onFocus={() => setListaAbierta(true)}
-                  onBlur={() => setListaAbierta(false)}
-                  onKeyDown={(e) => e.key === 'Escape' && setListaAbierta(false)}
-                />
-                <ListaFlotante
-                  anclaRef={buscadorRef}
-                  abierto={listaAbierta && (buscando || catalogo.length > 0)}
-                  className="text-xs"
-                >
-                  {buscando && <li className="px-3.5 py-2 text-slate-500">Buscando…</li>}
-                  {catalogo.map((p) => (
-                    <li key={p.cci_rif}>
-                      <button
-                        type="button"
-                        className="flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-slate-800 hover:bg-slate-50"
-                        onClick={() => elegir(p)}
-                      >
-                        <span className="min-w-0 truncate">{p.xcliente || '(sin nombre)'}</span>
-                        <span className="shrink-0 text-slate-400">
-                          {p.cid || p.cci_rif}
-                          {clavesDelProveedor(p).length ? ` · claves ${clavesDelProveedor(p).join(', ')}` : ''}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ListaFlotante>
-              </div>
+              <BuscadorConLista
+                id="prov-buscar"
+                placeholder="Buscar proveedor por nombre o RIF…"
+                q={q}
+                onQ={setQ}
+                opciones={catalogo.map((p) => {
+                  const claves = clavesDelProveedor(p);
+                  return {
+                    codigo: p.cci_rif,
+                    nombre: p.xcliente,
+                    detalle: `${p.cid || p.cci_rif}${claves.length ? ` · claves ${claves.join(', ')}` : ''}`,
+                  };
+                })}
+                buscando={buscando}
+                listaFallo={listaFallo}
+                yaElegido={() => false}
+                onElegir={(o) => {
+                  const p = catalogo.find((c) => c.cci_rif === o.codigo);
+                  if (p) elegir(p);
+                }}
+                mostrarAlEnfocar
+              />
+            )}
+            {!elegido && listaFallo && (
+              <p className="text-amber-700">No se pudo cargar la lista de proveedores; intenta de nuevo en unos segundos.</p>
             )}
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {elegido && clavesDelProveedor(elegido).length > 0 ? (
+              {elegido && clavesDelProveedor(elegido).length === 1 ? (
+                <div>
+                  <Label htmlFor="prov-clave">Clave del proveedor</Label>
+                  <Input id="prov-clave" value={form.cclave_num} readOnly disabled title="El proveedor tiene una sola clave" />
+                </div>
+              ) : elegido && clavesDelProveedor(elegido).length > 1 ? (
                 <div>
                   <Label htmlFor="prov-clave">Clave del proveedor</Label>
                   <select
@@ -498,7 +530,14 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
               {campo('itiposerv', 'Tipo de servicio', { type: 'number', min: 0, step: 1 })}
               {campo('mcostoext', 'Costo en divisa', { type: 'number', min: 0, step: '0.01' })}
               {campo('mcosto', 'Costo en bolívares (opcional)', { type: 'number', min: 0, step: '0.01' })}
-              {campo('cmoneda', 'Moneda', { maxLength: 4 })}
+              {monedas.length ? (
+                <div>
+                  <Label htmlFor="prov-cmoneda">Moneda</Label>
+                  {selectorMoneda('prov-cmoneda', form.cmoneda, (v) => setForm({ ...form, cmoneda: v }))}
+                </div>
+              ) : (
+                campo('cmoneda', 'Moneda', { maxLength: 4 })
+              )}
             </div>
             <div>
               <Label htmlFor="prov-motivo">Motivo del cambio (opcional, queda en el historial)</Label>
