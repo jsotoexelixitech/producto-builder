@@ -68,6 +68,8 @@ import { cn } from '@/lib/utils';
 
 /** Peticiones de tarifas en vuelo a la vez (una por cobertura del ramo). */
 const TARIFAS_EN_PARALELO = 5;
+/** Valor del selector de ramo cuando no se filtra (Radix Select no admite valor vacío). */
+const RAMO_TODOS = 'todos';
 
 /** Frecuencias de pago que admite el plan (maplanes_frec). */
 const FRECUENCIAS = [
@@ -290,6 +292,8 @@ export function Sis2000ComboPage() {
   const [errorProductos, setErrorProductos] = useState<string | null>(null);
   /** Producto elegido: clave cproducto|cramo (maproductos repite cada producto en SysIP y Nexus). */
   const [claveProducto, setClaveProducto] = useState('');
+  /** Ramo elegido para filtrar el selector de producto (RAMO_TODOS = sin filtro). */
+  const [ramoFiltro, setRamoFiltro] = useState(RAMO_TODOS);
 
   const [catalogo, setCatalogo] = useState<{ cramo: number; coberturas: CoberturaRamo[] } | null>(
     null,
@@ -371,6 +375,19 @@ export function Sis2000ComboPage() {
   }, []);
 
   const opcionesProducto = useMemo(() => agruparProductosSis2000(productos), [productos]);
+  /** Ramos únicos de los productos, ordenados, para acotar el selector de producto. */
+  const ramosDisponibles = useMemo(
+    () =>
+      [...new Set(opcionesProducto.map((o) => o.cramo).filter((r) => r > 0))].sort((a, b) => a - b),
+    [opcionesProducto],
+  );
+  const opcionesProductoFiltradas = useMemo(
+    () =>
+      ramoFiltro === RAMO_TODOS
+        ? opcionesProducto
+        : opcionesProducto.filter((o) => String(o.cramo) === ramoFiltro),
+    [opcionesProducto, ramoFiltro],
+  );
   const opcionProducto = useMemo(
     () => opcionesProducto.find((o) => o.clave === claveProducto) ?? null,
     [opcionesProducto, claveProducto],
@@ -760,6 +777,11 @@ export function Sis2000ComboPage() {
   const totalCotizacion = (campo: string) =>
     (cotizacion ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
 
+  function elegirRamo(valor: string) {
+    setRamoFiltro(valor);
+    elegirProducto('');
+  }
+
   function elegirProducto(valor: string) {
     setClaveProducto(valor);
     setIntentoCrear(false);
@@ -896,7 +918,29 @@ export function Sis2000ComboPage() {
           description="El plan se crea en el ramo del producto; de ese ramo salen las coberturas y tarifas."
           icon={Package}
         >
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto] sm:items-end">
+            <FormField
+              label="Ramo (cramo)"
+              tooltip="Acota la lista de productos a un ramo de Sis2000. «Todos los ramos» muestra todos los productos."
+            >
+              {cargandoProductos && !productos.length ? (
+                <div className="h-[42px] animate-pulse rounded-xl bg-muted/60" />
+              ) : (
+                <Select value={ramoFiltro} onValueChange={elegirRamo}>
+                  <SelectTrigger aria-label="Ramo Sis2000">
+                    <SelectValue placeholder="Todos los ramos" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    <SelectItem value={RAMO_TODOS}>Todos los ramos</SelectItem>
+                    {ramosDisponibles.map((r) => (
+                      <SelectItem key={r} value={String(r)}>
+                        Ramo {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </FormField>
             <FormField
               label="Producto (cproducto)"
               tooltip="Producto de Sis2000 al que pertenece el plan. Las coberturas y tarifas del combo salen de su ramo."
@@ -909,7 +953,7 @@ export function Sis2000ComboPage() {
                     <SelectValue placeholder="Elige un producto…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
-                    {opcionesProducto.map((o) => (
+                    {opcionesProductoFiltradas.map((o) => (
                       <SelectItem key={o.clave} value={o.clave} disabled={!o.cramo}>
                         {o.cproducto} · {texto(o.producto.xdescripcion_l) || 'Sin nombre'} ·{' '}
                         {o.cramo ? `ramo ${o.cramo}` : 'sin ramo'}
