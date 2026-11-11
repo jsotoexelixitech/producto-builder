@@ -449,6 +449,54 @@ export class PartnerBridgeService {
     return body.data ?? payload;
   }
 
+  // ── Tablas de tasas por edad (mapltabedad + mapltabedad_d): el código es el ctablatar de los planes de personas ──
+
+  /** Tramo tal como lo pide nest-api (TramoEdadDto): edades enteras, tasa en % y prima fija. */
+  private aTramosEdad(tramos: unknown): Record<string, number>[] {
+    const num = (v: unknown) => (v == null || String(v).trim() === '' ? 0 : Number(v));
+    return (Array.isArray(tramos) ? (tramos as Record<string, unknown>[]) : []).map((t) => ({
+      nedad_min: num(t.nedad_min),
+      nedad_max: num(t.nedad_max),
+      pprima: num(t.pprima),
+      mprima: num(t.mprima),
+      msuma: num(t.msuma),
+      msumamax: num(t.msumamax),
+    }));
+  }
+
+  /** Tabla con sus tramos y los planes que la usan. 404 si no existe. */
+  async leerSis2000TablaEdad(ctablaedad: string): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'GET',
+      `/api/v1/configurador/tablas-edad/${encodeURIComponent(ctablaedad.trim())}`,
+    );
+    return body.data ?? {};
+  }
+
+  /** Crea cabecera y tramos en una sola llamada (nest-api rechaza si el código ya existe). */
+  async crearSis2000TablaEdad(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/configurador/tablas-edad',
+      {
+        ctablaedad: String(payload.ctablaedad ?? '').trim().toUpperCase(),
+        xtablaedad: String(payload.xtablaedad ?? '').trim(),
+        tramos: this.aTramosEdad(payload.tramos),
+      },
+    );
+    return body.data ?? {};
+  }
+
+  /** Reemplaza todos los tramos de una tabla existente: cambia la tarifa de los planes que la usan. */
+  async reemplazarSis2000TramosEdad(ctablaedad: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PUT',
+      `/api/v1/configurador/tablas-edad/${encodeURIComponent(ctablaedad.trim())}/tramos`,
+      { tramos: this.aTramosEdad(payload.tramos) },
+    );
+    return body.data ?? {};
+  }
+
   // ── nest-api partner:starter — maplanes (spMantPlanes) ──────────────────
 
   async listSis2000MasterPlans(): Promise<Record<string, unknown>[]> {

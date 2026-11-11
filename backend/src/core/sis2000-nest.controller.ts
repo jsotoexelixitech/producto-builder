@@ -202,6 +202,25 @@ export class Sis2000NestController {
     );
   }
 
+  // ── Tablas de tasas por edad (mapltabedad): el código es el ctablatar de los planes de personas ──
+
+  @Get('tablas-edad/:codigo')
+  leerTablaEdad(@Param('codigo') codigo: string) {
+    return this.coreService.leerSis2000TablaEdad(codigo);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('tablas-edad')
+  crearTablaEdad(@Body() body: Cuerpo) {
+    return this.coreService.crearSis2000TablaEdad(separarMotivo(body).cuerpo);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Put('tablas-edad/:codigo/tramos')
+  reemplazarTramosEdad(@Param('codigo') codigo: string, @Body() body: Cuerpo) {
+    return this.coreService.reemplazarSis2000TramosEdad(codigo, separarMotivo(body).cuerpo);
+  }
+
   // ── Planes maestro (partner/starter/plan → spMantPlanes) ────────────────
 
   @Get('plans/master')

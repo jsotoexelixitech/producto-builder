@@ -51,6 +51,7 @@ import {
 } from '@/components/sis2000/CanalesSelector';
 import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
 import { CobroDiasPanel } from '@/components/sis2000/CobroDiasPanel';
+import { TablaEdadDialog } from '@/components/sis2000/TablaEdadDialog';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -388,6 +389,13 @@ export function Sis2000ComboPage() {
   const [edadMin, setEdadMin] = useState('0');
   const [edadMax, setEdadMax] = useState('74');
   const [tablaPlan, setTablaPlan] = useState('');
+  /** Personas: diálogo para crear o ver una tabla de tasas por edad; destino = 'plan' o el código de la cobertura. */
+  const [tablaDlg, setTablaDlg] = useState<{
+    modo: 'crear' | 'ver';
+    destino: string;
+    codigo: string;
+    descripcion: string;
+  } | null>(null);
 
   const [cplan, setCplan] = useState('');
   const [xplan, setXplan] = useState('');
@@ -726,6 +734,18 @@ export function Sis2000ComboPage() {
 
   /** Tabla de tasas de la cobertura: la suya o, si está vacía, la del plan. */
   const tablaDe = (ccobertura: string) => filaPer(ccobertura).ctablatar.trim() || tablaPlan.trim();
+
+  /** Abre «Crear tabla» con un código sugerido (plan, o plan + cobertura; máx. 10) y la descripción del plan/cobertura. */
+  function abrirCrearTabla(destino: string, descripcionCobertura = '') {
+    const base = cplan.trim().toUpperCase();
+    const codigo = (destino === 'plan' ? base : `${base}${destino.trim().toUpperCase()}`).slice(0, 10);
+    const descripcion = [xplan.trim(), descripcionCobertura.trim()].filter(Boolean).join(' · ').slice(0, 60);
+    setTablaDlg({ modo: 'crear', destino, codigo, descripcion });
+  }
+
+  function abrirVerTabla(codigo: string) {
+    if (codigo.trim()) setTablaDlg({ modo: 'ver', destino: '', codigo: codigo.trim(), descripcion: '' });
+  }
 
   /** cparen escritos («1» o «1, 2, 3»); null si alguno no es un entero ≥ 1. */
   const cparens = useMemo(() => {
@@ -1480,7 +1500,7 @@ export function Sis2000ComboPage() {
                         <th className="px-3 py-2">
                           <span className="inline-flex items-center gap-1">
                             Tabla de tasas
-                            <InfoTip text="Tabla de tasas por edad de la cobertura (mapltabedad.ctablaedad, máx. 10). Vacía = la tabla del plan. Debe existir en Sis2000 con tramos." />
+                            <InfoTip text={'Código de la tabla de precios por edad (mapltabedad_d). Créala con "Crear tabla" o usa una existente. Vacía = la tabla del plan.'} />
                           </span>
                         </th>
                       )}
@@ -1582,14 +1602,31 @@ export function Sis2000ComboPage() {
                           {personas && (
                             <td className="px-2 py-2">
                               {fila && habilitada ? (
-                                <Input
-                                  aria-label={`Tabla de tasas · cobertura ${c.ccobertura}`}
-                                  value={filaPer(c.ccobertura).ctablatar}
-                                  maxLength={10}
-                                  placeholder={tablaPlan.trim() || 'Tabla'}
-                                  onChange={(e) => cambiarFilaPer(c.ccobertura, { ctablatar: e.target.value })}
-                                  className="h-8 w-28 rounded-lg px-2 py-1 text-xs"
-                                />
+                                <div className="flex items-center gap-1.5">
+                                  <Input
+                                    aria-label={`Tabla de tasas · cobertura ${c.ccobertura}`}
+                                    value={filaPer(c.ccobertura).ctablatar}
+                                    maxLength={10}
+                                    placeholder={tablaPlan.trim() || 'Tabla'}
+                                    onChange={(e) => cambiarFilaPer(c.ccobertura, { ctablatar: e.target.value })}
+                                    className="h-8 w-28 rounded-lg px-2 py-1 text-xs"
+                                  />
+                                  <button
+                                    type="button"
+                                    className="whitespace-nowrap text-xs font-bold text-indigo-600 hover:underline"
+                                    onClick={() => abrirCrearTabla(c.ccobertura, c.descripcion)}
+                                  >
+                                    Crear tabla
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-xs font-bold text-slate-500 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                                    disabled={!tablaDe(c.ccobertura)}
+                                    onClick={() => abrirVerTabla(tablaDe(c.ccobertura))}
+                                  >
+                                    Ver
+                                  </button>
+                                </div>
                               ) : (
                                 <span className="text-xs">—</span>
                               )}
@@ -1722,16 +1759,31 @@ export function Sis2000ComboPage() {
                   <FormField
                     label="Tabla de tasas por edad (ctablatar)"
                     htmlFor="combo-tabla"
-                    hint="Código de una tabla que ya existe en Sis2000, con tramos. Máx. 10 caracteres."
-                    tooltip="Tabla de tasas por edad (mapltabedad) que usan las coberturas del plan. Cada cobertura puede indicar otra en la columna «Tabla de tasas»."
+                    hint="Máx. 10 caracteres. La usan todas las coberturas que no indiquen otra en la columna «Tabla de tasas»."
+                    tooltip={'Código de la tabla de precios por edad (mapltabedad_d). Créala con "Crear tabla" o usa una existente.'}
                   >
-                    <Input
-                      id="combo-tabla"
-                      value={tablaPlan}
-                      maxLength={10}
-                      placeholder="TEMP1"
-                      onChange={(e) => setTablaPlan(e.target.value)}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="combo-tabla"
+                        value={tablaPlan}
+                        maxLength={10}
+                        placeholder="TEMP1"
+                        onChange={(e) => setTablaPlan(e.target.value)}
+                      />
+                      <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => abrirCrearTabla('plan')}>
+                        Crear tabla
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        disabled={!tablaPlan.trim()}
+                        onClick={() => abrirVerTabla(tablaPlan)}
+                      >
+                        Ver
+                      </Button>
+                    </div>
                   </FormField>
                 </FormGrid>
               </div>
@@ -2022,6 +2074,19 @@ export function Sis2000ComboPage() {
           </div>
         )}
 
+        {tablaDlg && (
+          <TablaEdadDialog
+            key={`${tablaDlg.modo}-${tablaDlg.destino}-${tablaDlg.codigo}`}
+            modo={tablaDlg.modo}
+            codigo={tablaDlg.codigo}
+            descripcion={tablaDlg.descripcion}
+            onClose={() => setTablaDlg(null)}
+            onCreada={(codigo) => {
+              if (tablaDlg.destino === 'plan') setTablaPlan(codigo);
+              else cambiarFilaPer(tablaDlg.destino, { ctablatar: codigo });
+            }}
+          />
+        )}
       </div>
     </AppShell>
   );

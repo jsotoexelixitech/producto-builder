@@ -339,6 +339,26 @@ export const api = {
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
+  // Tablas de tasas por edad (mapltabedad + mapltabedad_d): el código es el ctablatar de los planes de personas
+  leerSis2000TablaEdad: (codigo: string) =>
+    request<import('@/components/sis2000/TablaEdadDialog').TablaEdad>(
+      `/core/sis2000/tablas-edad/${encodeURIComponent(codigo.trim())}`,
+    ),
+  crearSis2000TablaEdad: (body: {
+    ctablaedad: string;
+    xtablaedad: string;
+    tramos: import('@/components/sis2000/TablaEdadDialog').TramoEdad[];
+  }) =>
+    request<{ ctablaedad: string; tramos: number }>('/core/sis2000/tablas-edad', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  reemplazarSis2000TramosEdad: (codigo: string, tramos: import('@/components/sis2000/TablaEdadDialog').TramoEdad[]) =>
+    request<Record<string, unknown>>(`/core/sis2000/tablas-edad/${encodeURIComponent(codigo.trim())}/tramos`, {
+      method: 'PUT',
+      body: JSON.stringify({ tramos }),
+    }),
+
   // Historial y restauración (copia original + versiones en la Postgres del configurador)
   getSis2000Historial: (entidad: import('@/lib/sis2000-historial').EntidadHistorial, clave: string) =>
     request<import('@/lib/sis2000-historial').HistorialRespuesta>(
