@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Send,
   Shield,
+  Users,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { agruparProductosSis2000, type Sis2000Product } from '@/lib/sis2000-catalog';
@@ -27,6 +28,7 @@ import {
   type CoberturaSumaConfig,
   type CoberturaSumaConfigPorCodigo,
   type Sis2000NestRow,
+  type Sis2000PlanType,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
 import {
@@ -115,6 +117,40 @@ const MONTOS = [
 
 type CampoMonto = (typeof MONTOS)[number]['campo'];
 
+/** Columnas de monto en planes de personas (van al parentesco: mapltarifas_per). */
+const MONTOS_PERSONAS: ReadonlyArray<{ campo: CampoMonto; etiqueta: string; ayuda: string }> = [
+  {
+    campo: 'msumamax',
+    etiqueta: 'Suma asegurada',
+    ayuda: 'Suma asegurada de la cobertura para cada parentesco del plan (msuma y msumamax). Viene de la tarifa; 0 si la suma sale de la tabla de tasas.',
+  },
+  {
+    campo: 'mprima',
+    etiqueta: 'Prima',
+    ayuda: 'Prima de la cobertura por persona (mprima). Déjala en 0 si la prima sale de la tabla de tasas por edad.',
+  },
+];
+
+const SEXOS = [
+  { valor: 'A', etiqueta: 'Ambos' },
+  { valor: 'M', etiqueta: 'Masculino' },
+  { valor: 'F', etiqueta: 'Femenino' },
+];
+
+/** Lo propio de personas por cobertura: tabla de tasas (vacía = la del plan) y si es obligatoria en el plan. */
+interface FilaPersonas {
+  ctablatar: string;
+  obligatoria: boolean;
+}
+
+const FILA_PERSONAS: FilaPersonas = { ctablatar: '', obligatoria: true };
+
+/** Entero ≥ 0 de un input ('' o inválido = null). */
+function entero(valor: string): number | null {
+  const t = valor.trim();
+  return /^\d+$/.test(t) ? Number(t) : null;
+}
+
 /** Estilo de las casillas y radios sueltos (igual que en el asistente de coberturas). */
 const ETIQUETA_OPCION =
   'inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs font-medium';
@@ -161,6 +197,7 @@ type VistaIncluida = VistaCobertura & { fila: FilaCombo; tarifa: Sis2000NestRow 
 interface PlanCreado {
   cramo: number;
   cplan: string;
+  tipo: Sis2000PlanType;
   /** Frecuencia con la que se cotiza: Anual si el plan la tiene, si no la primera del plan. */
   ifrecuencia: string;
 }
@@ -340,6 +377,18 @@ export function Sis2000ComboPage() {
   const [guardandoSuma, setGuardandoSuma] = useState(false);
   const [errorSuma, setErrorSuma] = useState<string | null>(null);
 
+  /** Cosas (maplanes + maplantar) o personas (maplanes_per + maplcober_per, mapltarifas_per, mapledades_per). */
+  const [tipoPlan, setTipoPlan] = useState<Sis2000PlanType>('cosas');
+  const personas = tipoPlan === 'personas';
+  /** Personas: tabla de tasas y obligatoriedad por cobertura. */
+  const [filasPer, setFilasPer] = useState<Record<string, FilaPersonas>>({});
+  /** Personas: parentescos (cparen, varios separados por coma), sexo, edades y tabla de tasas por defecto. */
+  const [parentescosTxt, setParentescosTxt] = useState('1');
+  const [csexo, setCsexo] = useState('A');
+  const [edadMin, setEdadMin] = useState('0');
+  const [edadMax, setEdadMax] = useState('74');
+  const [tablaPlan, setTablaPlan] = useState('');
+
   const [cplan, setCplan] = useState('');
   const [xplan, setXplan] = useState('');
   const [fdesde, setFdesde] = useState(hoyIso);
@@ -445,6 +494,7 @@ export function Sis2000ComboPage() {
     setCatalogo(null);
     setTarifas({});
     setFilas({});
+    setFilasPer({});
     setSumaConfig({});
     setEditandoSuma(null);
     setErrorCoberturas(null);
@@ -653,6 +703,12 @@ export function Sis2000ComboPage() {
     let sumaMaxima = 0;
     let prima = 0;
     for (const v of incluidas) {
+      if (personas) {
+        // Personas: suma y prima por persona tal cual; la tasa por edad la aplica Sis2000.
+        sumaMaxima = Math.max(sumaMaxima, numero(v.fila.msumamax));
+        prima += numero(v.fila.mprima);
+        continue;
+      }
       if (v.calculada) continue; // la suma llega al emitir
       const suma = numero(v.fila.msumamax);
       const tasa = numero(v.fila.pprima);
@@ -660,12 +716,35 @@ export function Sis2000ComboPage() {
       prima += tasa > 0 ? (suma * tasa) / 100 : numero(v.fila.mprima);
     }
     return { sumaMaxima, prima };
-  }, [incluidas]);
+  }, [incluidas, personas]);
 
-  /** CreatePlanDto de cosas con las coberturas incluidas, listo para POST /core/sis2000/plans. */
+  const filaPer = (ccobertura: string) => filasPer[ccobertura] ?? FILA_PERSONAS;
+
+  function cambiarFilaPer(ccobertura: string, cambios: Partial<FilaPersonas>) {
+    setFilasPer((prev) => ({ ...prev, [ccobertura]: { ...(prev[ccobertura] ?? FILA_PERSONAS), ...cambios } }));
+  }
+
+  /** Tabla de tasas de la cobertura: la suya o, si está vacía, la del plan. */
+  const tablaDe = (ccobertura: string) => filaPer(ccobertura).ctablatar.trim() || tablaPlan.trim();
+
+  /** cparen escritos («1» o «1, 2, 3»); null si alguno no es un entero ≥ 1. */
+  const cparens = useMemo(() => {
+    const partes = parentescosTxt.split(',').map((x) => x.trim()).filter(Boolean);
+    const nums = partes.map((x) => entero(x));
+    return nums.length && nums.every((x) => x != null && x >= 1) ? (nums as number[]) : null;
+  }, [parentescosTxt]);
+
+  function cambiarTipoPlan(valor: string) {
+    setTipoPlan(valor === 'personas' ? 'personas' : 'cosas');
+    setEditandoSuma(null);
+    setIntentoCrear(false);
+    limpiarResultado();
+  }
+
+  /** CreatePlanDto (cosas o personas) con las coberturas incluidas, listo para POST /core/sis2000/plans. */
   function armarPayload(): Record<string, unknown> {
     const payload = defaultPlanPayload({
-      type: 'cosas',
+      type: tipoPlan,
       cramo,
       cproducto,
       cplan: cplan.trim(),
@@ -680,6 +759,25 @@ export function Sis2000ComboPage() {
     payload.frecuencias = FRECUENCIAS.filter((f) => frecuencias.includes(f.ifrecuencia)).map(
       (f) => ({ ...f }),
     );
+    if (personas) {
+      // Personas: cada cobertura lleva sus parentescos con edades, tabla de tasas, suma y prima.
+      payload.coberturas = incluidas.map((v) => ({
+        ccobertura: v.cobertura.ccobertura,
+        ctarifa: v.fila.ctarifa,
+        bobligatoria: filaPer(v.cobertura.ccobertura).obligatoria,
+        parentescos: (cparens ?? []).map((cparen) => ({
+          cparen,
+          csexo,
+          ctablatar: tablaDe(v.cobertura.ccobertura),
+          nedad_min: entero(edadMin) ?? 0,
+          nedad_max: entero(edadMax) ?? 0,
+          msuma: numero(v.fila.msumamax),
+          msumamax: numero(v.fila.msumamax),
+          mprima: numero(v.fila.mprima),
+        })),
+      }));
+      return normalizePlanPayloadForApi({ ...payload }, 'create');
+    }
     payload.coberturas = incluidas.map((v) =>
       v.calculada
         ? // Suma calculada al emitir: se graba en 0 y nest-api no exige suma ni prima/tasa.
@@ -723,6 +821,24 @@ export function Sis2000ComboPage() {
     if (!incluidas.length) errores.push('Incluye al menos una cobertura en el combo.');
     const nombre = (v: VistaCobertura) =>
       `Cobertura ${v.cobertura.ccobertura}${v.cobertura.descripcion ? ` (${v.cobertura.descripcion})` : ''}`;
+    if (personas) {
+      const min = entero(edadMin);
+      const max = entero(edadMax);
+      if (!cparens) errores.push('Parentescos: escribe el código (1 = titular) o varios separados por coma.');
+      else if (new Set(cparens).size !== cparens.length) errores.push('Parentescos: hay códigos repetidos.');
+      if (min == null || max == null) errores.push('Indica la edad mínima y máxima del plan (enteros).');
+      else if (min > max) errores.push('La edad mínima es mayor que la máxima.');
+      for (const v of incluidas) {
+        const n = nombre(v);
+        const tabla = tablaDe(v.cobertura.ccobertura);
+        if (!v.fila.ctarifa) errores.push(`${n}: falta la tarifa.`);
+        if (!tabla) errores.push(`${n}: falta la tabla de tasas por edad (la del plan o la de la cobertura).`);
+        else if (tabla.length > 10) errores.push(`${n}: la tabla de tasas admite máx. 10 caracteres.`);
+        if (numero(v.fila.msumamax) < 0 || numero(v.fila.mprima) < 0) errores.push(`${n}: no admite montos negativos.`);
+      }
+      if (!errores.length) errores.push(...validatePlanPayload(armarPayload()));
+      return errores;
+    }
     for (const v of incluidas) {
       const n = nombre(v);
       const min = numero(v.fila.msumamin);
@@ -774,7 +890,7 @@ export function Sis2000ComboPage() {
       await api.createSis2000MasterPlan(payload);
       const ifrecuencia =
         FRECUENCIAS.find((f) => frecuencias.includes(f.ifrecuencia))?.ifrecuencia ?? 'A';
-      setPlanCreado({ cramo, cplan: String(payload.cplan), ifrecuencia });
+      setPlanCreado({ cramo, cplan: String(payload.cplan), tipo: tipoPlan, ifrecuencia });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setErrorCrear(
@@ -979,6 +1095,7 @@ export function Sis2000ComboPage() {
   }
 
   const ocupado = cargandoProductos || cargandoCoberturas;
+  const columnasMonto = personas ? MONTOS_PERSONAS : MONTOS;
 
   return (
     <AppShell title="Combos de coberturas">
@@ -996,8 +1113,11 @@ export function Sis2000ComboPage() {
             Combos de coberturas
           </h1>
           <p className="text-xs text-muted-foreground">
-            nest-api POST /api/v1/configurador/planes → spMantPlanes (maplanes, maplantar,
-            maplanes_frec, mausuplan)
+            nest-api POST /api/v1/configurador/planes → spMantPlanes (
+            {personas
+              ? 'maplanes_per, maplcober_per, mapltarifas_per, mapledades_per'
+              : 'maplanes, maplantar, maplanes_frec, mausuplan'}
+            )
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={recargar} disabled={ocupado}>
@@ -1007,13 +1127,14 @@ export function Sis2000ComboPage() {
       </div>
 
       <p className="mb-1 max-w-4xl text-sm text-muted-foreground">
-        Elige el producto, marca las coberturas de su ramo que forman el combo y ajusta sumas, tasa o
-        prima fija. Al crear, el configurador da de alta en Sis2000 un plan con exactamente esas
-        coberturas (maplantar) y la emisión usa ese plan.
+        Elige el tipo de plan y el producto, marca las coberturas de su ramo que forman el combo y
+        ajusta sus montos. Al crear, el configurador da de alta en Sis2000 un plan con exactamente
+        esas coberturas y la emisión usa ese plan.
       </p>
       <p className="mb-4 max-w-4xl text-xs text-amber-800 dark:text-amber-200">
-        Solo planes de cosas: suma asegurada con tasa o prima fija por cobertura. Los planes de
-        personas (parentescos y tablas de tasas por edad) se crean desde Planes maestro.
+        {personas
+          ? 'Plan de personas: cada cobertura lleva parentescos, rango de edad y una tabla de tasas por edad que ya debe existir en Sis2000 (mapltabedad, con tramos). La tasa y la prima fija por cobertura de cosas no aplican.'
+          : 'Plan de cosas: suma asegurada con tasa o prima fija por cobertura. Para un plan de personas (parentescos, edades y tabla de tasas por edad) cambia «Tipo de plan» a Personas.'}
       </p>
 
       <div className="space-y-5">
@@ -1022,6 +1143,22 @@ export function Sis2000ComboPage() {
           description="El plan se crea en el ramo del producto; de ese ramo salen las coberturas y tarifas."
           icon={Package}
         >
+          <div className="mb-4 max-w-xs">
+            <FormField
+              label="Tipo de plan"
+              tooltip="Cosas (vehículos, patrimoniales…): suma asegurada con tasa o prima fija por cobertura (maplanes, maplantar). Personas (vida, salud, viajero…): parentescos, edades y tabla de tasas por edad (maplanes_per y sus tablas)."
+            >
+              <Select value={tipoPlan} onValueChange={cambiarTipoPlan}>
+                <SelectTrigger aria-label="Tipo de plan">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cosas">Cosas</SelectItem>
+                  <SelectItem value="personas">Personas</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
           <div className="grid gap-4 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto] sm:items-end">
             <FormField
               label="Ramo (cramo)"
@@ -1232,10 +1369,10 @@ export function Sis2000ComboPage() {
               Elige un producto para ver las coberturas de su ramo.
             </p>
           )}
-          {esPersonas && (
+          {esPersonas && !personas && (
             <Alert variant="warning" className="mt-3">
-              Este producto usa el formulario de personas. Aquí solo se crean planes de cosas; los
-              planes con parentescos y tablas por edad se crean desde Planes maestro.
+              Este producto usa el formulario de personas y el tipo de plan elegido es Cosas. Si el
+              plan lleva parentescos y tabla de tasas por edad, cambia «Tipo de plan» a Personas.
             </Alert>
           )}
         </SectionPanel>
@@ -1260,7 +1397,11 @@ export function Sis2000ComboPage() {
         {cramo > 0 && (
           <SectionPanel
             title={`Coberturas del ramo ${cramo}`}
-            description="Marca las que forman el combo. Sumas, tasa y prima fija vienen del detalle vigente de la tarifa (matarifa_d); si los cambias, solo aplican a este plan (maplantar)."
+            description={
+              personas
+                ? 'Marca las que forman el combo. Suma y prima vienen del detalle vigente de la tarifa (matarifa_d); en el plan se graban por parentesco (mapltarifas_per) junto con la tabla de tasas por edad.'
+                : 'Marca las que forman el combo. Sumas, tasa y prima fija vienen del detalle vigente de la tarifa (matarifa_d); si los cambias, solo aplican a este plan (maplantar).'
+            }
             icon={Shield}
           >
             <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -1318,10 +1459,16 @@ export function Sis2000ComboPage() {
                       <th className="px-3 py-2">
                         <span className="inline-flex items-center gap-1">
                           Obligatoria
-                          <InfoTip text="Solo lectura. En planes de cosas no se guarda por plan: sale de la tarifa (matarifa.bobligatoria). La cobertura 1 es la básica. Las obligatorias entran marcadas." />
+                          <InfoTip
+                            text={
+                              personas
+                                ? 'En planes de personas se guarda por plan (maplcober_per): marca si la cobertura es obligatoria al emitir.'
+                                : 'Solo lectura. En planes de cosas no se guarda por plan: sale de la tarifa (matarifa.bobligatoria). La cobertura 1 es la básica. Las obligatorias entran marcadas.'
+                            }
+                          />
                         </span>
                       </th>
-                      {MONTOS.map((m) => (
+                      {columnasMonto.map((m) => (
                         <th key={m.campo} className="px-3 py-2 text-right">
                           <span className="inline-flex items-center gap-1">
                             {m.etiqueta}
@@ -1329,6 +1476,14 @@ export function Sis2000ComboPage() {
                           </span>
                         </th>
                       ))}
+                      {personas && (
+                        <th className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1">
+                            Tabla de tasas
+                            <InfoTip text="Tabla de tasas por edad de la cobertura (mapltabedad.ctablaedad, máx. 10). Vacía = la tabla del plan. Debe existir en Sis2000 con tramos." />
+                          </span>
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -1363,11 +1518,12 @@ export function Sis2000ComboPage() {
                                 Inactiva
                               </Badge>
                             )}
-                            {v.calculada && (
+                            {v.calculada && !personas && (
                               <Badge variant="actuarial" className="ml-2 px-2 py-0 text-[10px]">
                                 Suma calculada al emitir
                               </Badge>
                             )}
+                            {!personas && (
                             <button
                               type="button"
                               className="ml-2 inline-flex items-center align-middle text-muted-foreground hover:text-foreground"
@@ -1377,16 +1533,26 @@ export function Sis2000ComboPage() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-xs">{celdaTarifa(v)}</td>
                           <td className="px-3 py-2 text-xs">
-                            {v.obligatoria ? (
+                            {personas ? (
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 accent-primary"
+                                aria-label={`Cobertura ${c.ccobertura} obligatoria`}
+                                checked={filaPer(c.ccobertura).obligatoria}
+                                disabled={!habilitada}
+                                onChange={(e) => cambiarFilaPer(c.ccobertura, { obligatoria: e.target.checked })}
+                              />
+                            ) : v.obligatoria ? (
                               <Badge variant="submitted">Obligatoria</Badge>
                             ) : (
                               <Badge>Opcional</Badge>
                             )}
                           </td>
-                          {v.calculada ? (
+                          {v.calculada && !personas ? (
                             <td colSpan={MONTOS.length} className="px-3 py-2 text-xs font-medium text-amber-800">
                               {textoSumaCalculada(v.sumaConfig)}
                               <span className="ml-1 font-normal text-muted-foreground">
@@ -1394,7 +1560,7 @@ export function Sis2000ComboPage() {
                               </span>
                             </td>
                           ) : (
-                          MONTOS.map((m) => (
+                          columnasMonto.map((m) => (
                             <td key={m.campo} className="px-2 py-2 text-right">
                               {fila && habilitada ? (
                                 <Input
@@ -1413,12 +1579,28 @@ export function Sis2000ComboPage() {
                             </td>
                           ))
                           )}
+                          {personas && (
+                            <td className="px-2 py-2">
+                              {fila && habilitada ? (
+                                <Input
+                                  aria-label={`Tabla de tasas · cobertura ${c.ccobertura}`}
+                                  value={filaPer(c.ccobertura).ctablatar}
+                                  maxLength={10}
+                                  placeholder={tablaPlan.trim() || 'Tabla'}
+                                  onChange={(e) => cambiarFilaPer(c.ccobertura, { ctablatar: e.target.value })}
+                                  className="h-8 w-28 rounded-lg px-2 py-1 text-xs"
+                                />
+                              ) : (
+                                <span className="text-xs">—</span>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
                     {filtradas.length === 0 && (
                       <tr>
-                        <td colSpan={5 + MONTOS.length} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                        <td colSpan={5 + columnasMonto.length + (personas ? 1 : 0)} className="px-3 py-6 text-center text-xs text-muted-foreground">
                           Ninguna cobertura coincide con la búsqueda.
                         </td>
                       </tr>
@@ -1433,7 +1615,7 @@ export function Sis2000ComboPage() {
               </div>
             )}
 
-            {editandoSuma && (
+            {editandoSuma && !personas && (
               <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                   Suma asegurada · cobertura {editandoSuma}
@@ -1466,9 +1648,94 @@ export function Sis2000ComboPage() {
           <div className="min-w-0 space-y-5 lg:col-span-2">
           <SectionPanel
             title="Datos del plan"
-            description="Cabecera del plan en Sis2000 (maplanes), frecuencias de pago (maplanes_frec) y quién puede venderlo (mausuplan)."
+            description={`Cabecera del plan en Sis2000 (${personas ? 'maplanes_per' : 'maplanes'}), frecuencias de pago y quién puede venderlo (mausuplan).`}
             icon={FileText}
           >
+            {personas && (
+              <div className="mb-4 rounded-xl border border-border/60 bg-muted/20 p-4">
+                <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <Users className="h-3.5 w-3.5" />
+                  Asegurados del plan (personas)
+                </p>
+                <FormGrid>
+                  <FormField
+                    label="Parentescos (cparen)"
+                    htmlFor="combo-cparen"
+                    hint="1 = titular. Varios separados por coma (ej.: 1, 2, 3)."
+                    tooltip="Parentescos que admite el plan. Cada cobertura incluida se graba para cada parentesco con las mismas edades, suma, prima y tabla de tasas."
+                  >
+                    <Input
+                      id="combo-cparen"
+                      value={parentescosTxt}
+                      placeholder="1"
+                      onChange={(e) => setParentescosTxt(e.target.value)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Sexo (csexo)"
+                    htmlFor="combo-csexo"
+                    tooltip="Sexo al que aplica cada parentesco: ambos, masculino o femenino."
+                  >
+                    <Select value={csexo} onValueChange={setCsexo}>
+                      <SelectTrigger id="combo-csexo">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEXOS.map((s) => (
+                          <SelectItem key={s.valor} value={s.valor}>
+                            {s.etiqueta}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField
+                    label="Edad mínima"
+                    htmlFor="combo-edad-min"
+                    tooltip="Edad mínima del asegurado para entrar al plan (nedad_min)."
+                  >
+                    <Input
+                      id="combo-edad-min"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={edadMin}
+                      onChange={(e) => setEdadMin(e.target.value)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Edad máxima"
+                    htmlFor="combo-edad-max"
+                    tooltip="Edad máxima del asegurado para entrar al plan (nedad_max)."
+                  >
+                    <Input
+                      id="combo-edad-max"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={edadMax}
+                      onChange={(e) => setEdadMax(e.target.value)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Tabla de tasas por edad (ctablatar)"
+                    htmlFor="combo-tabla"
+                    hint="Código de una tabla que ya existe en Sis2000, con tramos. Máx. 10 caracteres."
+                    tooltip="Tabla de tasas por edad (mapltabedad) que usan las coberturas del plan. Cada cobertura puede indicar otra en la columna «Tabla de tasas»."
+                  >
+                    <Input
+                      id="combo-tabla"
+                      value={tablaPlan}
+                      maxLength={10}
+                      placeholder="TEMP1"
+                      onChange={(e) => setTablaPlan(e.target.value)}
+                    />
+                  </FormField>
+                </FormGrid>
+              </div>
+            )}
             <FormGrid>
               <FormField
                 label="Código del plan (cplan)"
@@ -1610,7 +1877,8 @@ export function Sis2000ComboPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Resumen del combo</CardTitle>
               <CardDescription>
-                {producto ? `Producto ${cproducto} · ramo ${cramo || '—'}` : 'Sin producto elegido'}
+                {producto ? `Producto ${cproducto} · ramo ${cramo || '—'}` : 'Sin producto elegido'} ·{' '}
+                {personas ? 'plan de personas' : 'plan de cosas'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1620,22 +1888,46 @@ export function Sis2000ComboPage() {
                   <dd className="font-semibold">{incluidas.length}</dd>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">Suma máxima más alta</dt>
+                  <dt className="text-muted-foreground">
+                    {personas ? 'Suma asegurada más alta' : 'Suma máxima más alta'}
+                  </dt>
                   <dd className="font-semibold">
                     {cmoneda} {formatoMonto(resumen.sumaMaxima)}
                   </dd>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">Prima de referencia</dt>
+                  <dt className="text-muted-foreground">
+                    {personas ? 'Prima por persona (suma de coberturas)' : 'Prima de referencia'}
+                  </dt>
                   <dd className="font-semibold">
                     {cmoneda} {formatoMonto(resumen.prima)}
                   </dd>
                 </div>
+                {personas && (
+                  <>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Parentescos</dt>
+                      <dd className="font-semibold">
+                        {cparens ? cparens.join(', ') : '—'} · {SEXOS.find((s) => s.valor === csexo)?.etiqueta}
+                      </dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Edades</dt>
+                      <dd className="font-semibold">
+                        {edadMin || '—'} a {edadMax || '—'} años
+                      </dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Tabla de tasas</dt>
+                      <dd className="font-semibold">{tablaPlan.trim() || '—'}</dd>
+                    </div>
+                  </>
+                )}
               </dl>
               <p className="text-[0.72rem] leading-relaxed text-slate-500">
-                Solo referencia, calculada con las sumas máximas: tasa × suma máxima ÷ 100, o la
-                prima fija si la cobertura no tiene tasa. La prima real la calcula Sis2000 al cotizar
-                el plan.
+                {personas
+                  ? 'Solo referencia: suma de las primas escritas por cobertura. Si la prima sale de la tabla de tasas por edad, la calcula Sis2000 al emitir según la edad del asegurado.'
+                  : 'Solo referencia, calculada con las sumas máximas: tasa × suma máxima ÷ 100, o la prima fija si la cobertura no tiene tasa. La prima real la calcula Sis2000 al cotizar el plan.'}
               </p>
               <Button type="button" className="w-full" onClick={crear} disabled={creando}>
                 <Send className="h-4 w-4" />
@@ -1661,13 +1953,15 @@ export function Sis2000ComboPage() {
         {planCreado && (
           <Alert variant="success">
             <p className="font-semibold">
-              Plan creado en Sis2000: ramo {planCreado.cramo}, plan {planCreado.cplan}
+              Plan de {planCreado.tipo} creado en Sis2000: ramo {planCreado.cramo}, plan {planCreado.cplan}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <Button type="button" variant="outline" size="sm" onClick={cotizar} disabled={cotizando}>
-                <Calculator className="h-3.5 w-3.5" />
-                {cotizando ? 'Cotizando…' : 'Cotizar en Sis2000'}
-              </Button>
+              {planCreado.tipo === 'cosas' && (
+                <Button type="button" variant="outline" size="sm" onClick={cotizar} disabled={cotizando}>
+                  <Calculator className="h-3.5 w-3.5" />
+                  {cotizando ? 'Cotizando…' : 'Cotizar en Sis2000'}
+                </Button>
+              )}
               <Link
                 to={`/sis2000/plans/${encodeURIComponent(sis2000PlanMasterId(planCreado.cramo, planCreado.cplan))}/edit`}
                 className="text-xs font-medium text-primary underline-offset-2 hover:underline"
