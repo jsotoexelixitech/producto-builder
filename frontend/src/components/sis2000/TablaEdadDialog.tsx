@@ -71,7 +71,7 @@ function validar(codigo: string, descripcion: string, filas: FilaTramo[]): strin
       errores.push(`${n}: indica la tasa (%) o la prima fija, mayor a 0.`);
     }
     if (decimales(f.tasa) > 6) errores.push(`${n}: la tasa admite hasta 6 decimales.`);
-    if (decimales(f.prima) > 6) errores.push(`${n}: la prima admite hasta 6 decimales.`);
+    if (decimales(f.prima) > 2) errores.push(`${n}: Sis2000 guarda la prima fija con 2 decimales (redondearía ${f.prima}). Use 2 decimales o cobre con Tasa (%), que admite 6.`);
   });
 
   const orden = filas
