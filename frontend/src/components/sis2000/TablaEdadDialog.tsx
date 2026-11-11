@@ -71,7 +71,7 @@ function validar(codigo: string, descripcion: string, filas: FilaTramo[]): strin
       errores.push(`${n}: indica la tasa (%) o la prima fija, mayor a 0.`);
     }
     if (decimales(f.tasa) > 6) errores.push(`${n}: la tasa admite hasta 6 decimales.`);
-    if (decimales(f.prima) > 2) errores.push(`${n}: la prima admite hasta 2 decimales.`);
+    if (decimales(f.prima) > 6) errores.push(`${n}: la prima admite hasta 6 decimales.`);
   });
 
   const orden = filas
@@ -239,7 +239,7 @@ export function TablaEdadDialog({ modo, codigo: codigoInicial, descripcion: desc
                         <td className="px-3 py-1.5">{t.nedad_min}</td>
                         <td className="px-3 py-1.5">{t.nedad_max}</td>
                         <td className="px-3 py-1.5">{formato(t.pprima)}</td>
-                        <td className="px-3 py-1.5">{formato(t.mprima, 2)}</td>
+                        <td className="px-3 py-1.5">{formato(t.mprima, 6)}</td>
                       </tr>
                     ))}
                     {!(tabla.tramos ?? []).length && (
