@@ -20,6 +20,7 @@ import {
   canalesEnPlanHabilitado,
   cobroDiasHabilitado,
   PartnerBridgeService,
+  productoEscrituraHabilitada,
 } from '../partner-bridge/partner-bridge.service';
 import {
   mapProductToPartnerPayload,
@@ -38,7 +39,7 @@ import {
   DEFAULT_SUB_BRANCHES,
 } from './core.constants';
 import { CreateCoreCoverageDto } from './dto/core.dto';
-import { partirPlanId } from '../partner-bridge/configurador.mapper';
+import { aCrearProducto, partirPlanId } from '../partner-bridge/configurador.mapper';
 import { Sis2000HistorialService } from './respaldo/sis2000-historial.service';
 import type { ContextoCambio } from './respaldo/respaldo.types';
 
@@ -482,7 +483,46 @@ export class CoreService implements OnModuleInit {
 
   /** Funciones que dependen de banderas del servidor (el front muestra u oculta según esto). */
   getSis2000Funciones() {
-    return { canalesEnPlan: canalesEnPlanHabilitado(), cobroDias: cobroDiasHabilitado() };
+    return {
+      canalesEnPlan: canalesEnPlanHabilitado(),
+      cobroDias: cobroDiasHabilitado(),
+      crearProducto: productoEscrituraHabilitada(),
+    };
+  }
+
+  // ── Ramos (maramos) y alta de producto (sp_CrearProducto); escritura solo con SIS2000_PRODUCTO_ESCRITURA=1 ──
+
+  async listSis2000Ramos() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000Ramos();
+  }
+
+  async crearSis2000Producto(body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    if (!productoEscrituraHabilitada()) {
+      throw new ForbiddenException(
+        'Crear productos en Sis2000 está desactivado en este servidor (bandera SIS2000_PRODUCTO_ESCRITURA del builder).',
+      );
+    }
+    const payload = aCrearProducto(body);
+    const cproducto = String(payload.cproducto ?? '');
+    if (!cproducto || /\s/.test(cproducto)) {
+      throw new BadRequestException('El código del producto es obligatorio y no puede tener espacios.');
+    }
+    if (!(Number(payload.cramo) > 0)) throw new BadRequestException('Elige el ramo del producto.');
+    if (!payload.xdescripcion_l) throw new BadRequestException('El nombre del producto es obligatorio.');
+    const data = await this.historial.escribirProducto(
+      cproducto,
+      () => this.partnerBridge.crearSis2000Producto(payload),
+      payload,
+      ctx,
+    );
+    return {
+      ok: true,
+      cproducto: String(data.cproducto ?? cproducto).trim(),
+      cramo: Number(payload.cramo),
+      message: String(data.message ?? '').trim() || 'Producto creado.',
+    };
   }
 
   // ── Tipo de emisión «Cobro por días» (prima diaria × días); solo con SIS2000_PLAN_COBRO_DIAS=1 ──

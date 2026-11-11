@@ -304,7 +304,24 @@ export const api = {
     ),
   /** Banderas del servidor (p. ej. canales en planes). */
   getSis2000Funciones: () =>
-    request<{ canalesEnPlan: boolean; cobroDias?: boolean }>('/core/sis2000/funciones'),
+    request<{ canalesEnPlan: boolean; cobroDias?: boolean; crearProducto?: boolean }>('/core/sis2000/funciones'),
+  /** Ramos de Sis2000 (maramos). */
+  listSis2000Ramos: () =>
+    request<{ cramo: number; xdescripcion: string }[]>('/core/sis2000/ramos'),
+  /** Alta de producto en un ramo (sp_CrearProducto); requiere SIS2000_PRODUCTO_ESCRITURA en el builder. */
+  crearSis2000Producto: (body: {
+    cproducto: string;
+    cramo: number;
+    xdescripcion_l: string;
+    xdescripcion_c?: string;
+    xabreviatura?: string;
+    iproductor?: boolean;
+    icanal?: boolean;
+  }) =>
+    request<{ ok: boolean; cproducto: string; cramo: number; message: string }>(
+      '/core/sis2000/productos',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   // Tipo de emisión «Cobro por días» (prima diaria × días); bandera SIS2000_PLAN_COBRO_DIAS del builder
   leerSis2000CobroDias: (planId: string) =>

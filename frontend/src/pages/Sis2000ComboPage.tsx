@@ -71,6 +71,16 @@ const TARIFAS_EN_PARALELO = 5;
 /** Valor del selector de ramo cuando no se filtra (Radix Select no admite valor vacío). */
 const RAMO_TODOS = 'todos';
 
+/** Formulario «Crear producto en este ramo» (sp_CrearProducto). */
+const PRODUCTO_NUEVO = {
+  cproducto: '',
+  xdescripcion_l: '',
+  xdescripcion_c: '',
+  xabreviatura: '',
+  iproductor: true,
+  icanal: true,
+};
+
 /** Frecuencias de pago que admite el plan (maplanes_frec). */
 const FRECUENCIAS = [
   { ifrecuencia: 'A', xfrecuencia: 'Anual', ndias: 365 },
@@ -294,6 +304,14 @@ export function Sis2000ComboPage() {
   const [claveProducto, setClaveProducto] = useState('');
   /** Ramo elegido para filtrar el selector de producto (RAMO_TODOS = sin filtro). */
   const [ramoFiltro, setRamoFiltro] = useState(RAMO_TODOS);
+  /** Ramos de Sis2000 (maramos). Vacío si no se pudieron leer: el selector usa los ramos deducidos de los productos. */
+  const [ramosSis2000, setRamosSis2000] = useState<Array<{ cramo: number; xdescripcion: string }>>([]);
+  const [mostrarNuevoProducto, setMostrarNuevoProducto] = useState(false);
+  const [nuevoProducto, setNuevoProducto] = useState(PRODUCTO_NUEVO);
+  const [intentoProducto, setIntentoProducto] = useState(false);
+  const [guardandoProducto, setGuardandoProducto] = useState(false);
+  const [errorNuevoProducto, setErrorNuevoProducto] = useState<string | null>(null);
+  const [avisoProducto, setAvisoProducto] = useState<string | null>(null);
 
   const [catalogo, setCatalogo] = useState<{ cramo: number; coberturas: CoberturaRamo[] } | null>(
     null,
@@ -372,6 +390,16 @@ export function Sis2000ComboPage() {
       .listSis2000CatalogMonedas()
       .then((rows) => setMonedas(opcionesMoneda(rows)))
       .catch(() => undefined);
+    api
+      .listSis2000Ramos()
+      .then((rows) =>
+        setRamosSis2000(
+          (Array.isArray(rows) ? rows : [])
+            .map((r) => ({ cramo: Number(r.cramo), xdescripcion: texto(r.xdescripcion) }))
+            .filter((r) => r.cramo > 0),
+        ),
+      )
+      .catch(() => setRamosSis2000([]));
   }, []);
 
   const opcionesProducto = useMemo(() => agruparProductosSis2000(productos), [productos]);
@@ -381,6 +409,18 @@ export function Sis2000ComboPage() {
       [...new Set(opcionesProducto.map((o) => o.cramo).filter((r) => r > 0))].sort((a, b) => a - b),
     [opcionesProducto],
   );
+  /** Opciones del selector de ramo: maramos si se pudo leer (más los ramos de productos que no estén); si no, los deducidos. */
+  const opcionesRamo = useMemo(() => {
+    if (!ramosSis2000.length) return ramosDisponibles.map((r) => ({ cramo: r, etiqueta: `Ramo ${r}` }));
+    const conocidos = new Set(ramosSis2000.map((r) => r.cramo));
+    return [
+      ...ramosSis2000.map((r) => ({
+        cramo: r.cramo,
+        etiqueta: r.xdescripcion ? `${r.cramo} · ${r.xdescripcion}` : `Ramo ${r.cramo}`,
+      })),
+      ...ramosDisponibles.filter((r) => !conocidos.has(r)).map((r) => ({ cramo: r, etiqueta: `Ramo ${r}` })),
+    ].sort((a, b) => a.cramo - b.cramo);
+  }, [ramosSis2000, ramosDisponibles]);
   const opcionesProductoFiltradas = useMemo(
     () =>
       ramoFiltro === RAMO_TODOS
@@ -780,6 +820,70 @@ export function Sis2000ComboPage() {
   function elegirRamo(valor: string) {
     setRamoFiltro(valor);
     elegirProducto('');
+    cerrarNuevoProducto();
+    setAvisoProducto(null);
+  }
+
+  function cerrarNuevoProducto() {
+    setMostrarNuevoProducto(false);
+    setNuevoProducto(PRODUCTO_NUEVO);
+    setIntentoProducto(false);
+    setErrorNuevoProducto(null);
+  }
+
+  const ramoElegido = ramoFiltro === RAMO_TODOS ? 0 : Number(ramoFiltro) || 0;
+  const erroresProducto = {
+    cproducto: !nuevoProducto.cproducto.trim()
+      ? 'Escribe el código.'
+      : /\s/.test(nuevoProducto.cproducto.trim())
+        ? 'El código no puede tener espacios.'
+        : undefined,
+    xdescripcion_l: !nuevoProducto.xdescripcion_l.trim() ? 'Escribe el nombre.' : undefined,
+  };
+
+  /** Crea el producto en el ramo elegido (sp_CrearProducto), recarga el catálogo y lo deja elegido. */
+  async function crearProductoEnRamo() {
+    setIntentoProducto(true);
+    setErrorNuevoProducto(null);
+    setAvisoProducto(null);
+    if (!ramoElegido || erroresProducto.cproducto || erroresProducto.xdescripcion_l) return;
+    setGuardandoProducto(true);
+    try {
+      const r = await api.crearSis2000Producto({
+        cproducto: nuevoProducto.cproducto.trim(),
+        cramo: ramoElegido,
+        xdescripcion_l: nuevoProducto.xdescripcion_l.trim(),
+        xdescripcion_c: nuevoProducto.xdescripcion_c.trim() || undefined,
+        xabreviatura: nuevoProducto.xabreviatura.trim() || undefined,
+        iproductor: nuevoProducto.iproductor,
+        icanal: nuevoProducto.icanal,
+      });
+      const codigo = texto(r.cproducto) || nuevoProducto.cproducto.trim();
+      const mensaje = texto(r.message) || 'Producto creado.';
+      cerrarNuevoProducto();
+      try {
+        const lista = await api.listSis2000Products();
+        setProductos(lista);
+        setErrorProductos(null);
+        const nuevo = agruparProductosSis2000(lista).find(
+          (o) => o.cramo === ramoElegido && o.cproducto.toUpperCase() === codigo.toUpperCase(),
+        );
+        if (nuevo) {
+          elegirProducto(nuevo.clave);
+          setAvisoProducto(`${mensaje} Producto ${codigo} elegido.`);
+        } else {
+          setAvisoProducto(
+            `${mensaje} El producto ${codigo} todavía no aparece en el catálogo; recarga la página en unos segundos.`,
+          );
+        }
+      } catch {
+        setAvisoProducto(`${mensaje} No se pudo recargar el catálogo de productos; recarga la página.`);
+      }
+    } catch (e) {
+      setErrorNuevoProducto(e instanceof Error ? e.message : 'No se pudo crear el producto en Sis2000');
+    } finally {
+      setGuardandoProducto(false);
+    }
   }
 
   function elegirProducto(valor: string) {
@@ -932,9 +1036,9 @@ export function Sis2000ComboPage() {
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
                     <SelectItem value={RAMO_TODOS}>Todos los ramos</SelectItem>
-                    {ramosDisponibles.map((r) => (
-                      <SelectItem key={r} value={String(r)}>
-                        Ramo {r}
+                    {opcionesRamo.map((r) => (
+                      <SelectItem key={r.cramo} value={String(r.cramo)}>
+                        {r.etiqueta}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -991,6 +1095,128 @@ export function Sis2000ComboPage() {
               </div>
             )}
           </div>
+          {ramoElegido > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAvisoProducto(null);
+                  if (mostrarNuevoProducto) cerrarNuevoProducto();
+                  else setMostrarNuevoProducto(true);
+                }}
+                disabled={guardandoProducto}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Crear producto en este ramo
+              </Button>
+              {!cargandoProductos && !errorProductos && !opcionesProductoFiltradas.length && (
+                <span className="text-xs text-muted-foreground">
+                  Este ramo no tiene productos en Sis2000
+                </span>
+              )}
+            </div>
+          )}
+          {ramoElegido > 0 && mostrarNuevoProducto && (
+            <div className="mt-3 rounded-xl border border-border/60 bg-card p-4">
+              <p className="mb-3 text-sm font-semibold">Nuevo producto en el ramo {ramoElegido}</p>
+              <FormGrid>
+                <FormField
+                  label="Código (cproducto)"
+                  htmlFor="nuevo-prod-codigo"
+                  hint="Sin espacios. Máx. 6 caracteres (lo que admite el plan)."
+                  error={intentoProducto ? erroresProducto.cproducto : undefined}
+                >
+                  <Input
+                    id="nuevo-prod-codigo"
+                    maxLength={6}
+                    value={nuevoProducto.cproducto}
+                    onChange={(e) =>
+                      setNuevoProducto((p) => ({ ...p, cproducto: e.target.value.replace(/\s/g, '') }))
+                    }
+                  />
+                </FormField>
+                <FormField
+                  label="Nombre"
+                  htmlFor="nuevo-prod-nombre"
+                  hint="Máx. 60 caracteres."
+                  error={intentoProducto ? erroresProducto.xdescripcion_l : undefined}
+                >
+                  <Input
+                    id="nuevo-prod-nombre"
+                    maxLength={60}
+                    value={nuevoProducto.xdescripcion_l}
+                    onChange={(e) => setNuevoProducto((p) => ({ ...p, xdescripcion_l: e.target.value }))}
+                  />
+                </FormField>
+                <FormField
+                  label="Nombre corto"
+                  htmlFor="nuevo-prod-corto"
+                  hint="Opcional. Máx. 15 caracteres; vacío = inicio del nombre."
+                >
+                  <Input
+                    id="nuevo-prod-corto"
+                    maxLength={15}
+                    value={nuevoProducto.xdescripcion_c}
+                    onChange={(e) => setNuevoProducto((p) => ({ ...p, xdescripcion_c: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Abreviatura" htmlFor="nuevo-prod-abrev" hint="Opcional. Máx. 5 caracteres.">
+                  <Input
+                    id="nuevo-prod-abrev"
+                    maxLength={5}
+                    value={nuevoProducto.xabreviatura}
+                    onChange={(e) => setNuevoProducto((p) => ({ ...p, xabreviatura: e.target.value }))}
+                  />
+                </FormField>
+              </FormGrid>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <label className={ETIQUETA_OPCION}>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={nuevoProducto.iproductor}
+                    onChange={(e) => setNuevoProducto((p) => ({ ...p, iproductor: e.target.checked }))}
+                  />
+                  Lo venden productores
+                </label>
+                <label className={ETIQUETA_OPCION}>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={nuevoProducto.icanal}
+                    onChange={(e) => setNuevoProducto((p) => ({ ...p, icanal: e.target.checked }))}
+                  />
+                  Lo venden canales
+                </label>
+              </div>
+              {errorNuevoProducto && (
+                <Alert variant="error" className="mt-3">
+                  {errorNuevoProducto}
+                </Alert>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" onClick={() => void crearProductoEnRamo()} disabled={guardandoProducto}>
+                  {guardandoProducto ? 'Creando…' : 'Guardar producto'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={cerrarNuevoProducto}
+                  disabled={guardandoProducto}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+          {avisoProducto && (
+            <Alert variant="success" className="mt-3">
+              {avisoProducto}
+            </Alert>
+          )}
           {avisoCobertura && (
             <Alert variant="success" className="mt-3">
               {avisoCobertura}

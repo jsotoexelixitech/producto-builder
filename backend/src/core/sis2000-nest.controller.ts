@@ -40,6 +40,20 @@ export class Sis2000NestController {
     return this.coreService.getSis2000Funciones();
   }
 
+  /** Ramos de Sis2000 (maramos) para el selector de ramo. */
+  @Get('ramos')
+  listRamos() {
+    return this.coreService.listSis2000Ramos();
+  }
+
+  /** Alta de producto en un ramo (sp_CrearProducto); bandera SIS2000_PRODUCTO_ESCRITURA. */
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('productos')
+  crearProducto(@Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.crearSis2000Producto(cuerpo, contextoCambio(user, motivo));
+  }
+
   @Get('catalogos/productores')
   listProductores(@Query('q') q?: string) {
     return this.coreService.listSis2000Productores(q ?? '');

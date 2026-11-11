@@ -12,6 +12,7 @@ import {
   aCotizarCobroDias,
   aCrearCobertura,
   aCrearDetalleTarifa,
+  aCrearProducto,
   aCrearTarifa,
   aEditarCobertura,
   aEditarProveedorPlan,
@@ -34,6 +35,13 @@ export const canalesEnPlanHabilitado = () =>
  */
 export const cobroDiasHabilitado = () =>
   ['1', 'true', 'si', 'sí'].includes(String(process.env.SIS2000_PLAN_COBRO_DIAS ?? '').trim().toLowerCase());
+
+/**
+ * Alta de productos en Sis2000 desde «Combo de coberturas» (nest-api v1/configurador/productos → sp_CrearProducto).
+ * Apagada por defecto; se enciende con SIS2000_PRODUCTO_ESCRITURA=1 (y CONFIGURADOR_PRODUCTOS_ESCRITURA=1 en nest-api).
+ */
+export const productoEscrituraHabilitada = () =>
+  ['1', 'true', 'si', 'sí'].includes(String(process.env.SIS2000_PRODUCTO_ESCRITURA ?? '').trim().toLowerCase());
 
 /** Plan con sus canales (lo que se respalda en el historial): aPlan + bandera de canales. */
 export function cuerpoPlan(payload: Record<string, unknown>) {
@@ -278,6 +286,24 @@ export class PartnerBridgeService {
   }
 
   // Lectura y escritura por el módulo propio de nest-api (v1/configurador, scope configurador:write).
+
+  /** Ramos de Sis2000 (maramos): cramo y xdescripcion. */
+  async listSis2000Ramos(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', '/api/v1/configurador/ramos'),
+    );
+  }
+
+  /** Alta de producto con sp_CrearProducto (nest-api valida el ramo; status 0 del SP llega como 400 con su mensaje). */
+  async crearSis2000Producto(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/configurador/productos',
+      aCrearProducto(payload),
+      60_000,
+    );
+    return body.data ?? {};
+  }
 
   /** Productores (maproduc) para asignar a un plan; filtro por nombre o código. */
   async listSis2000Productores(q = ''): Promise<Record<string, unknown>[]> {

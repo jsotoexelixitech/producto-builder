@@ -24,6 +24,21 @@ const estado = (v: unknown) => {
   return e === 'V' || e === 'I' ? e : undefined;
 };
 
+/** Formulario «Crear producto en este ramo» → CrearProductoDto de v1/configurador/productos (sp_CrearProducto). */
+export function aCrearProducto(p: Obj) {
+  return limpio({
+    cproducto: texto(p.cproducto),
+    cramo: num(p.cramo),
+    xdescripcion_l: texto(p.xdescripcion_l),
+    xdescripcion_c: texto(p.xdescripcion_c),
+    xabreviatura: texto(p.xabreviatura),
+    iproductor: aBooleano(p.iproductor),
+    icanal: aBooleano(p.icanal),
+    xdescripcion_prod: texto(p.xdescripcion_prod),
+    ctiporamo: num(p.ctiporamo),
+  });
+}
+
 export function aCrearCobertura(p: Obj) {
   return limpio({
     cramo: num(p.cramo),
