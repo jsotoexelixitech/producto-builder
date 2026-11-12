@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InfoTip } from '@/components/ui/info-tip';
 import { SectionPanel } from '@/components/ui/section-panel';
+import { RepartoPrimaDiaria } from './RepartoPrimaDiaria';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -29,6 +30,8 @@ interface Props {
   /** Moneda del plan, por defecto al activar. */
   cmonedaDefault?: string;
   className?: string;
+  /** Códigos de las coberturas obligatorias (el reparto de la prima diaria las propone por defecto). */
+  obligatorias?: string[];
 }
 
 const OPCION =
@@ -77,7 +80,7 @@ function filasDe(
  * Tipo de emisión del plan: «Estándar (por frecuencia)» o «Cobro por días» (prima diaria × días, con calendario al
  * emitir). Aditivo: si no se activa, el plan emite como siempre.
  */
-export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', className }: Props) {
+export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', className, obligatorias }: Props) {
   const [habilitado, setHabilitado] = useState<boolean | null>(null);
   const [config, setConfig] = useState<CobroDiasConfig | null>(null);
   const [form, setForm] = useState<CobroDiasForm>(COBRO_DIAS_FORM_DEFAULT(cmonedaDefault));
@@ -400,6 +403,17 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
                   </tbody>
                 </table>
               </div>
+            )}
+            {filas.length > 0 && (
+              <RepartoPrimaDiaria
+                coberturas={filas}
+                obligatorias={obligatorias}
+                primas={form.primas}
+                diasMin={Number(form.dias_min) || 1}
+                diasMax={Number(form.dias_max) || 0}
+                moneda={monedaActual}
+                onAplicar={(primas) => cambiar({ primas: { ...form.primas, ...primas } })}
+              />
             )}
           </>
         )}
