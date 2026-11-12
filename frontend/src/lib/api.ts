@@ -340,6 +340,14 @@ export const api = {
     ),
 
   // Tablas de tasas por edad (mapltabedad + mapltabedad_d): el código es el ctablatar de los planes de personas
+  /** Buscar tablas existentes por código o descripción (TOP 50). */
+  buscarSis2000TablasEdad: (q = '') =>
+    request<import('@/components/sis2000/TablaEdadDialog').TablaEdadResumen[]>(
+      `/core/sis2000/tablas-edad?q=${encodeURIComponent(q)}`,
+    ),
+  /** Parentescos de Sis2000 (maparent). */
+  listSis2000Parentescos: () =>
+    request<{ cparen: number; xparentesco: string }[]>('/core/sis2000/catalogos/parentescos'),
   leerSis2000TablaEdad: (codigo: string) =>
     request<import('@/components/sis2000/TablaEdadDialog').TablaEdad>(
       `/core/sis2000/tablas-edad/${encodeURIComponent(codigo.trim())}`,

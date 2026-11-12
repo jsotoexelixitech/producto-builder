@@ -464,6 +464,23 @@ export class PartnerBridgeService {
     }));
   }
 
+  /** Buscar tablas existentes por código o descripción (TOP 50, con tramos y rango de edades). */
+  async buscarSis2000TablasEdad(q = ''): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>(
+        'GET',
+        `/api/v1/configurador/tablas-edad?q=${encodeURIComponent(q)}`,
+      ),
+    );
+  }
+
+  /** Parentescos de Sis2000 (maparent): cparen + xparentesco. */
+  async listSis2000Parentescos(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', '/api/v1/configurador/parentescos'),
+    );
+  }
+
   /** Tabla con sus tramos y los planes que la usan. 404 si no existe. */
   async leerSis2000TablaEdad(ctablaedad: string): Promise<Record<string, unknown>> {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(

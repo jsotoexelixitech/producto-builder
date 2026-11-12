@@ -596,6 +596,16 @@ export class CoreService implements OnModuleInit {
 
   // ── Tablas de tasas por edad (mapltabedad): sin historial del configurador; nest-api registra el reemplazo ──
 
+  async buscarSis2000TablasEdad(q = '') {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.buscarSis2000TablasEdad(q);
+  }
+
+  async listSis2000Parentescos() {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listSis2000Parentescos();
+  }
+
   async leerSis2000TablaEdad(codigo: string) {
     this.assertPartnerConfigured();
     return this.partnerBridge.leerSis2000TablaEdad(codigo);

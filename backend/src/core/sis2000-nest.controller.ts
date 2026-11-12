@@ -204,6 +204,16 @@ export class Sis2000NestController {
 
   // ── Tablas de tasas por edad (mapltabedad): el código es el ctablatar de los planes de personas ──
 
+  @Get('tablas-edad')
+  buscarTablasEdad(@Query('q') q?: string) {
+    return this.coreService.buscarSis2000TablasEdad(q ?? '');
+  }
+
+  @Get('catalogos/parentescos')
+  listParentescos() {
+    return this.coreService.listSis2000Parentescos();
+  }
+
   @Get('tablas-edad/:codigo')
   leerTablaEdad(@Param('codigo') codigo: string) {
     return this.coreService.leerSis2000TablaEdad(codigo);
