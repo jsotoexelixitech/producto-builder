@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Boxes, Database, Eye, Layers, LogOut, Plus, Shield } from 'lucide-react';
+import { Boxes, Database, Eye, Layers, ListChecks, LogOut, Plus, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,20 @@ const NAV = [
     href: '/sis2000',
     label: 'Sis2000 QA',
     icon: Database,
-    match: (p: string) => p.startsWith('/sis2000') && !p.startsWith('/sis2000/combos'),
+    match: (p: string) =>
+      p.startsWith('/sis2000') && !p.startsWith('/sis2000/combos') && !p.startsWith('/sis2000/plans'),
   },
   {
     href: '/sis2000/combos',
     label: 'Combos de coberturas',
     icon: Boxes,
     match: (p: string) => p.startsWith('/sis2000/combos'),
+  },
+  {
+    href: '/sis2000/plans',
+    label: 'Planes (editar)',
+    icon: ListChecks,
+    match: (p: string) => p.startsWith('/sis2000/plans'),
   },
 ];
 export function AppSidebar() {

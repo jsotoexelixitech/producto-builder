@@ -60,13 +60,14 @@ export function Sis2000MasterPlansPage() {
           </Link>
           <h1 className="flex items-center gap-2 text-lg font-bold">
             <Layers className="h-5 w-5 text-primary" />
-            Planes maestro (maplanes)
+            Planes de Sis2000
           </h1>
-          <p className="text-xs text-muted-foreground">
-            nest-api GET /api/v1/partner/starter/plan · mantenimiento maplanes (spMantPlanes)
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Busca un plan y pulsa «Editar» para cambiar sus datos, sus montos o agregarle coberturas con el formulario
+            guiado. Para crear uno nuevo usa «Nuevo plan». Aquí no se emiten pólizas.
           </p>
-          <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-            Catálogo de planes — no emite pólizas (no usar patrimonial/emit).
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Lectura: nest-api GET /api/v1/partner/starter/plan · escritura: v1/configurador/planes (spMantPlanes)
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -74,7 +75,14 @@ export function Sis2000MasterPlansPage() {
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             Recargar
           </Button>
-          <Link to="/sis2000/plans/new">
+          <Link
+            to="/sis2000/plans/new"
+            className="self-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+            title="Editor en JSON para casos que el formulario no cubre"
+          >
+            Nuevo plan en JSON
+          </Link>
+          <Link to="/sis2000/combos">
             <Button type="button" size="sm">
               <Plus className="h-3.5 w-3.5" />
               Nuevo plan
@@ -129,8 +137,16 @@ export function Sis2000MasterPlansPage() {
                           <Link
                             to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
                             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                            title="Cambiar datos, montos o agregar coberturas con el formulario guiado"
                           >
                             Editar
+                          </Link>
+                          <Link
+                            to={`/sis2000/plans/${encodeURIComponent(id)}/json`}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                            title="Editor en JSON para casos que el formulario no cubre"
+                          >
+                            JSON
                           </Link>
                         </div>
                       )}

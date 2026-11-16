@@ -17,7 +17,7 @@ import { Sis2000CoberturaFormPage } from './pages/Sis2000CoberturaFormPage';
 import { Sis2000TarifaFormPage } from './pages/Sis2000TarifaFormPage';
 import { Sis2000TarifaDetallePage } from './pages/Sis2000TarifaDetallePage';
 import { Sis2000TarifaDetalleFormPage } from './pages/Sis2000TarifaDetalleFormPage';
-import { Sis2000ComboPage } from './pages/Sis2000ComboPage';
+import { Sis2000ComboPage, Sis2000PlanEditarPage } from './pages/Sis2000ComboPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
 import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
@@ -116,6 +116,14 @@ function Root() {
           />
           <Route
             path="/sis2000/plans/:id/edit"
+            element={
+              <AuthGate>
+                <Sis2000PlanEditarPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/plans/:id/json"
             element={
               <AuthGate>
                 <Sis2000PlanFormPage />

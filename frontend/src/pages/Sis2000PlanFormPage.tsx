@@ -322,8 +322,27 @@ export function Sis2000PlanFormPage() {
       </Link>
 
       <h1 className="mb-1 text-lg font-bold">
-        {isEdit ? `Editar plan ${id}` : 'Crear plan maestro'}
+        {isEdit ? `Editar plan ${id} (modo avanzado, JSON)` : 'Crear plan maestro (modo avanzado, JSON)'}
       </h1>
+      <Alert variant="info" className="mb-3">
+        {isEdit && id ? (
+          <>
+            Para cambiar datos, montos o agregar coberturas sin escribir JSON usa el{' '}
+            <Link to={`/sis2000/plans/${encodeURIComponent(id)}/edit`} className="font-semibold underline">
+              formulario guiado
+            </Link>
+            . Este editor queda para casos que el formulario no cubre.
+          </>
+        ) : (
+          <>
+            Para crear un plan sin escribir JSON usa{' '}
+            <Link to="/sis2000/combos" className="font-semibold underline">
+              Combos de coberturas
+            </Link>
+            . Este editor queda para casos que el formulario no cubre.
+          </>
+        )}
+      </Alert>
       <p className="mb-1 text-xs text-muted-foreground">
         POST/PUT nest-api /api/v1/configurador/planes → spMantPlanes + mausuplan (productores)
       </p>
