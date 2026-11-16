@@ -101,13 +101,16 @@ export function NavegacionPasos({
   mostrarFaltan,
   etiquetaSiguiente,
   accionFinal,
+  onIrCampo,
 }: {
   actual: number;
   total: number;
   onAtras: () => void;
   onSiguiente: () => void;
   /** Lo que impide pasar al siguiente paso. */
-  faltan: string[];
+  faltan: Array<{ texto: string; campo?: string }>;
+  /** Lleva al campo donde se corrige (si la falta lo indica). */
+  onIrCampo?: (id: string) => void;
   /** true después de pulsar «Siguiente» con cosas pendientes. */
   mostrarFaltan: boolean;
   etiquetaSiguiente?: string;
@@ -122,7 +125,19 @@ export function NavegacionPasos({
           <p className="font-bold">Para seguir te falta:</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
             {faltan.map((f, i) => (
-              <li key={`${i}-${f}`}>{f}</li>
+              <li key={`${i}-${f.texto}`}>
+                {f.campo && onIrCampo ? (
+                  <button
+                    type="button"
+                    className="text-left underline decoration-amber-400 underline-offset-2 hover:decoration-amber-800"
+                    onClick={() => onIrCampo(f.campo as string)}
+                  >
+                    {f.texto}
+                  </button>
+                ) : (
+                  f.texto
+                )}
+              </li>
             ))}
           </ul>
         </div>

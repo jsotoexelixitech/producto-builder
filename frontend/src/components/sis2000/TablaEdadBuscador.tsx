@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Search, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import { traducirErrorSis2000 } from '@/lib/sis2000-tramos';
 import { Alert } from '@/components/ui/alert';
+import { AlertaError } from '@/components/ui/errores';
+import { entenderError, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -37,7 +38,7 @@ export function TablaEdadBuscador({ destino, valorActual = '', permitirTodas = f
   const [elegida, setElegida] = useState(valorActual.trim().toUpperCase());
   const [vista, setVista] = useState<TablaEdad | null>(null);
   const [cargandoVista, setCargandoVista] = useState(false);
-  const [errorVista, setErrorVista] = useState<string | null>(null);
+  const [errorVista, setErrorVista] = useState<ErrorEntendible | string | null>(null);
 
   useEffect(() => {
     let vigente = true;
@@ -62,7 +63,7 @@ export function TablaEdadBuscador({ destino, valorActual = '', permitirTodas = f
           if (!vigente) return;
           setResultados([]);
           setErrorBusqueda(
-            `No se pudo buscar en Sis2000. ${traducirErrorSis2000(e instanceof Error ? e.message : '')} Puedes escribir el código directamente en la cobertura.`,
+            `No se pudo buscar en Sis2000. ${mensajeDeError(e)} Puedes escribir el código directamente en la cobertura.`,
           );
         })
         .finally(() => vigente && setBuscando(false));
@@ -87,7 +88,7 @@ export function TablaEdadBuscador({ destino, valorActual = '', permitirTodas = f
       .catch((e: unknown) => {
         if (!vigente) return;
         setVista(null);
-        setErrorVista(traducirErrorSis2000(e instanceof Error ? e.message : 'No se pudo leer la tabla.'));
+        setErrorVista(entenderError(e, { titulo: 'No se pudo leer la tabla' }));
       })
       .finally(() => vigente && setCargandoVista(false));
     return () => {
@@ -191,7 +192,7 @@ export function TablaEdadBuscador({ destino, valorActual = '', permitirTodas = f
             ) : cargandoVista ? (
               <p className="py-6 text-center text-xs text-slate-500">Cargando tramos de {elegida}…</p>
             ) : errorVista ? (
-              <Alert variant="error">{errorVista}</Alert>
+              <AlertaError error={errorVista} />
             ) : vista ? (
               <div className="space-y-2">
                 <p className="text-sm text-slate-700">

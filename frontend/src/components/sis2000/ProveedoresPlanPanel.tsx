@@ -12,6 +12,8 @@ import {
   type ProveedorPlanForm,
 } from '@/lib/sis2000-proveedores';
 import { Alert } from '@/components/ui/alert';
+import { AlertaError } from '@/components/ui/errores';
+import { entenderError, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,7 +54,7 @@ const costo = (p: ProveedorPlan) =>
  */
 export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   const [datos, setDatos] = useState<ProveedoresPlanRespuesta | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorEntendible | string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [verBajas, setVerBajas] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
@@ -77,7 +79,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
     api
       .listSis2000PlanProveedores(planId)
       .then(setDatos)
-      .catch((e) => setError(e instanceof Error ? e.message : 'No se pudieron leer los proveedores del plan'));
+      .catch((e) => setError(entenderError(e, { titulo: 'No se pudieron leer los proveedores del plan' })));
   }, [planId]);
 
   useEffect(() => {
@@ -98,7 +100,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
           await api.agregarSis2000PlanProveedor(planId, proveedorFormToPayload(p.form));
         } catch (e) {
           fallidos.push(p);
-          errores.push(`${p.nombre}: ${e instanceof Error ? e.message : 'no se pudo agregar'}`);
+          errores.push(`${p.nombre}: ${mensajeDeError(e, { que: 'ese proveedor en el plan' })}`);
         }
       }
       setTrabajando(false);
@@ -170,7 +172,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
       onCambio?.();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo guardar');
+      setError(entenderError(e, { titulo: 'No se pudo guardar el proveedor', que: 'ese proveedor con esa vigencia' }));
       return false;
     } finally {
       setTrabajando(false);
@@ -301,7 +303,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
       className={cn('mt-6', className)}
     >
       <div className="space-y-3 text-xs">
-        {error && <Alert variant="error">{error}</Alert>}
+        <AlertaError error={error} />
         {ok && <Alert variant="success">{ok}</Alert>}
         {datos && !datos.escritura_habilitada && (
           <Alert variant="info">

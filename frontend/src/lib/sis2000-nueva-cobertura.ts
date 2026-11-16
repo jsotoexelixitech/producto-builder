@@ -1,5 +1,6 @@
 // Formulario "Nueva cobertura" (macoberturas + matarifa + matarifa_d) para nest-api v1/configurador.
 // Una cobertura sin tarifa vigente no se puede usar en un plan, por eso se crean juntas.
+import { miles } from '@/lib/errores';
 import {
   validarSumaConfig,
   type Sis2000NestRow,
@@ -105,64 +106,66 @@ export function validarNuevaCobertura(
 ): ErroresNuevaCobertura {
   const e: ErroresNuevaCobertura = {};
   const cod = f.ccobertura.trim();
-  if (!cod) e.ccobertura = 'Indica el código de la cobertura.';
-  else if (!/^[A-Za-z0-9]{1,4}$/.test(cod)) e.ccobertura = 'Hasta 4 letras o números, sin espacios.';
+  if (!cod) e.ccobertura = 'Falta el código de la cobertura (se sugiere el siguiente libre del ramo).';
+  else if (!/^[A-Za-z0-9]{1,4}$/.test(cod)) e.ccobertura = 'Usa hasta 4 letras o números, sin espacios ni símbolos.';
   else if (existentes.some((c) => texto(c.ccobertura).toUpperCase() === cod.toUpperCase())) {
-    e.ccobertura = `La cobertura ${cod} ya existe en este ramo.`;
+    e.ccobertura = `El código ${cod} ya lo usa otra cobertura del ramo. Usa otro (por ejemplo, el siguiente número libre).`;
   }
 
-  if (!f.xdescripcion_l.trim()) e.xdescripcion_l = 'Indica el nombre de la cobertura.';
-  else if (f.xdescripcion_l.trim().length > 60) e.xdescripcion_l = 'Máximo 60 caracteres.';
-  if (f.xdescripcion_c.trim().length > 15) e.xdescripcion_c = 'Máximo 15 caracteres.';
-  if (f.xabreviatura.trim().length > 5) e.xabreviatura = 'Máximo 5 caracteres.';
-  if (!f.cmoneda.trim()) e.cmoneda = 'Elige la moneda.';
+  if (!f.xdescripcion_l.trim()) e.xdescripcion_l = 'Escribe el nombre de la cobertura como debe salir en la póliza.';
+  else if (f.xdescripcion_l.trim().length > 60) e.xdescripcion_l = `Tiene ${f.xdescripcion_l.trim().length} caracteres; el máximo es 60. Acórtalo.`;
+  if (f.xdescripcion_c.trim().length > 15) e.xdescripcion_c = 'El nombre corto admite hasta 15 caracteres.';
+  if (f.xabreviatura.trim().length > 5) e.xabreviatura = 'La abreviatura admite hasta 5 caracteres.';
+  if (!f.cmoneda.trim()) e.cmoneda = 'Elige la moneda de la suma y la prima.';
 
   for (const campo of ['cramoint', 'ccoberturaint', 'ccontrea', 'cramorea'] as const) {
     const v = f[campo].trim();
-    if (v && (!esEntero(v) || Number(v) > 32767)) e[campo] = 'Número entero (o déjalo vacío).';
+    if (v && (!esEntero(v) || Number(v) > 32767)) e[campo] = 'Debe ser un número entero sin decimales (o déjalo vacío).';
   }
 
   const ctar = f.ctarifa.trim();
-  if (!ctar) e.ctarifa = 'Indica el código de la tarifa.';
-  else if (!/^[A-Za-z0-9]{1,4}$/.test(ctar)) e.ctarifa = 'Hasta 4 letras o números.';
+  if (!ctar) e.ctarifa = 'Falta el código de la tarifa (lo normal es 1).';
+  else if (!/^[A-Za-z0-9]{1,4}$/.test(ctar)) e.ctarifa = 'Usa hasta 4 letras o números (lo normal es 1).';
   const xtm = (f.xtarifam.trim() || nombreCortoPorDefecto(f)).trim();
-  if (!xtm) e.xtarifam = 'Indica el nombre corto de la tarifa.';
-  else if (xtm.length > 15) e.xtarifam = 'Máximo 15 caracteres.';
+  if (!xtm) e.xtarifam = 'Escribe un nombre interno para la tarifa (o el nombre de la cobertura).';
+  else if (xtm.length > 15) e.xtarifam = 'El nombre interno de la tarifa admite hasta 15 caracteres.';
 
-  if (!FECHA.test(f.fdesde)) e.fdesde = 'Fecha inválida.';
-  if (f.fhasta && !FECHA.test(f.fhasta)) e.fhasta = 'Fecha inválida.';
+  if (!FECHA.test(f.fdesde)) e.fdesde = 'Elige desde qué fecha vale este precio.';
+  if (f.fhasta && !FECHA.test(f.fhasta)) e.fhasta = 'La fecha no es válida; elígela en el calendario o déjala vacía.';
   else if (f.fhasta && FECHA.test(f.fdesde) && f.fhasta < f.fdesde) {
-    e.fhasta = 'Debe ser igual o posterior a «Vigente desde».';
+    e.fhasta = 'La fecha «hasta» es anterior a «desde». Corrígela o déjala vacía si no tiene fin.';
   }
 
   // Con suma calculada al emitir la suma máxima y la tasa/prima de la tarifa son opcionales (0 si vacías).
   const calculada = f.tipoSuma === 'CALCULADA';
   Object.assign(e, validarSumaConfig(f));
   if (calculada) {
-    if (f.msumamax.trim() && (!esNumero(f.msumamax) || Number(f.msumamax) < 0)) e.msumamax = 'Debe ser 0 o mayor.';
+    if (f.msumamax.trim() && (!esNumero(f.msumamax) || Number(f.msumamax) < 0)) e.msumamax = 'La suma máxima no puede ser negativa (déjala vacía o en 0).';
+  } else if (!f.msumamax.trim()) {
+    e.msumamax = 'Escribe la suma asegurada máxima (por ejemplo, 50.000).';
   } else if (!esNumero(f.msumamax) || Number(f.msumamax) <= 0) {
-    e.msumamax = 'La suma máxima debe ser mayor a 0.';
+    e.msumamax = 'La suma asegurada máxima debe ser mayor a 0.';
   }
   if (f.msumamin.trim()) {
-    if (!esNumero(f.msumamin) || Number(f.msumamin) < 0) e.msumamin = 'Debe ser 0 o mayor.';
+    if (!esNumero(f.msumamin) || Number(f.msumamin) < 0) e.msumamin = 'La suma mínima no puede ser negativa (déjala vacía para 0).';
     else if (esNumero(f.msumamax) && Number(f.msumamin) > Number(f.msumamax)) {
-      e.msumamin = 'No puede superar la suma máxima.';
+      e.msumamin = `La suma mínima (${miles(Number(f.msumamin))}) no puede ser mayor que la máxima (${miles(Number(f.msumamax))}). Inviértelas o, si es una suma fija, pon el mismo monto en ambas.`;
     }
   }
-  if (!e.msumamax && decimales(f.msumamax) > 2) e.msumamax = 'Máximo 2 decimales.';
-  if (!e.msumamin && decimales(f.msumamin) > 2) e.msumamin = 'Máximo 2 decimales.';
+  if (!e.msumamax && decimales(f.msumamax) > 2) e.msumamax = 'La suma admite hasta 2 decimales.';
+  if (!e.msumamin && decimales(f.msumamin) > 2) e.msumamin = 'La suma admite hasta 2 decimales.';
   if (f.modo === 'tasa') {
     if (calculada && !f.pprima.trim()) {
       // opcional
-    } else if (!esNumero(f.pprima) || Number(f.pprima) <= 0) e.pprima = 'La tasa debe ser mayor a 0.';
-    else if (Number(f.pprima) > 100) e.pprima = 'La tasa es un porcentaje (máx. 100).';
-    else if (decimales(f.pprima) > 6) e.pprima = 'Máximo 6 decimales.';
+    } else if (!esNumero(f.pprima) || Number(f.pprima) <= 0) e.pprima = 'Escribe la tasa en % y mayor a 0 (por ejemplo, 0.5 para 0,5 %). Si cobra un monto fijo, elige «Prima fija».';
+    else if (Number(f.pprima) > 100) e.pprima = `La tasa es un porcentaje: ${miles(Number(f.pprima))} % es más de 100 %. ¿Querías escribir una prima fija?`;
+    else if (decimales(f.pprima) > 6) e.pprima = 'La tasa admite hasta 6 decimales.';
   } else if (calculada && !f.mprima.trim()) {
     // opcional
   } else if (!esNumero(f.mprima) || Number(f.mprima) <= 0) {
-    e.mprima = 'La prima fija debe ser mayor a 0.';
+    e.mprima = 'Escribe la prima fija, mayor a 0 (por ejemplo, 25). Si cobra un % de la suma, elige «Tasa %».';
   } else if (decimales(f.mprima) > 2) {
-    e.mprima = 'Máximo 2 decimales.';
+    e.mprima = 'La prima fija admite hasta 2 decimales.';
   }
   return e;
 }

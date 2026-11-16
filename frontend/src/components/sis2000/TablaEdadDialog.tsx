@@ -8,10 +8,11 @@ import {
   leerPegado,
   TRAMOS_ESTANDAR,
   tramosPorAncho,
-  traducirErrorSis2000,
   type TramoTexto,
 } from '@/lib/sis2000-tramos';
 import { Alert } from '@/components/ui/alert';
+import { AlertaError } from '@/components/ui/errores';
+import { entenderError, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { Button } from '@/components/ui/button';
 import { FormField, FormGrid } from '@/components/ui/form-field';
 import { InfoTip } from '@/components/ui/info-tip';
@@ -255,7 +256,7 @@ export function TablaEdadDialog({
     } catch (e) {
       setAvisoRapido({
         tipo: 'error',
-        texto: e instanceof ApiError && e.status === 404 ? `No existe la tabla ${cod}.` : traducirErrorSis2000(e instanceof Error ? e.message : ''),
+        texto: e instanceof ApiError && e.status === 404 ? `No existe la tabla ${cod}.` : mensajeDeError(e),
       });
     } finally {
       setCopiando(false);
@@ -263,7 +264,7 @@ export function TablaEdadDialog({
   }
   const [intento, setIntento] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorEntendible | string | null>(null);
 
   const [tabla, setTabla] = useState<TablaEdad | null>(null);
   const [cargando, setCargando] = useState(modo === 'ver');
@@ -276,7 +277,7 @@ export function TablaEdadDialog({
     api
       .leerSis2000TablaEdad(codigoInicial)
       .then((t) => vigente && setTabla(t))
-      .catch((e: unknown) => vigente && setError(e instanceof Error ? e.message : 'No se pudo consultar la tabla.'))
+      .catch((e: unknown) => vigente && setError(entenderError(e, { titulo: 'No se pudo consultar la tabla.' })))
       .finally(() => vigente && setCargando(false));
     return () => {
       vigente = false;
@@ -338,7 +339,7 @@ export function TablaEdadDialog({
         setEstadoCodigo('existe');
         setError(`Ya existe una tabla con el código ${cod} en Sis2000. Úsala con «Usar la existente» o cambia el código.`);
       } else {
-        setError(traducirErrorSis2000(e instanceof Error ? e.message : 'No se pudo crear la tabla.'));
+        setError(entenderError(e, { titulo: 'No se pudo crear la tabla', que: 'una tabla' }));
       }
     } finally {
       setGuardando(false);
@@ -375,11 +376,7 @@ export function TablaEdadDialog({
           </button>
         </div>
 
-        {error && (
-          <Alert variant="error" className="mb-3">
-            {error}
-          </Alert>
-        )}
+        <AlertaError className="mb-3" error={error} />
 
         {modo === 'ver' ? (
           cargando ? (

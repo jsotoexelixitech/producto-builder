@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator, CalendarDays, Save } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import {
   claveCober,
   cobroDiasAForm,
@@ -14,6 +14,8 @@ import {
   type CobroDiasForm,
 } from '@/lib/sis2000-cobro-dias';
 import { Alert } from '@/components/ui/alert';
+import { AlertaError } from '@/components/ui/errores';
+import { entenderError, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,11 +54,12 @@ function sumarDias(iso: string, dias: number): string {
 const monto = (n: unknown) =>
   Number(n ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function mensajeError(e: unknown, accion: string): string {
-  if (e instanceof ApiError && e.status === 403) {
-    return `No se pudo ${accion}: ${e.message || 'la escritura del cobro por días no está habilitada en nest-api.'}`;
+function mensajeError(e: unknown, accion: string): ErrorEntendible {
+  const err = entenderError(e, { titulo: `No se pudo ${accion}` });
+  if (err.tipo === 'permiso' && !/:/.test(err.mensaje)) {
+    return { ...err, mensaje: 'La escritura del cobro por días no está habilitada en este ambiente. Avisa a soporte.' };
   }
-  return e instanceof Error ? e.message : `No se pudo ${accion}.`;
+  return err;
 }
 
 /** Coberturas del plan + las que ya tengan prima guardada (por si el plan cambió). */
@@ -87,7 +90,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [cambios, setCambios] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorEntendible | string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
   /** Elegido antes de crear el plan (sin planId): se guarda en cuanto llega el planId, como los proveedores. */
@@ -99,7 +102,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
   const [fhasta, setFhasta] = useState(sumarDias(fechaLocal(), 6));
   const [diasSim, setDiasSim] = useState('7');
   const [simulando, setSimulando] = useState(false);
-  const [errorSim, setErrorSim] = useState<string | null>(null);
+  const [errorSim, setErrorSim] = useState<ErrorEntendible | string | null>(null);
   const [simulacion, setSimulacion] = useState<CobroDiasCotizacion | null>(null);
 
   useEffect(() => {
@@ -264,7 +267,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
         {habilitado && !planId && (
           <Alert variant="info">Puedes elegirlo ahora: se guarda junto con el plan al crearlo.</Alert>
         )}
-        {error && <Alert variant="error">{error}</Alert>}
+        <AlertaError error={error} />
         {ok && <Alert variant="success">{ok}</Alert>}
 
         <fieldset
@@ -495,7 +498,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
               </Button>
             </div>
             {cambios && <p className="text-amber-700">La simulación usa lo guardado, no los cambios sin guardar.</p>}
-            {errorSim && <Alert variant="error">{errorSim}</Alert>}
+            <AlertaError error={errorSim} />
             {simulacion && (
               <div className="overflow-x-auto rounded-lg border border-border/50">
                 <table className="w-full">

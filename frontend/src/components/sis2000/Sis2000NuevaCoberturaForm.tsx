@@ -19,11 +19,44 @@ import { Button } from '@/components/ui/button';
 import { FormField, FormGrid } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { ComboBuscable } from '@/components/ui/combo-buscable';
+import { AlertaError, ResumenErrores, type ErrorDeCampo } from '@/components/ui/errores';
+import { entenderError, type ErrorEntendible } from '@/lib/errores';
 
 const ETIQUETA_OPCION =
   'inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs font-medium';
 const SUBTITULO = 'mb-3 mt-1 text-xs font-bold uppercase tracking-wide text-slate-500';
 const SIN_BASE = '__ninguna__';
+const SECCION_CODIGOS = 'Códigos y datos internos';
+
+/** Campo del formulario → id del input, nombre en pantalla y sección plegada donde está (si aplica). */
+const CAMPOS: Partial<Record<keyof NuevaCoberturaForm, { id: string; etiqueta: string; seccion?: string }>> = {
+  xdescripcion_l: { id: 'nc-xl', etiqueta: 'Nombre de la cobertura' },
+  xdescripcion_c: { id: 'nc-xc', etiqueta: 'Nombre corto' },
+  cmoneda: { id: 'nc-cmoneda', etiqueta: 'Moneda' },
+  xabreviatura: { id: 'nc-xab', etiqueta: 'Abreviatura' },
+  unidadCalculo: { id: 'nc-suma-unidad', etiqueta: 'Unidad de cálculo' },
+  etiquetaCuadro: { id: 'nc-suma-etiqueta', etiqueta: 'Etiqueta en el cuadro póliza' },
+  fdesde: { id: 'nc-fdesde', etiqueta: 'Vigente desde' },
+  fhasta: { id: 'nc-fhasta', etiqueta: 'Vigente hasta' },
+  msumamin: { id: 'nc-msumamin', etiqueta: 'Suma asegurada mínima' },
+  msumamax: { id: 'nc-msumamax', etiqueta: 'Suma asegurada máxima' },
+  pprima: { id: 'nc-pprima', etiqueta: 'Tasa %' },
+  mprima: { id: 'nc-mprima', etiqueta: 'Prima fija' },
+  ccobertura: { id: 'nc-ccobertura', etiqueta: 'Código de la cobertura', seccion: SECCION_CODIGOS },
+  ctarifa: { id: 'nc-ctarifa', etiqueta: 'Código de la tarifa', seccion: SECCION_CODIGOS },
+  xtarifam: { id: 'nc-xtarifam', etiqueta: 'Nombre interno de la tarifa', seccion: SECCION_CODIGOS },
+  cramoint: { id: 'nc-cramoint', etiqueta: 'Ramo interno', seccion: SECCION_CODIGOS },
+  ccoberturaint: { id: 'nc-ccobint', etiqueta: 'Cobertura interna', seccion: SECCION_CODIGOS },
+  ccontrea: { id: 'nc-ccontrea', etiqueta: 'Contrato de reaseguro', seccion: SECCION_CODIGOS },
+  cramorea: { id: 'nc-cramorea', etiqueta: 'Ramo de reaseguro', seccion: SECCION_CODIGOS },
+};
+/** Orden del resumen = orden en pantalla. */
+const ORDEN_CAMPOS = Object.keys(CAMPOS) as Array<keyof NuevaCoberturaForm>;
+/** Propiedad de los DTO de nest-api → campo del formulario (para llevar al campo un error del servidor). */
+const PROPIEDAD_A_CAMPO: Record<string, keyof NuevaCoberturaForm> = {
+  ccober: 'ccobertura',
+  xtarifa: 'xdescripcion_l',
+};
 
 const texto = (v: unknown) => (v == null ? '' : String(v).trim());
 
@@ -64,7 +97,12 @@ export function Sis2000NuevaCoberturaForm({
   const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [intento, setIntento] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /** Aviso de un paso que quedó a medias (cobertura creada pero falta la tarifa). */
+  const [aviso, setAviso] = useState<string | null>(null);
+  /** Error del servidor ya traducido, con lo que se intentaba hacer. */
+  const [errorServidor, setErrorServidor] = useState<{ titulo: string; error: ErrorEntendible } | null>(null);
+  /** Campos que el usuario ya dejó (se validan al salir del campo, no mientras escribe). */
+  const [tocados, setTocados] = useState<Set<string>>(() => new Set());
   /** Código de la cobertura ya grabada cuando falló la tarifa (se reintenta solo la tarifa). */
   const [coberturaGrabada, setCoberturaGrabada] = useState<string | null>(null);
   /** Configuración de suma ya guardada en el configurador (se reintenta si falló). */
@@ -102,7 +140,26 @@ export function Sis2000NuevaCoberturaForm({
     return e;
   }, [form, existentes, coberturaGrabada]);
   const hayErrores = Object.keys(errores).length > 0;
-  const err = (campo: keyof NuevaCoberturaForm) => (intento ? errores[campo] : undefined);
+  const err = (campo: keyof NuevaCoberturaForm) =>
+    intento || tocados.has(campo) ? errores[campo] : undefined;
+  /** Resumen de arriba: cada error con su campo (solo menciona «Códigos y datos internos» si el error está ahí). */
+  const resumen: ErrorDeCampo[] = ORDEN_CAMPOS.filter((c) => errores[c]).map((c) => ({
+    id: CAMPOS[c]?.id,
+    etiqueta: CAMPOS[c]?.etiqueta,
+    mensaje: errores[c] as string,
+    seccion: CAMPOS[c]?.seccion,
+  }));
+
+  function marcarTocado(id: string) {
+    const campo = ORDEN_CAMPOS.find((c) => CAMPOS[c]?.id === id);
+    if (campo && !tocados.has(campo)) setTocados((prev) => new Set(prev).add(campo));
+  }
+
+  /** id del input para un campo que nest-api rechazó (coberturas o tarifas). */
+  function idDePropiedad(propiedad: string): string | undefined {
+    const campo = (PROPIEDAD_A_CAMPO[propiedad] ?? propiedad) as keyof NuevaCoberturaForm;
+    return CAMPOS[campo]?.id;
+  }
 
   function cambiar<K extends keyof NuevaCoberturaForm>(campo: K, valor: NuevaCoberturaForm[K]) {
     setForm((prev) => ({ ...prev, [campo]: valor }));
@@ -125,28 +182,26 @@ export function Sis2000NuevaCoberturaForm({
   function pedirConfirmacion(e: React.FormEvent) {
     e.preventDefault();
     setIntento(true);
-    setError(null);
-    if (hayErrores) {
-      setError('Revisa los campos marcados en rojo (algunos pueden estar en «Códigos y datos internos»).');
-      return;
-    }
+    setErrorServidor(null);
+    // Con errores, el resumen de arriba los lista (clicables); no se pide confirmación.
+    if (hayErrores) return;
     setConfirmando(true);
   }
 
   async function crear() {
     setConfirmando(false);
-    setError(null);
+    setErrorServidor(null);
+    setAviso(null);
     setGuardando(true);
     const ccobertura = coberturaGrabada ?? form.ccobertura.trim().toUpperCase();
+    const nombre = form.xdescripcion_l.trim().toUpperCase() || ccobertura;
     try {
       if (!coberturaGrabada) {
         await api.createSis2000Cobertura(payloadCobertura(cramo, form));
         setCoberturaGrabada(ccobertura);
       }
     } catch (ex) {
-      setError(
-        `No se pudo crear la cobertura: ${ex instanceof Error ? ex.message : 'error desconocido'}`,
-      );
+      setErrorServidor({ titulo: 'No se pudo crear la cobertura', error: entenderError(ex, { que: 'una cobertura' }) });
       setGuardando(false);
       return;
     }
@@ -157,11 +212,8 @@ export function Sis2000NuevaCoberturaForm({
         sumaConfig = await api.upsertSis2000CoberturaSumaConfig(cramo, ccobertura, payloadSumaConfig(form));
         setSumaGrabada(sumaConfig);
       } catch (ex) {
-        setError(
-          `La cobertura «${form.xdescripcion_l.trim().toUpperCase() || ccobertura}» quedó creada, pero no se pudo guardar «Suma calculada al emitir»: ${
-            ex instanceof Error ? ex.message : 'error desconocido'
-          }. Pulsa «Crear tarifa» para reintentar.`,
-        );
+        setAviso(`La cobertura «${nombre}» ya quedó creada. Falta guardar «Suma calculada al emitir» y su tarifa: pulsa «Reintentar» o «Crear tarifa».`);
+        setErrorServidor({ titulo: 'No se pudo guardar «Suma calculada al emitir»', error: entenderError(ex) });
         setGuardando(false);
         return;
       }
@@ -176,11 +228,8 @@ export function Sis2000NuevaCoberturaForm({
         sumaConfig,
       });
     } catch (ex) {
-      setError(
-        `La cobertura «${form.xdescripcion_l.trim().toUpperCase() || ccobertura}» quedó creada, pero su tarifa no: ${
-          ex instanceof Error ? ex.message : 'error desconocido'
-        }. Corrige los datos de la tarifa y pulsa «Crear tarifa».`,
-      );
+      setAviso(`La cobertura «${nombre}» ya quedó creada; falta su tarifa. Corrige lo que se indica y pulsa «Crear tarifa» (la cobertura no se vuelve a crear).`);
+      setErrorServidor({ titulo: 'No se pudo crear la tarifa', error: entenderError(ex, { que: 'una tarifa' }) });
     } finally {
       setGuardando(false);
     }
@@ -194,7 +243,7 @@ export function Sis2000NuevaCoberturaForm({
       : 'Crear cobertura y tarifa';
   /** Abre «Códigos y datos internos» si hay un error ahí (si no, quedaría oculto). */
   const errorEnCodigos =
-    intento &&
+    (intento || errorServidor !== null) &&
     Boolean(
       errores.ccobertura ||
         errores.ctarifa ||
@@ -207,13 +256,28 @@ export function Sis2000NuevaCoberturaForm({
   const nombreCobertura = form.xdescripcion_l.trim().toUpperCase() || 'la cobertura';
 
   return (
-    <form onSubmit={pedirConfirmacion} noValidate className="space-y-5">
+    <form
+      onSubmit={pedirConfirmacion}
+      noValidate
+      className="space-y-5"
+      onBlurCapture={(e) => marcarTocado((e.target as HTMLElement).id)}
+    >
       <p className="text-xs text-muted-foreground">
         Se crea en Sis2000 la cobertura en este ramo junto con su tarifa: suma asegurada y tasa o prima vigentes. Sin
         tarifa vigente una cobertura no se puede usar en un plan. Los códigos se sugieren solos.
       </p>
 
-      {error && <Alert variant={bloqueada ? 'warning' : 'error'}>{error}</Alert>}
+      {intento && <ResumenErrores errores={resumen} />}
+      {aviso && <Alert variant="warning">{aviso}</Alert>}
+      {errorServidor && (
+        <AlertaError
+          titulo={errorServidor.titulo}
+          error={errorServidor.error}
+          onReintentar={() => void crear()}
+          reintentando={guardando}
+          idDeCampo={idDePropiedad}
+        />
+      )}
 
       <div>
         <h5 className={SUBTITULO}>
@@ -269,6 +333,7 @@ export function Sis2000NuevaCoberturaForm({
               />
             ) : (
               <Input
+                id="nc-cmoneda"
                 aria-label="Moneda"
                 value={form.cmoneda}
                 maxLength={4}

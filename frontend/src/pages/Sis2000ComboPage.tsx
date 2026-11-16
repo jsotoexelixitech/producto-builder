@@ -17,7 +17,7 @@ import {
   Shield,
   Users,
 } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { agruparProductosSis2000, type Sis2000Product } from '@/lib/sis2000-catalog';
 import {
   defaultPlanPayload,
@@ -73,7 +73,9 @@ import {
   NavegacionPasos,
   type EstadoPaso,
 } from '@/components/sis2000/AsistentePasos';
-import { formatoMonto2, traducirErrorSis2000 } from '@/lib/sis2000-tramos';
+import { formatoMonto2 } from '@/lib/sis2000-tramos';
+import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
+import { AlertaError, irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -211,6 +213,31 @@ type PasoId = (typeof PASOS)[number]['id'];
 interface Falta {
   paso: PasoId;
   texto: string;
+  /** id del campo donde se corrige (el resumen lleva ahí). */
+  campo?: string;
+  /** Cobertura a la que se refiere (se muestra también en su tarjeta). */
+  cob?: string;
+}
+
+/** Propiedad de PlanDto que nest-api rechazó → id del campo en el asistente. */
+function idCampoPlan(propiedad: string): string | undefined {
+  const ids: Record<string, string> = {
+    cplan: 'combo-cplan',
+    xplan: 'combo-xplan',
+    fdesde: 'combo-fdesde',
+    fhasta: 'combo-fhasta',
+    cmoneda: 'combo-cmoneda',
+    xobservacion: 'combo-xobservacion',
+    frecuencias: 'combo-frecuencias',
+    productores: 'combo-prod-buscar',
+    cproducto: 'combo-producto',
+    cramo: 'combo-ramo',
+    nedad_min: 'combo-edad-min',
+    nedad_max: 'combo-edad-max',
+    cparen: 'combo-cparen-texto',
+    parentescos: 'combo-cparen-texto',
+  };
+  return ids[propiedad];
 }
 
 /** Tasa en % con hasta 6 decimales, en formato local. */
@@ -653,7 +680,7 @@ export function Sis2000ComboPage() {
 
   const [productos, setProductos] = useState<Sis2000Product[]>([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
-  const [errorProductos, setErrorProductos] = useState<string | null>(null);
+  const [errorProductos, setErrorProductos] = useState<ErrorEntendible | null>(null);
   /** Producto elegido: clave cproducto|cramo (maproductos repite cada producto en SysIP y Nexus). */
   const [claveProducto, setClaveProducto] = useState(inicio?.claveProducto ?? '');
   /** Ramo elegido para filtrar el selector de producto (RAMO_TODOS = sin filtro). */
@@ -665,14 +692,14 @@ export function Sis2000ComboPage() {
   const [intentoProducto, setIntentoProducto] = useState(false);
   const [guardandoProducto, setGuardandoProducto] = useState(false);
   const [confirmandoProducto, setConfirmandoProducto] = useState(false);
-  const [errorNuevoProducto, setErrorNuevoProducto] = useState<string | null>(null);
+  const [errorNuevoProducto, setErrorNuevoProducto] = useState<ErrorEntendible | null>(null);
   const [avisoProducto, setAvisoProducto] = useState<string | null>(null);
 
   const [catalogo, setCatalogo] = useState<{ cramo: number; coberturas: CoberturaRamo[] } | null>(
     null,
   );
   const [cargandoCoberturas, setCargandoCoberturas] = useState(false);
-  const [errorCoberturas, setErrorCoberturas] = useState<string | null>(null);
+  const [errorCoberturas, setErrorCoberturas] = useState<ErrorEntendible | null>(null);
   const [tarifas, setTarifas] = useState<Record<string, CargaTarifas>>({});
   const [filas, setFilas] = useState<Record<string, FilaCombo>>({});
   const [mostrarInactivas, setMostrarInactivas] = useState(false);
@@ -694,7 +721,7 @@ export function Sis2000ComboPage() {
   const [formSuma, setFormSuma] = useState<SumaConfigValores>({ tipoSuma: 'FIJA', unidadCalculo: '', etiquetaCuadro: '' });
   const [intentoSuma, setIntentoSuma] = useState(false);
   const [guardandoSuma, setGuardandoSuma] = useState(false);
-  const [errorSuma, setErrorSuma] = useState<string | null>(null);
+  const [errorSuma, setErrorSuma] = useState<ErrorEntendible | null>(null);
 
   /** Cosas (maplanes + maplantar) o personas (maplanes_per + maplcober_per, mapltarifas_per, mapledades_per). */
   const [tipoPlan, setTipoPlan] = useState<Sis2000PlanType>(inicio?.tipoPlan === 'personas' ? 'personas' : 'cosas');
@@ -742,7 +769,15 @@ export function Sis2000ComboPage() {
   // ── Edición de un plan existente ──
   const [planOriginal, setPlanOriginal] = useState<PlanOriginal | null>(null);
   const [cargandoPlan, setCargandoPlan] = useState(modoEdicion);
-  const [errorPlan, setErrorPlan] = useState<string | null>(null);
+  const [errorPlan, setErrorPlan] = useState<ErrorEntendible | string | null>(null);
+  /** Sube con «Reintentar» al leer el plan que se edita. */
+  const [recargaPlan, setRecargaPlan] = useState(0);
+  /** Sube con «Reintentar» en las tarifas que no se pudieron leer. */
+  const [reintentoTarifas, setReintentoTarifas] = useState(0);
+  /** ids de campos que el usuario ya dejó (se validan al salir, no mientras escribe). */
+  const [tocados, setTocados] = useState<Set<string>>(() => new Set());
+  /** Coberturas con algún campo de precio ya tocado. */
+  const [cobTocadas, setCobTocadas] = useState<Set<string>>(() => new Set());
   /** Producto del plan leído: se elige cuando llega el catálogo de productos. */
   const [productoPlan, setProductoPlan] = useState<{ cproducto: string; cramo: number } | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -758,12 +793,12 @@ export function Sis2000ComboPage() {
   const [intentoCrear, setIntentoCrear] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [creando, setCreando] = useState(false);
-  const [errorCrear, setErrorCrear] = useState<string | null>(null);
+  const [errorCrear, setErrorCrear] = useState<ErrorEntendible | null>(null);
   const [planGuardado, setPlanGuardado] = useState<PlanGuardado | null>(null);
   /** Cambia solo al empezar otro plan tras uno ya creado: así los proveedores pendientes no se pierden al crear. */
   const [proveedoresKey, setProveedoresKey] = useState(0);
   const [cotizando, setCotizando] = useState(false);
-  const [errorCotizar, setErrorCotizar] = useState<string | null>(null);
+  const [errorCotizar, setErrorCotizar] = useState<ErrorEntendible | string | null>(null);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
 
   async function cargarProductos() {
@@ -772,9 +807,7 @@ export function Sis2000ComboPage() {
     try {
       setProductos(await api.listSis2000Products());
     } catch (e) {
-      setErrorProductos(
-        e instanceof Error ? e.message : 'No se pudo cargar el catálogo de productos de Sis2000',
-      );
+      setErrorProductos(entenderError(e));
     } finally {
       setCargandoProductos(false);
     }
@@ -844,7 +877,7 @@ export function Sis2000ComboPage() {
         });
       })
       .catch((e) => {
-        if (vigente) setErrorPlan(e instanceof Error ? e.message : 'No se pudo leer el plan de Sis2000');
+        if (vigente) setErrorPlan(entenderError(e, { que: 'un plan' }));
       })
       .finally(() => {
         if (vigente) setCargandoPlan(false);
@@ -852,7 +885,7 @@ export function Sis2000ComboPage() {
     return () => {
       vigente = false;
     };
-  }, [editId]);
+  }, [editId, recargaPlan]);
 
   const opcionesProducto = useMemo(() => agruparProductosSis2000(productos), [productos]);
 
@@ -1032,7 +1065,7 @@ export function Sis2000ComboPage() {
       })
       .catch((e) => {
         if (gen !== generacion.current) return;
-        setErrorCoberturas(e instanceof Error ? e.message : 'Error al cargar coberturas');
+        setErrorCoberturas(entenderError(e));
       })
       .finally(() => {
         if (gen === generacion.current) setCargandoCoberturas(false);
@@ -1093,12 +1126,20 @@ export function Sis2000ComboPage() {
           ...prev,
           [c.ccobertura]: {
             estado: 'error',
-            error: e instanceof Error ? e.message : 'Error al cargar tarifas',
+            error: mensajeDeError(e),
           },
         }));
       }
     });
-  }, [catalogo, cramo, visibles, hoy]);
+  }, [catalogo, cramo, visibles, hoy, reintentoTarifas]);
+
+  /** Vuelve a pedir las tarifas que fallaron (sin tocar lo ya marcado). */
+  function reintentarTarifas() {
+    Object.entries(tarifas).forEach(([cc, t]) => {
+      if (t.estado === 'error') solicitadas.current.delete(cc);
+    });
+    setReintentoTarifas((n) => n + 1);
+  }
 
   const vistas = useMemo<VistaCobertura[]>(
     () =>
@@ -1423,14 +1464,14 @@ export function Sis2000ComboPage() {
   /** Lo que nest-api rechazaría, dicho por cobertura y con el paso donde se corrige. */
   function validarCombo(): Falta[] {
     const faltas: Falta[] = [];
-    const falta = (p: PasoId, t: string) => faltas.push({ paso: p, texto: t });
+    const falta = (p: PasoId, t: string, campo?: string, cob?: string) => faltas.push({ paso: p, texto: t, campo, cob });
 
     if (modoEdicion && cargandoPlan) falta('producto', 'Espera a que termine de leerse el plan de Sis2000.');
     if (errorPlan) falta('producto', 'No se pudo leer el plan de Sis2000.');
     if (planOriginal?.bloqueo) falta('producto', planOriginal.bloqueo);
-    if (!producto) falta('producto', 'Elige el producto.');
+    if (!producto) falta('producto', 'Elige el producto (escribe su nombre o código en «Producto»).', 'combo-producto');
 
-    if (producto && !incluidas.length) falta('coberturas', 'Marca al menos una cobertura para el plan.');
+    if (producto && !incluidas.length) falta('coberturas', 'Marca al menos una cobertura para el plan.', 'combo-tabla-coberturas');
     if (cramo && cargandoTarifas) falta('coberturas', 'Espera a que terminen de cargarse las tarifas de las coberturas.');
     for (const { cc, vista } of delPlanConProblema) {
       falta(
@@ -1440,22 +1481,29 @@ export function Sis2000ComboPage() {
           : vista.vigentes.length
             ? `«${nombreCob(vista)}»: la tarifa que tenía el plan ya no está vigente. Elige una de las vigentes.`
             : `«${nombreCob(vista)}»: no tiene ninguna tarifa vigente. Pide a Técnico renovarla antes de guardar el plan.`,
+        vista && vista.vigentes.length ? `p-tarifa-${cc}` : undefined,
+        cc,
       );
     }
 
     if (personas) {
       const min = entero(edadMin);
       const max = entero(edadMax);
-      if (!cparens) falta('precios', '¿Quiénes se aseguran?: marca al menos un parentesco (por ejemplo, Titular).');
-      else if (new Set(cparens).size !== cparens.length) falta('precios', 'Hay parentescos repetidos.');
-      if (min == null || max == null) falta('precios', 'Indica la edad mínima y la máxima (números enteros).');
-      else if (min > max) falta('precios', 'La edad mínima es mayor que la máxima.');
+      if (!cparens) falta('precios', 'Marca al menos un parentesco en «¿Quiénes se aseguran?» (por ejemplo, Titular).', 'combo-cparen-texto');
+      else if (new Set(cparens).size !== cparens.length) falta('precios', 'Hay parentescos repetidos: deja cada uno una sola vez.', 'combo-cparen-texto');
+      if (min == null) falta('precios', 'Escribe la edad mínima en años, sin decimales (por ejemplo, 0).', 'combo-edad-min');
+      if (max == null) falta('precios', 'Escribe la edad máxima en años, sin decimales (por ejemplo, 74).', 'combo-edad-max');
+      if (min != null && max != null && min > max) {
+        falta('precios', `La edad mínima (${min}) es mayor que la máxima (${max}). Inviértelas.`, 'combo-edad-min');
+      }
       for (const v of incluidas) {
         const n = `«${nombreCob(v)}»`;
         const tabla = tablaDe(v.cobertura.ccobertura);
-        if (!tabla) falta('precios', `${n}: falta la tabla de precios por edad (la del plan o una propia).`);
-        else if (tabla.length > 10) falta('precios', `${n}: el código de la tabla admite máx. 10 caracteres.`);
-        if (numero(v.fila.msumamax) < 0 || numero(v.fila.mprima) < 0) falta('precios', `${n}: no admite montos negativos.`);
+        const cc = v.cobertura.ccobertura;
+        if (!tabla) falta('precios', `${n}: elige su tabla de precios por edad («Elegir») o una para todas arriba.`, `per-tabla-${cc}`, cc);
+        else if (tabla.length > 10) falta('precios', `${n}: el código de la tabla admite hasta 10 caracteres.`, `per-tabla-${cc}`, cc);
+        if (numero(v.fila.msumamax) < 0) falta('precios', `${n}: la suma asegurada no puede ser negativa.`, `per-suma-${cc}`, cc);
+        if (numero(v.fila.mprima) < 0) falta('precios', `${n}: la prima por persona no puede ser negativa (déjala en 0).`, `per-prima-${cc}`, cc);
       }
     } else {
       for (const v of incluidas) {
@@ -1465,11 +1513,25 @@ export function Sis2000ComboPage() {
         const max = numero(v.fila.msumamax);
         const tasa = numero(v.fila.pprima);
         const prima = numero(v.fila.mprima);
-        if (!(max > 0)) falta('precios', `${n}: la suma asegurada máxima debe ser mayor a 0.`);
-        if (min > max) falta('precios', `${n}: la suma mínima es mayor que la máxima.`);
-        if (min < 0 || tasa < 0 || prima < 0) falta('precios', `${n}: no admite montos negativos.`);
-        if (v.fila.modo === 'tasa' && !(tasa > 0)) falta('precios', `${n}: escribe la tasa % (mayor a 0).`);
-        if (v.fila.modo === 'prima' && !(prima > 0)) falta('precios', `${n}: escribe la prima fija (mayor a 0).`);
+        const cc = v.cobertura.ccobertura;
+        if (!(max > 0)) falta('precios', `${n}: escribe la suma asegurada máxima, mayor a 0 (por ejemplo, 50.000).`, `p-max-${cc}`, cc);
+        if (min < 0) falta('precios', `${n}: la suma mínima no puede ser negativa (déjala en 0).`, `p-min-${cc}`, cc);
+        else if (max > 0 && min > max) {
+          falta(
+            'precios',
+            `${n}: la suma mínima (${miles(min)}) no puede ser mayor que la máxima (${miles(max)}). Inviértelas o, si es una suma fija, pon el mismo monto en ambas.`,
+            `p-min-${cc}`,
+            cc,
+          );
+        }
+        if (v.fila.modo === 'tasa' && !(tasa > 0)) {
+          falta('precios', `${n}: escribe la tasa en %, mayor a 0 (por ejemplo, 0.5). Si cobra un monto fijo, elige «Prima fija».`, `p-valor-${cc}`, cc);
+        } else if (v.fila.modo === 'tasa' && tasa > 100) {
+          falta('precios', `${n}: la tasa ${miles(tasa)} % es más de 100 %. Revisa el número o elige «Prima fija».`, `p-valor-${cc}`, cc);
+        }
+        if (v.fila.modo === 'prima' && !(prima > 0)) {
+          falta('precios', `${n}: escribe la prima fija, mayor a 0 (por ejemplo, 25). Si cobra un % de la suma, elige «Tasa %».`, `p-valor-${cc}`, cc);
+        }
       }
       const basica = incluidas.find((v) => v.cobertura.ccobertura === '1');
       if (basica) {
@@ -1480,7 +1542,9 @@ export function Sis2000ComboPage() {
           if (max > maxBasica) {
             falta(
               'precios',
-              `«${nombreCob(v)}» es opcional y su suma máxima (${formatoMonto(max)}) supera la de la cobertura básica «${nombreCob(basica)}» (${formatoMonto(maxBasica)}).`,
+              `«${nombreCob(v)}» es opcional y su suma máxima (${miles(max)}) supera la de la cobertura básica «${nombreCob(basica)}» (${miles(maxBasica)}). Bájala o sube la de la básica.`,
+              `p-max-${v.cobertura.ccobertura}`,
+              v.cobertura.ccobertura,
             );
           }
         }
@@ -1488,17 +1552,22 @@ export function Sis2000ComboPage() {
     }
 
     const codigo = cplan.trim();
-    if (!codigo) falta('datos', 'Escribe el código del plan.');
-    else if (codigo.length > 6) falta('datos', 'El código del plan admite máx. 6 caracteres.');
-    if (!xplan.trim()) falta('datos', 'Escribe el nombre del plan.');
-    else if (xplan.trim().length > 60) falta('datos', 'El nombre del plan admite máx. 60 caracteres.');
-    if (!fdesde || !fhasta) falta('datos', 'Indica la vigencia del plan (desde y hasta).');
-    else if (fdesde > fhasta) falta('datos', 'La fecha «desde» es posterior a «hasta».');
-    if (!cmoneda.trim()) falta('datos', 'Elige la moneda del plan.');
-    if (!frecuencias.length) falta('datos', 'Marca al menos una forma de pago (anual, mensual…).');
-    if (observacion.trim().length > 255) falta('datos', 'Las observaciones admiten máx. 255 caracteres.');
+    if (!xplan.trim()) falta('datos', 'Escribe el nombre del plan, como lo verán SysIP y la emisión.', 'combo-xplan');
+    else if (xplan.trim().length > 60) falta('datos', `El nombre tiene ${xplan.trim().length} caracteres; el máximo es 60. Acórtalo.`, 'combo-xplan');
+    if (!codigo) falta('datos', 'Escribe el código del plan: hasta 6 letras o números (por ejemplo, RCG01).', 'combo-cplan');
+    else if (codigo.length > 6) falta('datos', `El código tiene ${codigo.length} caracteres; el máximo es 6.`, 'combo-cplan');
+    if (!fdesde) falta('datos', 'Elige desde qué fecha se puede emitir.', 'combo-fdesde');
+    if (!fhasta) falta('datos', 'Elige hasta qué fecha se puede emitir (31/12/2099 si no tiene fin).', 'combo-fhasta');
+    if (fdesde && fhasta && fdesde > fhasta) {
+      falta('datos', `La fecha «desde» (${fechaCorta(fdesde)}) es posterior a «hasta» (${fechaCorta(fhasta)}). Corrígelas.`, 'combo-fhasta');
+    }
+    if (!cmoneda.trim()) falta('datos', 'Elige la moneda del plan.', 'combo-cmoneda');
+    if (!frecuencias.length) falta('datos', 'Marca al menos una forma de pago (anual, mensual…).', 'combo-frecuencias');
+    if (observacion.trim().length > 255) {
+      falta('datos', `Las observaciones tienen ${observacion.trim().length} caracteres; el máximo es 255.`, 'combo-xobservacion');
+    }
     const errorProductores = validarProductores(productoresSel);
-    if (errorProductores) falta('datos', errorProductores);
+    if (errorProductores) falta('datos', errorProductores, 'combo-prod-buscar');
 
     if (!faltas.length) validatePlanPayload(armarPayload()).forEach((t) => falta('revisar', t));
     return faltas;
@@ -1506,7 +1575,33 @@ export function Sis2000ComboPage() {
 
   const faltas = validarCombo();
   const errores = faltas.map((f) => f.texto);
-  const faltasDe = (i: number) => faltas.filter((f) => f.paso === PASOS[i].id).map((f) => f.texto);
+  const faltasDe = (i: number) => faltas.filter((f) => f.paso === PASOS[i].id);
+  /** Mensaje del campo si ya se tocó o se intentó avanzar/guardar. */
+  const errorDe = (id: string) =>
+    intentoCrear || tocados.has(id) ? faltas.find((f) => f.campo === id)?.texto : undefined;
+  const faltasCob = (cc: string) => faltas.filter((f) => f.cob === cc).map((f) => f.texto);
+
+  /** Al salir de un campo: queda «tocado» (desde ahí muestra su error). */
+  function registrarBlur(e: React.FocusEvent<HTMLElement>) {
+    const el = e.target as HTMLElement;
+    if (el.id && !tocados.has(el.id)) setTocados((prev) => new Set(prev).add(el.id));
+    const cob = el.dataset?.cob;
+    if (cob && !cobTocadas.has(cob)) setCobTocadas((prev) => new Set(prev).add(cob));
+  }
+
+  /** Lleva al campo aunque esté en otro paso: cambia de paso y después enfoca. */
+  function irACampoDelPaso(id: string) {
+    const el = document.getElementById(id);
+    const contenedor = el?.closest<HTMLElement>('[data-paso]');
+    const i = contenedor ? Number(contenedor.dataset.paso) : -1;
+    if (i >= 0 && i !== paso) {
+      setPaso(i);
+      setAvisoPaso(null);
+      window.setTimeout(() => irACampo(id), 60);
+    } else {
+      irACampo(id);
+    }
+  }
 
   /** Primer paso con cosas pendientes (hasta ahí se puede llegar con la barra). */
   const limitePasos = (() => {
@@ -1588,15 +1683,13 @@ export function Sis2000ComboPage() {
         borrarBorrador();
       }
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        setErrorCrear(
-          `Ya existe un plan con el código ${cplan.trim()} en este ramo. Vuelve a «Datos del plan» y usa otro código.`,
-        );
-      } else {
-        setErrorCrear(
-          `No se pudo ${modoEdicion ? 'guardar' : 'crear'} el plan. ${traducirErrorSis2000(e instanceof Error ? e.message : 'Error al escribir en Sis2000')} Lo que llenaste sigue en esta pantalla.`,
-        );
-      }
+      const err = entenderError(e, { que: 'un plan' });
+      // Lo llenado no se toca: el usuario corrige y vuelve a guardar.
+      setErrorCrear(
+        err.tipo === 'duplicado'
+          ? { ...err, mensaje: `Ya existe un plan con el código ${cplan.trim()} en este ramo. Vuelve a «Datos del plan» y usa otro código.` }
+          : err,
+      );
     } finally {
       setCreando(false);
       setConfirmando(false);
@@ -1623,7 +1716,7 @@ export function Sis2000ComboPage() {
       }
       setCotizacion(rows);
     } catch (e) {
-      setErrorCotizar(e instanceof Error ? e.message : 'Error al cotizar el plan');
+      setErrorCotizar(entenderError(e));
     } finally {
       setCotizando(false);
     }
@@ -1717,7 +1810,7 @@ export function Sis2000ComboPage() {
         );
       }
     } catch (e) {
-      setErrorNuevoProducto(e instanceof Error ? e.message : 'No se pudo crear el producto en Sis2000');
+      setErrorNuevoProducto(entenderError(e, { que: 'un producto' }));
     } finally {
       setGuardandoProducto(false);
       setConfirmandoProducto(false);
@@ -1771,7 +1864,7 @@ export function Sis2000ComboPage() {
       setCatalogo({ cramo: ramo, coberturas });
     } catch (e) {
       if (gen !== generacion.current) return;
-      setErrorCoberturas(e instanceof Error ? e.message : 'Error al recargar coberturas');
+      setErrorCoberturas(entenderError(e));
     }
   }
 
@@ -1823,7 +1916,7 @@ export function Sis2000ComboPage() {
       setEditandoSuma(null);
       limpiarResultado();
     } catch (e) {
-      setErrorSuma(e instanceof Error ? e.message : 'No se pudo guardar la suma de la cobertura');
+      setErrorSuma(entenderError(e));
     } finally {
       setGuardandoSuma(false);
     }
@@ -2039,14 +2132,21 @@ export function Sis2000ComboPage() {
         <SectionPanel title="Producto del plan" description="El ramo, el producto y el tipo de un plan existente no se cambian." icon={Package}>
           {cargandoPlan && <div className="h-24 animate-pulse rounded-xl bg-muted/60" />}
           {errorPlan && (
-            <Alert variant="error">
-              {errorPlan}{' '}
+            <>
+              <AlertaError
+                titulo="No se pudo leer el plan de Sis2000"
+                error={errorPlan}
+                onReintentar={() => setRecargaPlan((n) => n + 1)}
+                reintentando={cargandoPlan}
+              />
               {editId && (
-                <Link to={`/sis2000/plans/${encodeURIComponent(editId)}/json`} className="font-semibold underline">
-                  Abrir en modo avanzado (JSON)
-                </Link>
+                <p className="mt-2 text-xs">
+                  <Link to={`/sis2000/plans/${encodeURIComponent(editId)}/json`} className="font-semibold text-primary underline">
+                    Abrir en modo avanzado (JSON)
+                  </Link>
+                </p>
               )}
-            </Alert>
+            </>
           )}
           {!cargandoPlan && !errorPlan && (
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
@@ -2106,6 +2206,7 @@ export function Sis2000ComboPage() {
             <FormField
               label="Producto"
               htmlFor="combo-producto"
+              error={intentoCrear || tocados.has('combo-producto') ? errorDe('combo-producto') : undefined}
               hint={
                 !cargandoProductos && !errorProductos && ramoElegido > 0 && !opcionesProductoFiltradas.length
                   ? 'Este ramo todavía no tiene productos: créalo abajo.'
@@ -2217,11 +2318,16 @@ export function Sis2000ComboPage() {
                   Lo ofrecen canales
                 </label>
               </div>
-              {errorNuevoProducto && (
-                <Alert variant="error" className="mt-3">
-                  {errorNuevoProducto}
-                </Alert>
-              )}
+              <AlertaError
+                className="mt-3"
+                titulo="No se pudo crear el producto"
+                error={errorNuevoProducto}
+                onReintentar={() => void crearProductoEnRamo()}
+                reintentando={guardandoProducto}
+                idDeCampo={(prop) =>
+                  ({ cproducto: 'nuevo-prod-codigo', xdescripcion_l: 'nuevo-prod-nombre', xdescripcion_c: 'nuevo-prod-corto', xabreviatura: 'nuevo-prod-abrev' })[prop]
+                }
+              />
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Button type="button" size="sm" onClick={pedirConfirmacionProducto} disabled={guardandoProducto}>
                   {guardandoProducto ? 'Creando…' : 'Crear producto'}
@@ -2237,11 +2343,13 @@ export function Sis2000ComboPage() {
               {avisoProducto}
             </Alert>
           )}
-          {errorProductos && (
-            <Alert variant="error" className="mt-3">
-              No se pudo leer la lista de productos de Sis2000. Pulsa «Recargar» o inténtalo en unos minutos.
-            </Alert>
-          )}
+          <AlertaError
+            className="mt-3"
+            titulo="No se pudo leer la lista de productos de Sis2000"
+            error={errorProductos}
+            onReintentar={() => void cargarProductos()}
+            reintentando={cargandoProductos}
+          />
 
           <div className="mt-5 border-t border-border/50 pt-4">
             <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
@@ -2440,9 +2548,12 @@ export function Sis2000ComboPage() {
             </div>
           )}
 
-          {errorCoberturas && (
-            <Alert variant="error">No se pudieron leer las coberturas del ramo. Pulsa «Recargar».</Alert>
-          )}
+          <AlertaError
+            titulo="No se pudieron leer las coberturas del ramo"
+            error={errorCoberturas}
+            onReintentar={recargar}
+            reintentando={cargandoCoberturas}
+          />
           {cargandoCoberturas && <div className="h-48 animate-pulse rounded-2xl bg-muted/60" />}
 
           {!cargandoCoberturas && !errorCoberturas && catalogo && vistas.length === 0 && (
@@ -2452,7 +2563,7 @@ export function Sis2000ComboPage() {
           )}
 
           {!cargandoCoberturas && !errorCoberturas && vistas.length > 0 && (
-            <div className="tabla-cabecera-fija rounded-xl border border-border/60">
+            <div id="combo-tabla-coberturas" tabIndex={-1} className="tabla-cabecera-fija rounded-xl border border-border/60">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
                   <tr>
@@ -2520,7 +2631,12 @@ export function Sis2000ComboPage() {
                             <span className="block text-[11px] text-muted-foreground">Leyendo su tarifa…</span>
                           )}
                           {v.carga?.estado === 'error' && (
-                            <span className="block text-[11px] text-rose-600">No se pudo leer su tarifa.</span>
+                            <span className="block text-[11px] text-rose-600" title={v.carga.error}>
+                              No se pudo leer su tarifa: {v.carga.error}{' '}
+                              <button type="button" className="font-semibold underline" onClick={reintentarTarifas}>
+                                Reintentar
+                              </button>
+                            </span>
                           )}
                           {v.carga?.estado === 'ok' && !v.vigentes.length && (
                             <span className="block text-[11px] font-semibold text-amber-700">
@@ -2611,7 +2727,12 @@ export function Sis2000ComboPage() {
         Se guarda en el configurador y aplica a esta cobertura en cualquier plan del ramo. «Calculada» sirve cuando la
         suma depende de algo que se conoce al emitir (por ejemplo, kilos × precio por kilo).
       </p>
-      {errorSuma && <Alert variant="error">{errorSuma}</Alert>}
+      <AlertaError
+        titulo="No se pudo guardar cómo se calcula la suma"
+        error={errorSuma}
+        onReintentar={() => void guardarSuma()}
+        reintentando={guardandoSuma}
+      />
       <CoberturaSumaConfigFields
         idPrefix={`suma-${editandoSuma}`}
         valores={formSuma}
@@ -2643,7 +2764,7 @@ export function Sis2000ComboPage() {
         error={vencida ? 'Elige una tarifa vigente.' : undefined}
       >
         <Select value={vencida ? undefined : v.fila.ctarifa} onValueChange={(valor) => cambiarTarifa(v, valor)}>
-          <SelectTrigger aria-label={`Opción de tarifa de ${nombreCob(v)}`}>
+          <SelectTrigger id={`p-tarifa-${v.cobertura.ccobertura}`} aria-label={`Opción de tarifa de ${nombreCob(v)}`}>
             <SelectValue placeholder="Elige la tarifa…" />
           </SelectTrigger>
           <SelectContent>
@@ -2692,7 +2813,8 @@ export function Sis2000ComboPage() {
             {incluidas.map((v) => {
               const cc = v.cobertura.ccobertura;
               const f = v.fila;
-              const marcarError = (cond: boolean) => intentoCrear && cond && 'border-rose-400 ring-1 ring-rose-300';
+              const marcarError = (cond: boolean) =>
+                (intentoCrear || cobTocadas.has(cc)) && cond && 'border-rose-400 ring-1 ring-rose-300';
               return (
                 <li key={cc} className="rounded-xl border border-border/60 bg-white p-4">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -2726,6 +2848,8 @@ export function Sis2000ComboPage() {
                           inputMode="decimal"
                           min={0}
                           step="any"
+                          id={`p-min-${cc}`}
+                          data-cob={cc}
                           aria-label={`Suma mínima de ${nombreCob(v)}`}
                           value={f.msumamin}
                           onChange={(e) => cambiarFila(cc, { msumamin: e.target.value })}
@@ -2743,6 +2867,8 @@ export function Sis2000ComboPage() {
                             inputMode="decimal"
                             min={0}
                             step="any"
+                            id={`p-max-${cc}`}
+                            data-cob={cc}
                             aria-label={`Suma máxima de ${nombreCob(v)}`}
                             value={f.msumamax}
                             onChange={(e) => cambiarFila(cc, { msumamax: e.target.value })}
@@ -2788,6 +2914,8 @@ export function Sis2000ComboPage() {
                             inputMode="decimal"
                             min={0}
                             step="any"
+                            id={`p-valor-${cc}`}
+                            data-cob={cc}
                             aria-label={f.modo === 'tasa' ? `Tasa % de ${nombreCob(v)}` : `Prima fija de ${nombreCob(v)}`}
                             value={f.modo === 'tasa' ? f.pprima : f.mprima}
                             onChange={(e) => cambiarFila(cc, f.modo === 'tasa' ? { pprima: e.target.value } : { mprima: e.target.value })}
@@ -2806,6 +2934,13 @@ export function Sis2000ComboPage() {
                         </p>
                       </div>
                     </div>
+                  )}
+                  {(intentoCrear || cobTocadas.has(cc)) && faltasCob(cc).length > 0 && (
+                    <ul className="mt-3 space-y-0.5 text-[0.72rem] font-semibold text-rose-600" role="alert">
+                      {faltasCob(cc).map((t) => (
+                        <li key={t}>{t}</li>
+                      ))}
+                    </ul>
                   )}
                   {editandoSuma === cc && editorSuma}
                 </li>
@@ -2840,7 +2975,7 @@ export function Sis2000ComboPage() {
             htmlFor="combo-cparen-texto"
             hint="Titular es el asegurado principal. Ejemplo: Titular, Cónyuge, Hijos."
             tooltip="Lista de parentescos de Sis2000. Cada cobertura se guarda para cada parentesco marcado."
-            error={intentoCrear && !cparens ? 'Marca al menos un parentesco.' : undefined}
+            error={errorDe('combo-cparen-texto')}
           >
             <ParentescosSelector
               idPrefix="combo-cparen"
@@ -2868,7 +3003,7 @@ export function Sis2000ComboPage() {
               label="Edad mínima *"
               htmlFor="combo-edad-min"
               hint="En años. Ejemplo: 0."
-              error={intentoCrear && entero(edadMin) == null ? 'Número entero.' : undefined}
+              error={errorDe('combo-edad-min')}
             >
               <Input
                 id="combo-edad-min"
@@ -2884,7 +3019,7 @@ export function Sis2000ComboPage() {
               label="Edad máxima *"
               htmlFor="combo-edad-max"
               hint="En años. Ejemplo: 74."
-              error={intentoCrear && entero(edadMax) == null ? 'Número entero.' : undefined}
+              error={errorDe('combo-edad-max')}
             >
               <Input
                 id="combo-edad-max"
@@ -2974,6 +3109,8 @@ export function Sis2000ComboPage() {
                         inputMode="decimal"
                         min={0}
                         step="any"
+                        id={`per-suma-${cc}`}
+                        data-cob={cc}
                         aria-label={`Suma asegurada de ${nombreCob(v)}`}
                         value={v.fila.msumamax}
                         onChange={(e) => cambiarFila(cc, { msumamax: e.target.value })}
@@ -2985,6 +3122,8 @@ export function Sis2000ComboPage() {
                         inputMode="decimal"
                         min={0}
                         step="any"
+                        id={`per-prima-${cc}`}
+                        data-cob={cc}
                         aria-label={`Prima por persona de ${nombreCob(v)}`}
                         value={v.fila.mprima}
                         onChange={(e) => cambiarFila(cc, { mprima: e.target.value })}
@@ -3007,7 +3146,13 @@ export function Sis2000ComboPage() {
                             {(leida.tramos ?? []).length} tramo{(leida.tramos ?? []).length === 1 ? '' : 's'} de edad
                           </span>
                         )}
-                        <Button type="button" size="sm" variant="outline" onClick={() => abrirBuscadorTabla(cc, v.cobertura.descripcion)}>
+                        <Button
+                          id={`per-tabla-${cc}`}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirBuscadorTabla(cc, v.cobertura.descripcion)}
+                        >
                           Elegir
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => abrirCrearTabla(cc, v.cobertura.descripcion)}>
@@ -3019,6 +3164,13 @@ export function Sis2000ComboPage() {
                       </div>
                     </div>
                   </div>
+                  {(intentoCrear || cobTocadas.has(cc)) && faltasCob(cc).length > 0 && (
+                    <ul className="mt-3 space-y-0.5 text-[0.72rem] font-semibold text-rose-600" role="alert">
+                      {faltasCob(cc).map((t) => (
+                        <li key={t}>{t}</li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               );
             })}
@@ -3122,7 +3274,7 @@ export function Sis2000ComboPage() {
             label="Nombre del plan *"
             htmlFor="combo-xplan"
             hint="Como lo verán SysIP y la emisión. Ejemplo: RC GENERAL PLAN BÁSICO. Máx. 60."
-            error={intentoCrear && !xplan.trim() ? 'Escribe el nombre del plan.' : undefined}
+            error={errorDe('combo-xplan')}
           >
             <Input id="combo-xplan" value={xplan} maxLength={60} onChange={(e) => setXplan(e.target.value)} />
           </FormField>
@@ -3131,7 +3283,7 @@ export function Sis2000ComboPage() {
             htmlFor="combo-cplan"
             hint={modoEdicion ? 'El código de un plan existente no cambia.' : 'Corto y único en el ramo (máx. 6, en mayúsculas). Ejemplo: RCG01.'}
             tooltip="Con el ramo identifica el plan en Sis2000; es el que usa la emisión."
-            error={intentoCrear && !cplan.trim() ? 'Escribe el código del plan.' : undefined}
+            error={errorDe('combo-cplan')}
           >
             <Input
               id="combo-cplan"
@@ -3142,20 +3294,21 @@ export function Sis2000ComboPage() {
               onChange={(e) => setCplan(e.target.value.toUpperCase().replace(/\s/g, ''))}
             />
           </FormField>
-          <FormField label="Se puede emitir desde *" htmlFor="combo-fdesde" hint="Normalmente hoy.">
+          <FormField label="Se puede emitir desde *" htmlFor="combo-fdesde" hint="Normalmente hoy." error={errorDe('combo-fdesde')}>
             <Input id="combo-fdesde" type="date" value={fdesde} onChange={(e) => setFdesde(e.target.value)} />
           </FormField>
           <FormField
             label="Se puede emitir hasta *"
             htmlFor="combo-fhasta"
             hint="Si no tiene fin, deja 31/12/2099."
-            error={fdesde && fhasta && fdesde > fhasta ? 'Debe ser posterior a «desde».' : undefined}
+            error={errorDe('combo-fhasta')}
           >
             <Input id="combo-fhasta" type="date" value={fhasta} onChange={(e) => setFhasta(e.target.value)} />
           </FormField>
           <FormField
             label="Moneda *"
             htmlFor="combo-cmoneda"
+            error={errorDe('combo-cmoneda')}
             hint="Se sugiere la que usan las coberturas del ramo."
             tooltip="Moneda de las sumas y primas del plan. Por ahora un plan tiene una sola moneda."
           >
@@ -3178,9 +3331,9 @@ export function Sis2000ComboPage() {
           <FormField
             label="Formas de pago *"
             hint="Cómo puede fraccionar el pago el asegurado. Marca al menos una."
-            error={intentoCrear && !frecuencias.length ? 'Marca al menos una.' : undefined}
+            error={errorDe('combo-frecuencias')}
           >
-            <div className="flex flex-wrap gap-2">
+            <div id="combo-frecuencias" className="flex flex-wrap gap-2">
               {opcionesFrecuencia.map((f) => (
                 <label key={f.ifrecuencia} className={ETIQUETA_OPCION}>
                   <input
@@ -3199,7 +3352,7 @@ export function Sis2000ComboPage() {
             label="Observaciones del plan"
             htmlFor="combo-xobservacion"
             hint="Opcional. Nota interna del plan (máx. 255). Ejemplo: Plan aprobado en comité del 04/11."
-            error={observacion.trim().length > 255 ? 'Máx. 255 caracteres.' : undefined}
+            error={errorDe('combo-xobservacion')}
           >
             <textarea
               id="combo-xobservacion"
@@ -3217,6 +3370,7 @@ export function Sis2000ComboPage() {
           <FormField
             span={2}
             label="Productores *"
+            error={errorDe('combo-prod-buscar')}
             hint="Busca por nombre o código y elige uno o varios, o «Todos los productores»."
             tooltip="Solo los productores elegidos verán el plan al emitir."
           >
@@ -3302,7 +3456,7 @@ export function Sis2000ComboPage() {
                   <button
                     type="button"
                     className="font-semibold underline"
-                    onClick={() => irAPaso(PASOS.findIndex((p) => p.id === f.paso))}
+                    onClick={() => (f.campo ? irACampoDelPaso(f.campo) : irAPaso(PASOS.findIndex((p) => p.id === f.paso)))}
                   >
                     Ir a «{PASOS.find((p) => p.id === f.paso)?.titulo}»
                   </button>
@@ -3413,11 +3567,24 @@ export function Sis2000ComboPage() {
           </FormField>
         </div>
 
-        {errorCrear && (
-          <Alert variant="error" className="mt-4">
-            {errorCrear}
-          </Alert>
-        )}
+        <AlertaError
+          className="mt-4"
+          titulo={modoEdicion ? 'No se pudieron guardar los cambios del plan' : 'No se pudo crear el plan'}
+          error={errorCrear}
+          onReintentar={() => void guardarPlan()}
+          reintentando={creando}
+          idDeCampo={(prop, indice) => {
+            const cc = indice !== undefined ? incluidas[indice]?.cobertura.ccobertura : undefined;
+            if (cc && ['msumamin'].includes(prop)) return `p-min-${cc}`;
+            if (cc && ['msumamax', 'msuma'].includes(prop)) return personas ? `per-suma-${cc}` : `p-max-${cc}`;
+            if (cc && ['mprima', 'pprima'].includes(prop)) return personas ? `per-prima-${cc}` : `p-valor-${cc}`;
+            if (cc && prop === 'ctablatar') return `per-tabla-${cc}`;
+            if (cc && prop === 'ctarifa') return `p-tarifa-${cc}`;
+            return idCampoPlan(prop);
+          }}
+          onIrCampo={irACampoDelPaso}
+        />
+        {errorCrear && <p className="mt-1 text-xs text-muted-foreground">Lo que llenaste sigue en esta pantalla.</p>}
 
         {planGuardado && (
           <Alert variant="success" className="mt-4">
@@ -3457,11 +3624,13 @@ export function Sis2000ComboPage() {
           </Alert>
         )}
 
-        {errorCotizar && (
-          <Alert variant="error" className="mt-3">
-            {errorCotizar}
-          </Alert>
-        )}
+        <AlertaError
+          className="mt-3"
+          titulo="No se pudo probar la cotización"
+          error={errorCotizar}
+          onReintentar={() => void cotizar()}
+          reintentando={cotizando}
+        />
 
         {cotizacion && planGuardado && (
           <div className="mt-3 overflow-x-auto rounded-lg border border-border/50">
@@ -3562,7 +3731,7 @@ export function Sis2000ComboPage() {
         <div className="min-w-0">
           {/* Todos los pasos quedan montados (los paneles de proveedores y cobro por días guardan lo pendiente). */}
           {contenidoPasos.map((contenido, i) => (
-            <div key={PASOS[i].id} hidden={i !== paso}>
+            <div key={PASOS[i].id} hidden={i !== paso} data-paso={i} onBlurCapture={registrarBlur}>
               {contenido}
             </div>
           ))}
@@ -3572,6 +3741,7 @@ export function Sis2000ComboPage() {
             onAtras={() => irAPaso(paso - 1)}
             onSiguiente={siguiente}
             faltan={faltasDe(paso)}
+            onIrCampo={irACampoDelPaso}
             mostrarFaltan={avisoPaso === paso}
             etiquetaSiguiente={paso === PASOS.length - 2 ? 'Revisar' : undefined}
             accionFinal={botonGuardar}

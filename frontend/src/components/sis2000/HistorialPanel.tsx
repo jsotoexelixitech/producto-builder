@@ -14,6 +14,8 @@ import {
   type VistaPreviaRestauracion,
 } from '@/lib/sis2000-historial';
 import { Alert } from '@/components/ui/alert';
+import { AlertaError } from '@/components/ui/errores';
+import { entenderError, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,7 +48,7 @@ const MAX_CAMBIOS = 8;
 export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, titulo = 'Historial', className }: Props) {
   const [datos, setDatos] = useState<HistorialRespuesta | null>(null);
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorEntendible | string | null>(null);
   const [aviso, setAviso] = useState<{ tipo: 'success' | 'warning'; texto: string; advertencias: string[] } | null>(null);
   const [pendiente, setPendiente] = useState<Pendiente | null>(null);
   const [vista, setVista] = useState<VistaPreviaRestauracion | null>(null);
@@ -62,7 +64,7 @@ export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, tit
     api
       .getSis2000Historial(entidad, clave)
       .then(setDatos)
-      .catch((e) => setError(e instanceof Error ? e.message : 'No se pudo cargar el historial'))
+      .catch((e) => setError(entenderError(e, { titulo: 'No se pudo cargar el historial' })))
       .finally(() => setCargando(false));
   }, [entidad, clave]);
 
@@ -81,7 +83,7 @@ export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, tit
       setVista(await api.vistaPreviaRestauracion(entidad, clave, p.destino, p.momento));
     } catch (e) {
       setPendiente(null);
-      setError(e instanceof Error ? e.message : 'No se pudo preparar la restauración');
+      setError(entenderError(e, { titulo: 'No se pudo preparar la restauración' }));
     }
   }
 
@@ -105,7 +107,7 @@ export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, tit
       cargar();
       onRestaurado?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo restaurar');
+      setError(entenderError(e, { titulo: 'No se pudo restaurar' }));
       cargar();
     } finally {
       setRestaurando(false);
@@ -133,7 +135,7 @@ export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, tit
       className={cn('mt-6', className)}
     >
       <div className="space-y-3">
-        {error && <Alert variant="error">{error}</Alert>}
+        <AlertaError error={error} />
         {aviso && (
           <Alert variant={aviso.tipo}>
             {aviso.texto}
