@@ -28,11 +28,19 @@ const BASE = moduleApiBase();
 /** Error de la API con su código HTTP (p. ej. 409 cuando el registro ya existe en Sis2000). */
 export class ApiError extends Error {
   readonly status: number;
+  /** Ruta y método llamados (para «Ver detalle técnico»). status 0 = sin conexión. */
+  readonly ruta?: string;
+  readonly metodo?: string;
+  /** Mensajes de validación sin traducir (class-validator), uno por campo. */
+  readonly mensajes?: string[];
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, extra: { ruta?: string; metodo?: string; mensajes?: string[] } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.ruta = extra.ruta;
+    this.metodo = extra.metodo;
+    this.mensajes = extra.mensajes;
   }
 }
 
@@ -71,14 +79,21 @@ function formatApiErrors(messages: string[]): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-      ...init?.headers,
-    },
-  });
+  const donde = { ruta: path, metodo: init?.method ?? 'GET' };
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+        ...init?.headers,
+      },
+    });
+  } catch (e) {
+    // Sin conexión con el servidor del configurador (status 0): lo traduce lib/errores.
+    throw new ApiError(e instanceof Error ? e.message : 'Failed to fetch', 0, donde);
+  }
   if (res.status === 401 && !path.startsWith('/auth/') && !isExelixiCatalogPublicFlow()) {
     clearAuthSession();
     window.location.assign(appRoute('/login'));
@@ -88,18 +103,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     const msg = err.message;
     if (Array.isArray(msg)) {
-      throw new ApiError(formatApiErrors(msg), res.status);
+      throw new ApiError(formatApiErrors(msg), res.status, { ...donde, mensajes: msg.map(String) });
     }
     if (typeof msg === 'string') {
-      throw new ApiError(msg, res.status);
+      throw new ApiError(msg, res.status, donde);
     }
     if (err.violations) {
       throw new ApiError(
         err.violations.map((v: { message: string }) => v.message).join('. '),
         res.status,
+        donde,
       );
     }
-    throw new ApiError(JSON.stringify(err), res.status);
+    throw new ApiError(JSON.stringify(err), res.status, donde);
   }
   return res.json();
 }
