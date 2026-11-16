@@ -846,9 +846,16 @@ export class PartnerBridgeService {
     return err.message;
   }
 
-  private throwNestHttpError(status: number, message: string): never {
+  private throwNestHttpError(status: number, message: string | string[]): never {
     if (status === 502 || status === 503 || status === 504) {
       throw new BadGatewayException(message);
+    }
+    // 401 de nest-api = credencial del configurador (NEST_API_KEY) vencida o inválida, no la sesión del usuario: si
+    // llegara como 401 el front cerraría la sesión y se perdería lo llenado.
+    if (status === 401) {
+      throw new BadGatewayException(
+        `nest-api rechazó la credencial del configurador (401). Avisa a soporte. ${Array.isArray(message) ? message.join(' ') : message}`,
+      );
     }
     throw new HttpException(
       {
