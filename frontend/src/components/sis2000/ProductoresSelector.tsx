@@ -25,8 +25,10 @@ export const PRODUCTORES_DEFAULT: ProductoresSelection = {
 /** Construye la selección a partir del JSON del plan (all_productor / productores[]). */
 export function productoresFromPayload(payload: Record<string, unknown>): ProductoresSelection {
   if (payload.all_productor === true) return { todos: true, productores: [] };
-  const lista = Array.isArray(payload.productores) ? (payload.productores as Record<string, unknown>[]) : [];
+  // nest-api devuelve productores como números ([80080]); el JSON del builder, como objetos ({ cproductor }).
+  const lista = Array.isArray(payload.productores) ? (payload.productores as unknown[]) : [];
   const productores = lista
+    .map((x) => (typeof x === 'object' && x !== null ? (x as Record<string, unknown>) : { cproductor: x }))
     .map((p) => ({ cproductor: Number(p.cproductor), xproductor: typeof p.xproductor === 'string' ? p.xproductor : undefined }))
     .filter((p) => Number.isInteger(p.cproductor) && p.cproductor > 0);
   return { todos: false, productores: productores.length ? productores : PRODUCTORES_DEFAULT.productores };
