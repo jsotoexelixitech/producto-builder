@@ -18,13 +18,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FormField, FormGrid } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { ComboBuscable } from '@/components/ui/combo-buscable';
 
 const ETIQUETA_OPCION =
   'inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs font-medium';
@@ -259,25 +253,20 @@ export function Sis2000NuevaCoberturaForm({
           </FormField>
           <FormField label="Moneda *" hint="Moneda de la suma asegurada y la prima." error={err('cmoneda')}>
             {monedas.length ? (
-              <Select
+              <ComboBuscable
+                id="nc-cmoneda"
+                ariaLabel="Moneda"
+                placeholder="Escribe la moneda…"
                 value={form.cmoneda}
-                onValueChange={(v) => cambiar('cmoneda', v)}
+                onChange={(v) => cambiar('cmoneda', v)}
                 disabled={bloqueada}
-              >
-                <SelectTrigger aria-label="Moneda">
-                  <SelectValue placeholder="Elige la moneda…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {!monedas.some((m) => m.codigo === form.cmoneda) && form.cmoneda && (
-                    <SelectItem value={form.cmoneda}>{form.cmoneda}</SelectItem>
-                  )}
-                  {monedas.map((m) => (
-                    <SelectItem key={m.codigo} value={m.codigo}>
-                      {m.nombre ? `${m.nombre} (${m.codigo})` : m.codigo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                opciones={[
+                  ...(!monedas.some((m) => m.codigo === form.cmoneda) && form.cmoneda
+                    ? [{ valor: form.cmoneda, etiqueta: form.cmoneda }]
+                    : []),
+                  ...monedas.map((m) => ({ valor: m.codigo, etiqueta: m.nombre ? `${m.nombre} (${m.codigo})` : m.codigo })),
+                ]}
+              />
             ) : (
               <Input
                 aria-label="Moneda"
@@ -452,23 +441,26 @@ export function Sis2000NuevaCoberturaForm({
               onChange={(e) => cambiar('xtarifam', e.target.value)}
             />
           </FormField>
-          <FormField label="Copiar datos internos de" hint="Toma el ramo y la cobertura internos de una cobertura parecida del ramo.">
-            <Select value={form.basadaEn || SIN_BASE} onValueChange={elegirBase} disabled={bloqueada}>
-              <SelectTrigger aria-label="Copiar datos internos de">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value={SIN_BASE}>Ninguna (dejar vacíos)</SelectItem>
-                {conCodigo.map((c) => {
+          <FormField
+            label="Copiar datos internos de"
+            htmlFor="nc-basada"
+            hint="Escribe el nombre o código de una cobertura parecida del ramo para tomar su ramo y cobertura internos."
+          >
+            <ComboBuscable
+              id="nc-basada"
+              ariaLabel="Copiar datos internos de"
+              placeholder="Escribe la cobertura…"
+              value={form.basadaEn || SIN_BASE}
+              onChange={elegirBase}
+              disabled={bloqueada}
+              opciones={[
+                { valor: SIN_BASE, etiqueta: 'Ninguna (dejar vacíos)' },
+                ...conCodigo.map((c) => {
                   const cod = texto(c.ccobertura);
-                  return (
-                    <SelectItem key={cod} value={cod}>
-                      {texto(c.xdescripcion_l) || 'Sin nombre'} ({cod})
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+                  return { valor: cod, etiqueta: `${texto(c.xdescripcion_l) || 'Sin nombre'} (${cod})` };
+                }),
+              ]}
+            />
           </FormField>
           <FormField label="Ramo interno" htmlFor="nc-cramoint" error={err('cramoint')}>
             <Input

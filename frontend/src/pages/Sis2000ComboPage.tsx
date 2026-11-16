@@ -78,6 +78,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ComboBuscable, type OpcionCombo } from '@/components/ui/combo-buscable';
 import { FormField, FormGrid } from '@/components/ui/form-field';
 import { InfoTip } from '@/components/ui/info-tip';
 import { Input } from '@/components/ui/input';
@@ -904,6 +905,37 @@ export function Sis2000ComboPage() {
     });
     return cuenta;
   }, [opcionesProductoFiltradas]);
+  /** Opciones del buscador de ramo: «AUTOMOVIL (18)»; se encuentra por nombre o número. */
+  const opcionesComboRamo = useMemo<OpcionCombo[]>(
+    () => [
+      { valor: RAMO_TODOS, etiqueta: 'Todos los ramos' },
+      ...opcionesRamo.map((r) => ({ valor: String(r.cramo), etiqueta: r.etiqueta, buscar: String(r.cramo) })),
+    ],
+    [opcionesRamo],
+  );
+  /** Opciones del buscador de producto: nombre; se encuentra también por código y ramo. */
+  const opcionesComboProducto = useMemo<OpcionCombo[]>(
+    () =>
+      opcionesProductoFiltradas.map((o) => {
+        const nombre = texto(o.producto.xdescripcion_l) || 'Sin nombre';
+        const repetido = (nombresRepetidos.get(nombre.toUpperCase()) ?? 0) > 1;
+        const detalle = [
+          ramoFiltro === RAMO_TODOS && o.cramo ? `ramo ${o.cramo}` : '',
+          !o.cramo ? 'sin ramo' : '',
+          o.tieneNexus ? 'también en Nexus' : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        return {
+          valor: o.clave,
+          etiqueta: repetido ? `${nombre} (${o.cproducto})` : nombre,
+          detalle: detalle || undefined,
+          buscar: `${o.cproducto} ${o.cramo}`,
+          deshabilitada: !o.cramo,
+        };
+      }),
+    [opcionesProductoFiltradas, nombresRepetidos, ramoFiltro],
+  );
   const opcionProducto = useMemo(
     () => opcionesProducto.find((o) => o.clave === claveProducto) ?? null,
     [opcionesProducto, claveProducto],
@@ -2057,60 +2089,39 @@ export function Sis2000ComboPage() {
           <FormGrid>
             <FormField
               label="Ramo"
-              hint="Ejemplo: Responsabilidad Civil, Vida, Salud."
+              htmlFor="combo-ramo"
+              hint="Escribe el nombre o el número. Ejemplo: «auto» o «18»."
               tooltip="Lista de ramos de Sis2000. Solo sirve para acortar la lista de productos."
             >
-              {cargandoProductos && !productos.length ? (
-                <div className="h-[42px] animate-pulse rounded-xl bg-muted/60" />
-              ) : (
-                <Select value={ramoFiltro} onValueChange={elegirRamo}>
-                  <SelectTrigger aria-label="Ramo">
-                    <SelectValue placeholder="Todos los ramos" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    <SelectItem value={RAMO_TODOS}>Todos los ramos</SelectItem>
-                    {opcionesRamo.map((r) => (
-                      <SelectItem key={r.cramo} value={String(r.cramo)}>
-                        {r.etiqueta}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <ComboBuscable
+                id="combo-ramo"
+                ariaLabel="Ramo"
+                placeholder="Escribe el ramo…"
+                value={ramoFiltro}
+                onChange={elegirRamo}
+                cargando={cargandoProductos && !opcionesRamo.length}
+                opciones={opcionesComboRamo}
+              />
             </FormField>
             <FormField
               label="Producto"
+              htmlFor="combo-producto"
               hint={
                 !cargandoProductos && !errorProductos && ramoElegido > 0 && !opcionesProductoFiltradas.length
                   ? 'Este ramo todavía no tiene productos: créalo abajo.'
-                  : 'El producto comercial al que pertenece el plan.'
+                  : 'Escribe el nombre o el código del producto.'
               }
               tooltip="Productos registrados en Sis2000. Los que también se ofrecen por Nexus lo indican al lado."
             >
-              {cargandoProductos && !productos.length ? (
-                <div className="h-[42px] animate-pulse rounded-xl bg-muted/60" />
-              ) : (
-                <Select value={claveProducto} onValueChange={elegirProducto}>
-                  <SelectTrigger aria-label="Producto">
-                    <SelectValue placeholder="Elige un producto…" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {opcionesProductoFiltradas.map((o) => {
-                      const nombre = texto(o.producto.xdescripcion_l) || 'Sin nombre';
-                      const repetido = (nombresRepetidos.get(nombre.toUpperCase()) ?? 0) > 1;
-                      return (
-                        <SelectItem key={o.clave} value={o.clave} disabled={!o.cramo}>
-                          {nombre}
-                          {repetido ? ` (${o.cproducto})` : ''}
-                          {ramoFiltro === RAMO_TODOS && o.cramo ? ` · ramo ${o.cramo}` : ''}
-                          {!o.cramo ? ' · sin ramo' : ''}
-                          {o.tieneNexus ? ' · también en Nexus' : ''}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              )}
+              <ComboBuscable
+                id="combo-producto"
+                ariaLabel="Producto"
+                placeholder="Escribe el producto…"
+                value={claveProducto}
+                onChange={elegirProducto}
+                cargando={cargandoProductos && !productos.length}
+                opciones={opcionesComboProducto}
+              />
             </FormField>
           </FormGrid>
 
@@ -3149,18 +3160,17 @@ export function Sis2000ComboPage() {
             tooltip="Moneda de las sumas y primas del plan. Por ahora un plan tiene una sola moneda."
           >
             {monedas.length ? (
-              <Select value={cmoneda} onValueChange={setCmoneda}>
-                <SelectTrigger id="combo-cmoneda">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {opcionesDeMoneda.map((m) => (
-                    <SelectItem key={m.codigo} value={m.codigo}>
-                      {m.nombre ? `${m.nombre} (${m.codigo})` : m.codigo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboBuscable
+                id="combo-cmoneda"
+                ariaLabel="Moneda"
+                placeholder="Escribe la moneda…"
+                value={cmoneda}
+                onChange={setCmoneda}
+                opciones={opcionesDeMoneda.map((m) => ({
+                  valor: m.codigo,
+                  etiqueta: m.nombre ? `${m.nombre} (${m.codigo})` : m.codigo,
+                }))}
+              />
             ) : (
               <Input id="combo-cmoneda" value={cmoneda} maxLength={3} onChange={(e) => setCmoneda(e.target.value)} />
             )}
