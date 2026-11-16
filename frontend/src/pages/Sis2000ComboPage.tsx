@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Boxes,
   Calculator,
-  Check,
   ClipboardCheck,
   Equal,
   FileText,
+  Lock,
   Package,
   Pencil,
   Plus,
@@ -34,6 +34,7 @@ import {
   type Sis2000NestRow,
   type Sis2000PlanType,
 } from '@/lib/sis2000-nest-api';
+import { claveHistorial } from '@/lib/sis2000-historial';
 import { AppShell } from '@/components/layout/AppShell';
 import {
   CoberturaSumaConfigFields,
@@ -50,11 +51,13 @@ import {
 import {
   CANALES_DEFAULT,
   CanalesSelector,
+  canalesFromPayload,
   canalesToPayloadFields,
   type CanalesSelection,
 } from '@/components/sis2000/CanalesSelector';
 import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
 import { CobroDiasPanel } from '@/components/sis2000/CobroDiasPanel';
+import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
 import { TablaEdadDialog, type TablaEdad } from '@/components/sis2000/TablaEdadDialog';
 import { TablaEdadBuscador } from '@/components/sis2000/TablaEdadBuscador';
 import {
@@ -62,11 +65,19 @@ import {
   ParentescosSelector,
   type Parentesco,
 } from '@/components/sis2000/ParentescosSelector';
+import {
+  BarraPasos,
+  ComoSeUsa,
+  ConfirmarDialog,
+  DetallesTecnicos,
+  NavegacionPasos,
+  type EstadoPaso,
+} from '@/components/sis2000/AsistentePasos';
 import { formatoMonto2, traducirErrorSis2000 } from '@/lib/sis2000-tramos';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField, FormGrid } from '@/components/ui/form-field';
 import { InfoTip } from '@/components/ui/info-tip';
 import { Input } from '@/components/ui/input';
@@ -95,52 +106,18 @@ const PRODUCTO_NUEVO = {
   icanal: true,
 };
 
+interface Frecuencia {
+  ifrecuencia: string;
+  xfrecuencia: string;
+  ndias?: number;
+}
+
 /** Frecuencias de pago que admite el plan (maplanes_frec). */
-const FRECUENCIAS = [
+const FRECUENCIAS: Frecuencia[] = [
   { ifrecuencia: 'A', xfrecuencia: 'Anual', ndias: 365 },
   { ifrecuencia: 'S', xfrecuencia: 'Semestral', ndias: 180 },
   { ifrecuencia: 'T', xfrecuencia: 'Trimestral', ndias: 90 },
   { ifrecuencia: 'M', xfrecuencia: 'Mensual', ndias: 30 },
-];
-
-/** Columnas editables de cada cobertura (se graban en maplantar, no cambian la tarifa). */
-const MONTOS = [
-  {
-    campo: 'msumamin',
-    etiqueta: 'Suma mínima',
-    ayuda: 'Suma asegurada mínima de la cobertura en este plan (maplantar.msumamin).',
-  },
-  {
-    campo: 'msumamax',
-    etiqueta: 'Suma máxima',
-    ayuda: 'Suma asegurada máxima de la cobertura en este plan (maplantar.msumamax). Debe ser mayor a 0.',
-  },
-  {
-    campo: 'pprima',
-    etiqueta: 'Tasa %',
-    ayuda: 'Tasa en % sobre la suma asegurada (maplantar.pprima). Indica tasa o prima fija.',
-  },
-  {
-    campo: 'mprima',
-    etiqueta: 'Prima fija',
-    ayuda: 'Prima fija de la cobertura (maplantar.mprima). Indica tasa o prima fija.',
-  },
-] as const;
-
-type CampoMonto = (typeof MONTOS)[number]['campo'];
-
-/** Columnas de monto en planes de personas (van al parentesco: mapltarifas_per). */
-const MONTOS_PERSONAS: ReadonlyArray<{ campo: CampoMonto; etiqueta: string; ayuda: string }> = [
-  {
-    campo: 'msumamax',
-    etiqueta: 'Suma asegurada',
-    ayuda: 'Suma asegurada de la cobertura para cada parentesco del plan (msuma y msumamax). Viene de la tarifa; 0 si la suma sale de la tabla de tasas.',
-  },
-  {
-    campo: 'mprima',
-    etiqueta: 'Prima',
-    ayuda: 'Prima de la cobertura por persona (mprima). Déjala en 0 si la prima sale de la tabla de tasas por edad.',
-  },
 ];
 
 const SEXOS = [
@@ -148,6 +125,12 @@ const SEXOS = [
   { valor: 'M', etiqueta: 'Masculino' },
   { valor: 'F', etiqueta: 'Femenino' },
 ];
+
+/** Datos de la cabecera del plan que el formulario no muestra pero que se conservan al editar. */
+const CABECERA_CONSERVADA = ['itiporen', 'idevolucion', 'ctipo', 'ctenedor', 'cbeneficiario', 'bnacional'] as const;
+
+/** Cómo se cobra una cobertura de cosas: tasa % sobre la suma o prima fija (excluyentes). */
+type ModoPrecio = 'tasa' | 'prima';
 
 /** Lo propio de personas por cobertura: tabla de tasas (vacía = la del plan) y si es obligatoria en el plan. */
 interface FilaPersonas {
@@ -177,6 +160,7 @@ interface BorradorCombo {
   frecuencias: string[];
   productoresSel: ProductoresSelection;
   canalesSel: CanalesSelection;
+  observacion?: string;
   /** Ramo al que pertenecen las filas guardadas (si el usuario cambia de ramo, no se aplican). */
   cramo: number;
   filas: Record<string, FilaCombo>;
@@ -211,19 +195,30 @@ function borrarBorrador() {
   }
 }
 
-/** Pasos del flujo (barra superior). */
+/** Pasos del asistente. */
 const PASOS = [
-  { id: 'paso-ramo', etiqueta: 'Ramo' },
-  { id: 'paso-producto', etiqueta: 'Producto' },
-  { id: 'paso-tipo', etiqueta: 'Tipo de plan' },
-  { id: 'paso-coberturas', etiqueta: 'Coberturas' },
-  { id: 'paso-tablas', etiqueta: 'Tablas por edad' },
-  { id: 'paso-datos', etiqueta: 'Datos del plan' },
-  { id: 'paso-revisar', etiqueta: 'Revisar y crear' },
+  { id: 'producto', titulo: 'Producto', resumen: 'Ramo, producto y tipo de plan' },
+  { id: 'coberturas', titulo: 'Coberturas', resumen: 'Qué cubre el plan' },
+  { id: 'precios', titulo: 'Tarifas y tasas', resumen: 'Suma asegurada y cómo se cobra cada cobertura' },
+  { id: 'datos', titulo: 'Datos del plan', resumen: 'Nombre, vigencia, moneda, pagos y quién lo ofrece' },
+  { id: 'revisar', titulo: 'Revisar y confirmar', resumen: 'Qué se va a guardar en Sis2000' },
 ] as const;
 
-function irA(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+type PasoId = (typeof PASOS)[number]['id'];
+
+/** Algo que falta o está mal, con el paso donde se corrige. */
+interface Falta {
+  paso: PasoId;
+  texto: string;
+}
+
+/** Tasa en % con hasta 6 decimales, en formato local. */
+const fmtTasa = (n: number) => n.toLocaleString('es-VE', { maximumFractionDigits: 6 });
+
+/** 'YYYY-MM-DD' → 'dd/mm/aaaa' (vacío si no es fecha). */
+function fechaCorta(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
 /** Precio de un tramo en palabras («prima 12,50» o «tasa 0,449 % × suma»). */
@@ -232,10 +227,9 @@ function precioTramo(t: { pprima?: number; mprima?: number }, suma: number, mone
   const tasa = Number(t.pprima ?? 0);
   if (prima > 0) return `prima fija ${moneda} ${formatoMonto2(prima)}`;
   if (tasa > 0) {
-    const tasaTxt = tasa.toLocaleString('es-VE', { maximumFractionDigits: 6 });
     return suma > 0
-      ? `tasa ${tasaTxt} % × suma ${formatoMonto2(suma)} = ${moneda} ${formatoMonto2((suma * tasa) / 100)}`
-      : `tasa ${tasaTxt} % sobre la suma asegurada`;
+      ? `tasa ${fmtTasa(tasa)} % × suma ${formatoMonto2(suma)} = ${moneda} ${formatoMonto2((suma * tasa) / 100)}`
+      : `tasa ${fmtTasa(tasa)} % sobre la suma asegurada`;
   }
   return 'sin precio';
 }
@@ -272,6 +266,8 @@ interface FilaCombo {
   msumamax: string;
   pprima: string;
   mprima: string;
+  /** Cosas: tasa o prima fija (solo se graba la elegida; la otra va en 0). */
+  modo: ModoPrecio;
 }
 
 interface VistaCobertura {
@@ -289,12 +285,25 @@ interface VistaCobertura {
 
 type VistaIncluida = VistaCobertura & { fila: FilaCombo; tarifa: Sis2000NestRow };
 
-interface PlanCreado {
+interface PlanGuardado {
   cramo: number;
   cplan: string;
   tipo: Sis2000PlanType;
   /** Frecuencia con la que se cotiza: Anual si el plan la tiene, si no la primera del plan. */
   ifrecuencia: string;
+  editado: boolean;
+}
+
+/** Plan leído de Sis2000 para editarlo con el formulario. */
+interface PlanOriginal {
+  /** Plan en la forma de PlanDto (lo que devuelve v1/configurador/planes/:cramo/:cplan). */
+  plan: Record<string, unknown>;
+  tipo: Sis2000PlanType;
+  /** Coberturas que ya tiene el plan (no se quitan desde aquí). */
+  coberturas: string[];
+  advertencias: string[];
+  /** Personas: por qué el formulario no puede guardarlo sin perder datos (null = se puede). */
+  bloqueo: string | null;
 }
 
 const texto = (v: unknown) => (v == null ? '' : String(v).trim());
@@ -318,6 +327,11 @@ function aInput(valor: unknown): string {
   if (valor == null || valor === '') return '';
   const n = Number(valor);
   return Number.isFinite(n) ? String(n) : '';
+}
+
+/** Con tasa se cobra por tasa; si solo hay prima fija, por prima. */
+function modoInicial(pprima: string, mprima: string): ModoPrecio {
+  return numero(pprima) > 0 || !(numero(mprima) > 0) ? 'tasa' : 'prima';
 }
 
 const formatoMonto = (n: number) =>
@@ -356,12 +370,15 @@ function valoresDeTarifa(
   hoy: string,
 ): Omit<FilaCombo, 'incluir'> {
   const detalle = detalleVigente(tarifa, hoy);
+  const pprima = aInput(detalle?.pprima);
+  const mprima = aInput(detalle?.mprima);
   return {
     ctarifa: texto(tarifa?.ctarifa),
     msumamin: aInput(detalle?.msumamin),
     msumamax: aInput(detalle?.msumamax),
-    pprima: aInput(detalle?.pprima),
-    mprima: aInput(detalle?.mprima),
+    pprima,
+    mprima,
+    modo: modoInicial(pprima, mprima),
   };
 }
 
@@ -372,6 +389,28 @@ function filaInicial(ccobertura: string, tarifas: Sis2000NestRow[], hoy: string)
     incluir: Boolean(tarifa) && esObligatoria(tarifa, ccobertura),
     ...valoresDeTarifa(tarifa, hoy),
   };
+}
+
+/** Fila guardada (borrador viejo sin «modo» o plan leído): se completa el modo. */
+function normalizarFila(f: FilaCombo): FilaCombo {
+  return { ...f, modo: f.modo === 'prima' || f.modo === 'tasa' ? f.modo : modoInicial(f.pprima, f.mprima) };
+}
+
+/** Opción de tarifa en palabras (sin código ni nombre interno): «Opción 1 · tasa 0,5 % · suma hasta $ 50.000». */
+function etiquetaTarifa(t: Sis2000NestRow, i: number, hoy: string, moneda: string): string {
+  const d = detalleVigente(t, hoy);
+  const partes = [`Opción ${i + 1}`];
+  if (d) {
+    const tasa = Number(d.pprima ?? 0);
+    const prima = Number(d.mprima ?? 0);
+    const max = Number(d.msumamax ?? 0);
+    if (tasa > 0) partes.push(`tasa ${fmtTasa(tasa)} %`);
+    else if (prima > 0) partes.push(`prima fija ${moneda} ${formatoMonto2(prima)}`);
+    if (max > 0) partes.push(`suma hasta ${moneda} ${formatoMonto2(max)}`);
+    const desde = fechaCorta(texto(d.fdesde));
+    if (desde) partes.push(`desde ${desde}`);
+  }
+  return partes.join(' · ');
 }
 
 function aCoberturaRamo(fila: Sis2000NestRow): CoberturaRamo {
@@ -426,18 +465,190 @@ async function enParalelo<T>(items: T[], limite: number, tarea: (item: T) => Pro
   await Promise.all(Array.from({ length: Math.min(limite, items.length) }, trabajador));
 }
 
+/** Producto provisional (aún no aparece en el catálogo): el plan solo necesita cproducto y cramo. */
+function productoProvisional(cproducto: string, cramo: number, nombre = '', extra: Partial<Sis2000Product> = {}): Sis2000Product {
+  return {
+    cproducto,
+    cramo,
+    u_version: null,
+    xdescripcion_l: nombre,
+    xdescripcion_c: null,
+    xabreviatura: '',
+    iproductor: true,
+    icanal: true,
+    xform: '',
+    cprog: null,
+    ifuente: null,
+    bok: null,
+    cerror: null,
+    fingreso: null,
+    cusuario: null,
+    ...extra,
+  } as unknown as Sis2000Product;
+}
+
+/** Lo que el formulario necesita de un plan leído de Sis2000. */
+interface PlanParaFormulario {
+  tipo: Sis2000PlanType;
+  cramo: number;
+  cproducto: string;
+  filas: Record<string, FilaCombo>;
+  filasPer: Record<string, FilaPersonas>;
+  personas: { cparens: number[]; csexo: string; min: number; max: number } | null;
+  frecuencias: Frecuencia[];
+  productores: ProductoresSelection;
+  canales: CanalesSelection;
+  bloqueo: string | null;
+}
+
+/**
+ * Pasa el plan de Sis2000 (forma de PlanDto) a los campos del formulario. En personas el formulario usa los
+ * mismos parentescos, sexo y edades para todas las coberturas y la misma tabla y montos para todos los
+ * parentescos de una cobertura: si el plan no es así, `bloqueo` lo explica (guardar perdería esa diferencia).
+ */
+function planAFormulario(plan: Record<string, unknown>, tipoLeido: string): PlanParaFormulario {
+  const tipo: Sis2000PlanType = texto(tipoLeido || plan.type) === 'personas' ? 'personas' : 'cosas';
+  const coberturas = Array.isArray(plan.coberturas) ? (plan.coberturas as Record<string, unknown>[]) : [];
+  const filas: Record<string, FilaCombo> = {};
+  const filasPer: Record<string, FilaPersonas> = {};
+  let personas: PlanParaFormulario['personas'] = null;
+  let bloqueo: string | null = null;
+  const marcar = (motivo: string) => {
+    if (!bloqueo) bloqueo = motivo;
+  };
+
+  for (const c of coberturas) {
+    const cc = texto(c.ccobertura);
+    if (!cc) continue;
+    if (tipo === 'personas') {
+      const ps = Array.isArray(c.parentescos) ? (c.parentescos as Record<string, unknown>[]) : [];
+      if (!ps.length) {
+        marcar(`una cobertura del plan no tiene parentescos (${cc})`);
+        continue;
+      }
+      const p0 = ps[0];
+      const firma = (p: Record<string, unknown>) =>
+        [texto(p.csexo) || 'A', Number(p.nedad_min), Number(p.nedad_max)].join('|');
+      const precio = (p: Record<string, unknown>) =>
+        [texto(p.ctablatar).toUpperCase(), Number(p.msuma ?? 0), Number(p.msumamax ?? 0), Number(p.mprima ?? 0)].join('|');
+      if (ps.some((p) => firma(p) !== firma(p0))) marcar('las edades o el sexo cambian según el parentesco');
+      if (ps.some((p) => precio(p) !== precio(p0))) marcar('la tabla de tasas o los montos cambian según el parentesco');
+      if (Number(p0.msuma ?? 0) !== Number(p0.msumamax ?? 0)) marcar('la suma y la suma máxima por persona son distintas');
+      const cparens = ps.map((p) => Number(p.cparen)).filter((n) => Number.isInteger(n) && n > 0);
+      const base = {
+        cparens: [...cparens].sort((a, b) => a - b),
+        csexo: texto(p0.csexo) || 'A',
+        min: Number(p0.nedad_min) || 0,
+        max: Number(p0.nedad_max) || 0,
+      };
+      if (!personas) personas = base;
+      else if (
+        personas.cparens.join(',') !== base.cparens.join(',') ||
+        personas.csexo !== base.csexo ||
+        personas.min !== base.min ||
+        personas.max !== base.max
+      ) {
+        marcar('las coberturas no tienen los mismos parentescos, sexo o edades');
+      }
+      filas[cc] = {
+        incluir: true,
+        ctarifa: texto(c.ctarifa),
+        msumamin: '',
+        msumamax: aInput(p0.msumamax ?? p0.msuma),
+        pprima: '',
+        mprima: aInput(p0.mprima),
+        modo: 'prima',
+      };
+      filasPer[cc] = { ctablatar: texto(p0.ctablatar).toUpperCase(), obligatoria: c.bobligatoria !== false };
+    } else {
+      const pprima = aInput(c.pprima);
+      const mprima = aInput(c.mprima);
+      filas[cc] = {
+        incluir: true,
+        ctarifa: texto(c.ctarifa),
+        msumamin: aInput(c.msumamin),
+        msumamax: aInput(c.msumamax),
+        pprima,
+        mprima,
+        modo: modoInicial(pprima, mprima),
+      };
+    }
+  }
+
+  const frecuencias = (Array.isArray(plan.frecuencias) ? (plan.frecuencias as Record<string, unknown>[]) : [])
+    .map((f) => ({
+      ifrecuencia: texto(f.ifrecuencia),
+      xfrecuencia: texto(f.xfrecuencia) || texto(f.ifrecuencia),
+      ndias: Number(f.ndias) > 0 ? Number(f.ndias) : undefined,
+    }))
+    .filter((f) => f.ifrecuencia);
+
+  const listaProductores = Array.isArray(plan.productores) ? (plan.productores as unknown[]) : [];
+  const productores: ProductoresSelection =
+    plan.all_productor === true
+      ? { todos: true, productores: [] }
+      : {
+          todos: false,
+          productores: listaProductores
+            .map((p) => Number(typeof p === 'object' && p !== null ? (p as Record<string, unknown>).cproductor : p))
+            .filter((n) => Number.isInteger(n) && n > 0)
+            .map((cproductor) => ({ cproductor })),
+        };
+
+  return {
+    tipo,
+    cramo: Number(plan.cramo) || 0,
+    cproducto: texto(plan.cproducto),
+    filas,
+    filasPer,
+    personas,
+    frecuencias,
+    productores,
+    canales: canalesFromPayload(plan),
+    bloqueo: bloqueo
+      ? `Este plan no se puede guardar desde el formulario porque ${bloqueo}: el formulario usa los mismos datos para todos y se perdería esa diferencia. Usa el modo avanzado (JSON).`
+      : null,
+  };
+}
+
+/**
+ * Ruta /sis2000/plans/:id/edit: el mismo asistente en modo edición, una instancia por plan (al pasar de un plan a
+ * otro, o de editar a crear, el formulario empieza limpio).
+ */
+export function Sis2000PlanEditarPage() {
+  const { id } = useParams<{ id?: string }>();
+  return <Sis2000ComboPage key={`editar-${id ?? ''}`} />;
+}
+
 export function Sis2000ComboPage() {
+  /** Con :id (cramo-cplan) la pantalla edita un plan existente; sin él arma un combo nuevo. */
+  const { id: editId } = useParams<{ id?: string }>();
+  const modoEdicion = Boolean(editId);
   const hoy = useMemo(hoyIso, []);
-  /** Borrador guardado en este navegador (se lee una sola vez al abrir la pantalla). */
-  const [inicio] = useState(leerBorrador);
-  /** Filas del borrador que aún no se aplicaron: se usan al llegar las tarifas del mismo ramo. */
-  const borradorFilas = useRef<{ cramo: number; filas: Record<string, FilaCombo>; filasPer: Record<string, FilaPersonas> } | null>(
+  /** Borrador guardado en este navegador (se lee una sola vez al abrir la pantalla; no aplica al editar). */
+  const [inicio] = useState(() => (editId ? null : leerBorrador()));
+  /**
+   * Filas que aún no se aplicaron: se usan al llegar las tarifas del mismo ramo. `conservar` = vienen del plan
+   * leído de Sis2000 (se respetan aunque su tarifa ya no esté vigente, para avisar en vez de perderlas).
+   */
+  const borradorFilas = useRef<{
+    cramo: number;
+    filas: Record<string, FilaCombo>;
+    filasPer: Record<string, FilaPersonas>;
+    conservar?: boolean;
+  } | null>(
     inicio && inicio.cramo > 0 ? { cramo: inicio.cramo, filas: inicio.filas ?? {}, filasPer: inicio.filasPer ?? {} } : null,
   );
   const [borradorRestaurado] = useState(Boolean(inicio));
   /** true al pedir «Empezar de cero»: ya no se vuelve a guardar el borrador. */
-  const sinBorrador = useRef(false);
+  const sinBorrador = useRef(Boolean(editId));
   const [ultimoGuardado, setUltimoGuardado] = useState<string | null>(inicio?.guardado ?? null);
+
+  // ── Asistente ──
+  const [paso, setPaso] = useState(0);
+  /** Paso en el que se pulsó «Siguiente» con cosas pendientes (muestra la lista). */
+  const [avisoPaso, setAvisoPaso] = useState<number | null>(null);
+  const arriba = useRef<HTMLDivElement>(null);
 
   const [productos, setProductos] = useState<Sis2000Product[]>([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
@@ -452,6 +663,7 @@ export function Sis2000ComboPage() {
   const [nuevoProducto, setNuevoProducto] = useState(PRODUCTO_NUEVO);
   const [intentoProducto, setIntentoProducto] = useState(false);
   const [guardandoProducto, setGuardandoProducto] = useState(false);
+  const [confirmandoProducto, setConfirmandoProducto] = useState(false);
   const [errorNuevoProducto, setErrorNuevoProducto] = useState<string | null>(null);
   const [avisoProducto, setAvisoProducto] = useState<string | null>(null);
 
@@ -463,6 +675,7 @@ export function Sis2000ComboPage() {
   const [tarifas, setTarifas] = useState<Record<string, CargaTarifas>>({});
   const [filas, setFilas] = useState<Record<string, FilaCombo>>({});
   const [mostrarInactivas, setMostrarInactivas] = useState(false);
+  const [soloMarcadas, setSoloMarcadas] = useState(false);
   const [search, setSearch] = useState('');
   const [recarga, setRecarga] = useState(0);
   /** Sube con cada carga del ramo: las respuestas de una carga anterior se descartan. */
@@ -516,11 +729,23 @@ export function Sis2000ComboPage() {
   const [cmoneda, setCmoneda] = useState(inicio?.cmoneda || '$');
   const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [frecuencias, setFrecuencias] = useState<string[]>(Array.isArray(inicio?.frecuencias) ? inicio.frecuencias : ['A']);
-  /** Quién puede vender el plan: lista de productores (por defecto 80080) o todos. */
+  /** Frecuencias que el plan ya tiene y no están en la lista base (p. ej. por días): se conservan al editar. */
+  const [frecuenciasExtra, setFrecuenciasExtra] = useState<Frecuencia[]>([]);
+  const [observacion, setObservacion] = useState(inicio?.observacion ?? '');
+  /** Quién puede ofrecer el plan: lista de productores (por defecto 80080) o todos. */
   const [productoresSel, setProductoresSel] = useState<ProductoresSelection>(inicio?.productoresSel ?? PRODUCTORES_DEFAULT);
   /** Canales alternos (mausuplan C): solo si el servidor lo habilita (SIS2000_PLAN_CANALES). */
   const [canalesSel, setCanalesSel] = useState<CanalesSelection>(inicio?.canalesSel ?? CANALES_DEFAULT);
   const [canalesHabilitados, setCanalesHabilitados] = useState(false);
+
+  // ── Edición de un plan existente ──
+  const [planOriginal, setPlanOriginal] = useState<PlanOriginal | null>(null);
+  const [cargandoPlan, setCargandoPlan] = useState(modoEdicion);
+  const [errorPlan, setErrorPlan] = useState<string | null>(null);
+  /** Producto del plan leído: se elige cuando llega el catálogo de productos. */
+  const [productoPlan, setProductoPlan] = useState<{ cproducto: string; cramo: number } | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [versionHistorial, setVersionHistorial] = useState(0);
 
   useEffect(() => {
     void api
@@ -530,9 +755,10 @@ export function Sis2000ComboPage() {
   }, []);
 
   const [intentoCrear, setIntentoCrear] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
   const [creando, setCreando] = useState(false);
   const [errorCrear, setErrorCrear] = useState<string | null>(null);
-  const [planCreado, setPlanCreado] = useState<PlanCreado | null>(null);
+  const [planGuardado, setPlanGuardado] = useState<PlanGuardado | null>(null);
   /** Cambia solo al empezar otro plan tras uno ya creado: así los proveedores pendientes no se pierden al crear. */
   const [proveedoresKey, setProveedoresKey] = useState(0);
   const [cotizando, setCotizando] = useState(false);
@@ -546,7 +772,7 @@ export function Sis2000ComboPage() {
       setProductos(await api.listSis2000Products());
     } catch (e) {
       setErrorProductos(
-        e instanceof Error ? e.message : 'No se pudo cargar el catálogo de productos Sis2000',
+        e instanceof Error ? e.message : 'No se pudo cargar el catálogo de productos de Sis2000',
       );
     } finally {
       setCargandoProductos(false);
@@ -571,7 +797,79 @@ export function Sis2000ComboPage() {
       .catch(() => setRamosSis2000([]));
   }, []);
 
+  // Editar: lee el plan completo de Sis2000 y llena el formulario.
+  useEffect(() => {
+    if (!editId) return;
+    let vigente = true;
+    setCargandoPlan(true);
+    setErrorPlan(null);
+    api
+      .leerSis2000Plan(editId)
+      .then((leido) => {
+        if (!vigente) return;
+        const plan = (leido?.plan ?? {}) as Record<string, unknown>;
+        const f = planAFormulario(plan, texto(leido?.type));
+        if (!f.cramo || !f.cproducto) {
+          setErrorPlan('El plan leído de Sis2000 no trae ramo o producto: no se puede editar con el formulario.');
+          return;
+        }
+        borradorFilas.current = { cramo: f.cramo, filas: f.filas, filasPer: f.filasPer, conservar: true };
+        setTipoPlan(f.tipo);
+        setRamoFiltro(String(f.cramo));
+        setProductoPlan({ cproducto: f.cproducto, cramo: f.cramo });
+        setCplan(texto(plan.cplan));
+        setXplan(texto(plan.xplan));
+        setFdesde(texto(plan.fdesde).slice(0, 10) || hoyIso());
+        setFhasta(texto(plan.fhasta).slice(0, 10) || '2099-12-31');
+        setCmoneda(texto(plan.cmoneda) || '$');
+        setObservacion(texto(plan.xobservacion));
+        setFrecuencias(f.frecuencias.map((x) => x.ifrecuencia));
+        setFrecuenciasExtra(f.frecuencias.filter((x) => !FRECUENCIAS.some((b) => b.ifrecuencia === x.ifrecuencia)));
+        setProductoresSel(f.productores);
+        setCanalesSel(f.canales);
+        if (f.personas) {
+          setParentescosTxt(f.personas.cparens.join(', '));
+          setCsexo(f.personas.csexo);
+          setEdadMin(String(f.personas.min));
+          setEdadMax(String(f.personas.max));
+        }
+        setTablaPlan('');
+        setPlanOriginal({
+          plan,
+          tipo: f.tipo,
+          coberturas: Object.keys(f.filas),
+          advertencias: Array.isArray(leido?.advertencias) ? leido.advertencias : [],
+          bloqueo: f.bloqueo,
+        });
+      })
+      .catch((e) => {
+        if (vigente) setErrorPlan(e instanceof Error ? e.message : 'No se pudo leer el plan de Sis2000');
+      })
+      .finally(() => {
+        if (vigente) setCargandoPlan(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [editId]);
+
   const opcionesProducto = useMemo(() => agruparProductosSis2000(productos), [productos]);
+
+  // Editar: elige el producto del plan cuando llega el catálogo (si no aparece, queda uno provisional).
+  useEffect(() => {
+    if (!productoPlan || cargandoProductos) return;
+    const op = opcionesProducto.find(
+      (o) => o.cramo === productoPlan.cramo && o.cproducto.toUpperCase() === productoPlan.cproducto.toUpperCase(),
+    );
+    if (op) {
+      setClaveProducto(op.clave);
+    } else {
+      setProductos((prev) => [...prev, productoProvisional(productoPlan.cproducto, productoPlan.cramo)]);
+      setClaveProducto(`${productoPlan.cproducto}|${productoPlan.cramo}`);
+    }
+    setProductoPlan(null);
+  }, [productoPlan, cargandoProductos, opcionesProducto]);
+
   /** Ramos únicos de los productos, ordenados, para acotar el selector de producto. */
   const ramosDisponibles = useMemo(
     () =>
@@ -585,7 +883,7 @@ export function Sis2000ComboPage() {
     return [
       ...ramosSis2000.map((r) => ({
         cramo: r.cramo,
-        etiqueta: r.xdescripcion ? `${r.cramo} · ${r.xdescripcion}` : `Ramo ${r.cramo}`,
+        etiqueta: r.xdescripcion ? `${r.xdescripcion} (${r.cramo})` : `Ramo ${r.cramo}`,
       })),
       ...ramosDisponibles.filter((r) => !conocidos.has(r)).map((r) => ({ cramo: r, etiqueta: `Ramo ${r}` })),
     ].sort((a, b) => a.cramo - b.cramo);
@@ -597,16 +895,27 @@ export function Sis2000ComboPage() {
         : opcionesProducto.filter((o) => String(o.cramo) === ramoFiltro),
     [opcionesProducto, ramoFiltro],
   );
+  /** Nombres de producto repetidos en la lista (a esos se les agrega el código para distinguirlos). */
+  const nombresRepetidos = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    opcionesProductoFiltradas.forEach((o) => {
+      const n = texto(o.producto.xdescripcion_l).toUpperCase();
+      cuenta.set(n, (cuenta.get(n) ?? 0) + 1);
+    });
+    return cuenta;
+  }, [opcionesProductoFiltradas]);
   const opcionProducto = useMemo(
     () => opcionesProducto.find((o) => o.clave === claveProducto) ?? null,
     [opcionesProducto, claveProducto],
   );
   const producto = opcionProducto?.producto ?? null;
   const cproducto = opcionProducto?.cproducto ?? '';
+  const nombreProducto = texto(producto?.xdescripcion_l) || (cproducto ? `Producto ${cproducto}` : '');
   const cramo = producto && Number(producto.cramo) > 0 ? Number(producto.cramo) : 0;
+  const nombreRamo = cramo ? (opcionesRamo.find((r) => r.cramo === cramo)?.etiqueta ?? `Ramo ${cramo}`) : '';
   const esPersonas = texto(producto?.xform).toLowerCase().startsWith('person');
 
-  // Borrador en localStorage: se guarda medio segundo después del último cambio.
+  // Borrador en localStorage: se guarda medio segundo después del último cambio (no al editar un plan existente).
   useEffect(() => {
     const t = setTimeout(() => {
       if (sinBorrador.current) return;
@@ -630,6 +939,7 @@ export function Sis2000ComboPage() {
         frecuencias,
         productoresSel,
         canalesSel,
+        observacion,
         cramo: cramo || pendiente?.cramo || 0,
         filas: pendiente ? { ...pendiente.filas, ...filas } : filas,
         filasPer: Object.keys(filasPer).length || !pendiente ? filasPer : pendiente.filasPer,
@@ -640,12 +950,12 @@ export function Sis2000ComboPage() {
     return () => clearTimeout(t);
   }, [
     ramoFiltro, claveProducto, tipoPlan, parentescosTxt, csexo, edadMin, edadMax, tablaPlan, cplan, xplan, fdesde,
-    fhasta, cmoneda, frecuencias, productoresSel, canalesSel, cramo, filas, filasPer,
+    fhasta, cmoneda, frecuencias, productoresSel, canalesSel, observacion, cramo, filas, filasPer,
   ]);
 
   /** Empieza un combo nuevo: borra el borrador y recarga la pantalla limpia. */
-  function empezarDeCero() {
-    if (!window.confirm('¿Borrar todo lo llenado y empezar un combo nuevo?')) return;
+  function empezarDeCero(preguntar = true) {
+    if (preguntar && !window.confirm('¿Borrar todo lo llenado y empezar un plan nuevo?')) return;
     sinBorrador.current = true;
     borrarBorrador();
     window.location.reload();
@@ -697,10 +1007,16 @@ export function Sis2000ComboPage() {
       });
   }, [cramo, recarga]);
 
+  /** Coberturas que ya tiene el plan que se edita (no se pueden quitar desde aquí). */
+  const delPlan = useMemo(() => new Set(planOriginal?.coberturas ?? []), [planOriginal]);
+
   const visibles = useMemo(() => {
     if (!catalogo || catalogo.cramo !== cramo) return [];
-    return mostrarInactivas ? catalogo.coberturas : catalogo.coberturas.filter((c) => !c.inactiva);
-  }, [catalogo, cramo, mostrarInactivas]);
+    // Las del plan que se edita se muestran aunque estén inactivas en el ramo.
+    return mostrarInactivas
+      ? catalogo.coberturas
+      : catalogo.coberturas.filter((c) => !c.inactiva || delPlan.has(c.ccobertura));
+  }, [catalogo, cramo, mostrarInactivas, delPlan]);
 
   // Tarifas (matarifa + matarifa_d) de cada cobertura visible, como mucho TARIFAS_EN_PARALELO a la vez.
   useEffect(() => {
@@ -726,11 +1042,15 @@ export function Sis2000ComboPage() {
         setFilas((prev) => {
           if (prev[c.ccobertura]) return prev;
           // Borrador del mismo ramo: se recupera lo marcado y los montos si la tarifa sigue vigente.
-          const guardada = borradorFilas.current?.cramo === ramo ? borradorFilas.current.filas[c.ccobertura] : undefined;
-          if (guardada && rows.some((t) => esVigente(t) && texto(t.ctarifa) === guardada.ctarifa)) {
-            return { ...prev, [c.ccobertura]: { ...guardada } };
+          // Plan que se edita: se conserva siempre (si la tarifa venció, se avisa en «Tarifas y tasas»).
+          const b = borradorFilas.current?.cramo === ramo ? borradorFilas.current : null;
+          const guardada = b?.filas[c.ccobertura];
+          if (guardada && (b?.conservar || rows.some((t) => esVigente(t) && texto(t.ctarifa) === guardada.ctarifa))) {
+            return { ...prev, [c.ccobertura]: normalizarFila(guardada) };
           }
           const fila = filaInicial(c.ccobertura, rows, hoy);
+          // Al editar, las coberturas que no son del plan entran sin marcar (solo se agrega lo que el usuario elija).
+          if (b?.conservar) fila.incluir = false;
           // Cobertura recién creada desde esta pantalla: entra marcada en el combo.
           if (porIncluir.current.delete(c.ccobertura) && fila.ctarifa) fila.incluir = true;
           return { ...prev, [c.ccobertura]: fila };
@@ -754,7 +1074,10 @@ export function Sis2000ComboPage() {
         const carga = tarifas[cobertura.ccobertura];
         const vigentes = carga?.estado === 'ok' ? carga.tarifas.filter(esVigente) : [];
         const fila = filas[cobertura.ccobertura];
-        const tarifa = vigentes.find((t) => texto(t.ctarifa) === fila?.ctarifa) ?? vigentes[0];
+        // La tarifa de la fila debe estar vigente: si venció (plan viejo), no se reemplaza por otra en silencio.
+        const tarifa = fila?.ctarifa
+          ? vigentes.find((t) => texto(t.ctarifa) === fila.ctarifa)
+          : vigentes[0];
         const config = sumaConfig[cobertura.ccobertura.toUpperCase()];
         return {
           cobertura,
@@ -762,7 +1085,7 @@ export function Sis2000ComboPage() {
           vigentes,
           tarifa,
           fila,
-          obligatoria: esObligatoria(tarifa, cobertura.ccobertura),
+          obligatoria: esObligatoria(tarifa ?? vigentes[0], cobertura.ccobertura),
           sumaConfig: config,
           calculada: esSumaCalculada(config),
         };
@@ -775,17 +1098,31 @@ export function Sis2000ComboPage() {
     [vistas],
   );
 
+  /** Coberturas del plan que se edita que no pueden entrar (tarifa vencida, sin tarifa o fuera del ramo). */
+  const delPlanConProblema = useMemo(() => {
+    // Solo con el catálogo del ramo ya leído (antes, todas parecerían «fuera del ramo»).
+    if (!planOriginal || !catalogo || catalogo.cramo !== cramo || cargandoCoberturas) return [];
+    return planOriginal.coberturas
+      .map((cc) => ({ cc, vista: vistas.find((v) => v.cobertura.ccobertura === cc) }))
+      .filter(
+        ({ vista }) =>
+          !vista || (Boolean(vista.carga) && vista.carga?.estado !== 'cargando' && !(vista.fila?.incluir && vista.tarifa)),
+      );
+  }, [planOriginal, catalogo, cramo, cargandoCoberturas, vistas]);
+
   const filtradas = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return vistas;
-    return vistas.filter((v) => JSON.stringify(v.cobertura.fila).toLowerCase().includes(q));
-  }, [vistas, search]);
+    const base = soloMarcadas ? vistas.filter((v) => v.fila?.incluir) : vistas;
+    if (!q) return base;
+    return base.filter((v) => JSON.stringify(v.cobertura.fila).toLowerCase().includes(q));
+  }, [vistas, search, soloMarcadas]);
 
   const totalTarifas = Object.keys(tarifas).length;
   const tarifasListas = Object.values(tarifas).filter((t) => t.estado !== 'cargando').length;
   const cargandoTarifas = tarifasListas < totalTarifas;
   const inactivas = catalogo?.coberturas.filter((c) => c.inactiva).length ?? 0;
   const sinTarifa = vistas.filter((v) => v.carga?.estado === 'ok' && !v.vigentes.length).length;
+  const nombreCob = (v: VistaCobertura) => v.cobertura.descripcion || `Cobertura sin nombre (${v.cobertura.ccobertura})`;
 
   function cambiarFila(ccobertura: string, cambios: Partial<FilaCombo>) {
     setFilas((prev) => {
@@ -794,68 +1131,15 @@ export function Sis2000ComboPage() {
     });
   }
 
-  function cambiarMonto(ccobertura: string, campo: CampoMonto, valor: string) {
-    setFilas((prev) => {
-      const actual = prev[ccobertura];
-      return actual ? { ...prev, [ccobertura]: { ...actual, [campo]: valor } } : prev;
-    });
-  }
-
   /** Otra tarifa vigente: se vuelven a tomar sumas, tasa y prima de su detalle vigente. */
   function cambiarTarifa(v: VistaCobertura, ctarifa: string) {
+    // Plan existente con la tarifa vencida: solo se reemplaza la tarifa y se conservan los montos del plan.
+    if (!v.tarifa) {
+      cambiarFila(v.cobertura.ccobertura, { ctarifa });
+      return;
+    }
     const tarifa = v.vigentes.find((t) => texto(t.ctarifa) === ctarifa);
     cambiarFila(v.cobertura.ccobertura, valoresDeTarifa(tarifa, hoy));
-  }
-
-  function celdaTarifa(v: VistaCobertura) {
-    const { carga, vigentes, tarifa, fila, cobertura } = v;
-    if (!carga || carga.estado === 'cargando') {
-      return <span className="text-muted-foreground">Cargando…</span>;
-    }
-    if (carga.estado === 'error') {
-      return (
-        <span className="text-rose-600" title={carga.error}>
-          No se pudieron cargar las tarifas
-        </span>
-      );
-    }
-    if (!vigentes.length) {
-      return (
-        <span className="inline-flex flex-wrap items-center gap-x-2">
-          <span className="font-semibold text-amber-700">Sin tarifa vigente</span>
-          <Link
-            to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(cobertura.ccobertura)}/tarifas`}
-            className="font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Tarifas
-          </Link>
-        </span>
-      );
-    }
-    if (vigentes.length === 1 || !fila) {
-      return (
-        <span>
-          {texto(tarifa?.ctarifa)} · {tarifa ? formatTarifaDescripcion(tarifa) : '—'}
-        </span>
-      );
-    }
-    return (
-      <Select value={fila.ctarifa} onValueChange={(valor) => cambiarTarifa(v, valor)}>
-        <SelectTrigger
-          aria-label={`Tarifa de la cobertura ${cobertura.ccobertura}`}
-          className="h-8 min-h-0 w-44 rounded-lg px-2 py-1 text-xs"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {vigentes.map((t) => (
-            <SelectItem key={texto(t.ctarifa)} value={texto(t.ctarifa)}>
-              {texto(t.ctarifa)} · {formatTarifaDescripcion(t)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
   }
 
   /** Monedas del catálogo; si la sugerida no está en la lista, se agrega para que el select la muestre. */
@@ -866,6 +1150,8 @@ export function Sis2000ComboPage() {
       : monedas;
   }, [monedas, cmoneda]);
 
+  const opcionesFrecuencia = useMemo(() => [...FRECUENCIAS, ...frecuenciasExtra], [frecuenciasExtra]);
+
   function alternarFrecuencia(ifrecuencia: string, marcada: boolean) {
     setFrecuencias((prev) => {
       const sin = prev.filter((f) => f !== ifrecuencia);
@@ -873,7 +1159,14 @@ export function Sis2000ComboPage() {
     });
   }
 
-  /** Referencia con las sumas máximas: tasa × suma ÷ 100 si hay tasa, si no la prima fija. */
+  /** Prima de referencia de una cobertura de cosas con la suma máxima (0 si la suma se calcula al emitir). */
+  function primaReferencia(v: VistaIncluida): number {
+    if (v.calculada) return 0;
+    const suma = numero(v.fila.msumamax);
+    return v.fila.modo === 'tasa' ? (suma * numero(v.fila.pprima)) / 100 : numero(v.fila.mprima);
+  }
+
+  /** Referencia con las sumas máximas: tasa × suma ÷ 100 o la prima fija, según lo elegido. */
   const resumen = useMemo(() => {
     let sumaMaxima = 0;
     let prima = 0;
@@ -885,12 +1178,12 @@ export function Sis2000ComboPage() {
         continue;
       }
       if (v.calculada) continue; // la suma llega al emitir
-      const suma = numero(v.fila.msumamax);
-      const tasa = numero(v.fila.pprima);
-      sumaMaxima = Math.max(sumaMaxima, suma);
-      prima += tasa > 0 ? (suma * tasa) / 100 : numero(v.fila.mprima);
+      sumaMaxima = Math.max(sumaMaxima, numero(v.fila.msumamax));
+      prima += primaReferencia(v);
     }
     return { sumaMaxima, prima };
+    // primaReferencia solo lee la fila de cada vista
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incluidas, personas]);
 
   const filaPer = (ccobertura: string) => filasPer[ccobertura] ?? FILA_PERSONAS;
@@ -901,6 +1194,12 @@ export function Sis2000ComboPage() {
 
   /** Tabla de tasas de la cobertura: la suya o, si está vacía, la del plan. */
   const tablaDe = (ccobertura: string) => filaPer(ccobertura).ctablatar.trim() || tablaPlan.trim();
+
+  /** Nombre de la tabla para mostrar: «Descripción (CÓDIGO)» si ya se leyó. */
+  function nombreTabla(codigo: string): string {
+    const t = tablasLeidas[codigo.toUpperCase()];
+    return t && t !== 'cargando' && t !== 'error' && texto(t.xtablaedad) ? `${texto(t.xtablaedad)} (${codigo})` : codigo;
+  }
 
   /** Abre «Crear tabla» con un código sugerido (plan, o plan + cobertura; máx. 10) y la descripción del plan/cobertura. */
   function abrirCrearTabla(destino: string, descripcionCobertura = '', codigoSugerido = '') {
@@ -919,7 +1218,7 @@ export function Sis2000ComboPage() {
     const etiqueta =
       destino === 'plan'
         ? 'Tabla del plan (la usan las coberturas que no tengan otra)'
-        : `Cobertura ${destino}${descripcionCobertura ? ` · ${descripcionCobertura}` : ''}`;
+        : descripcionCobertura || 'Cobertura';
     const valor = destino === 'plan' ? tablaPlan : filaPer(destino).ctablatar || tablaPlan;
     setBuscadorDlg({ destino, etiqueta, valor, descripcion: descripcionCobertura });
   }
@@ -1017,7 +1316,7 @@ export function Sis2000ComboPage() {
     limpiarResultado();
   }
 
-  /** CreatePlanDto (cosas o personas) con las coberturas incluidas, listo para POST /core/sis2000/plans. */
+  /** PlanDto (cosas o personas) con las coberturas incluidas, listo para POST/PUT /core/sis2000/plans. */
   function armarPayload(): Record<string, unknown> {
     const payload = defaultPlanPayload({
       type: tipoPlan,
@@ -1026,15 +1325,25 @@ export function Sis2000ComboPage() {
       cplan: cplan.trim(),
       ...productoresToPayloadFields(productoresSel),
     });
+    // Al editar se conservan los datos de cabecera que el formulario no muestra (renovación, devolución, etc.).
+    if (planOriginal) {
+      const conservados: Record<string, unknown> = {};
+      CABECERA_CONSERVADA.forEach((k) => {
+        const v = planOriginal.plan[k];
+        if (v !== undefined && v !== null && v !== '') conservados[k] = v;
+      });
+      Object.assign(payload, conservados);
+    }
     payload.xplan = xplan.trim();
     payload.fdesde = fdesde;
     payload.fhasta = fhasta;
     payload.cmoneda = cmoneda.trim();
     payload.all_productor = productoresSel.todos;
+    payload.xobservacion = observacion.trim() || undefined;
     if (canalesHabilitados) Object.assign(payload, canalesToPayloadFields(canalesSel));
-    payload.frecuencias = FRECUENCIAS.filter((f) => frecuencias.includes(f.ifrecuencia)).map(
-      (f) => ({ ...f }),
-    );
+    payload.frecuencias = opcionesFrecuencia
+      .filter((f) => frecuencias.includes(f.ifrecuencia))
+      .map((f) => ({ ...f }));
     if (personas) {
       // Personas: cada cobertura lleva sus parentescos con edades, tabla de tasas, suma y prima.
       payload.coberturas = incluidas.map((v) => ({
@@ -1052,7 +1361,7 @@ export function Sis2000ComboPage() {
           mprima: numero(v.fila.mprima),
         })),
       }));
-      return normalizePlanPayloadForApi({ ...payload }, 'create');
+      return normalizePlanPayloadForApi({ ...payload }, modoEdicion ? 'update' : 'create');
     }
     payload.coberturas = incluidas.map((v) =>
       v.calculada
@@ -1071,134 +1380,212 @@ export function Sis2000ComboPage() {
             ctarifa: v.fila.ctarifa,
             msumamin: numero(v.fila.msumamin),
             msumamax: numero(v.fila.msumamax),
-            mprima: numero(v.fila.mprima),
-            pprima: numero(v.fila.pprima),
+            // Tasa y prima fija son excluyentes: solo se graba la elegida; la otra va en 0.
+            mprima: v.fila.modo === 'prima' ? numero(v.fila.mprima) : 0,
+            pprima: v.fila.modo === 'tasa' ? numero(v.fila.pprima) : 0,
           },
     );
-    return normalizePlanPayloadForApi({ ...payload }, 'create');
+    return normalizePlanPayloadForApi({ ...payload }, modoEdicion ? 'update' : 'create');
   }
 
-  /** Lo que nest-api rechazaría, dicho por cobertura; validatePlanPayload queda como red final. */
-  function validarCombo(): string[] {
-    const errores: string[] = [];
-    if (!producto) errores.push('Elige el producto de Sis2000.');
-    const codigo = cplan.trim();
-    if (!codigo) errores.push('Escribe el código del plan.');
-    else if (codigo.length > 6) errores.push('El código del plan admite máx. 6 caracteres.');
-    if (!xplan.trim()) errores.push('Escribe el nombre del plan.');
-    else if (xplan.trim().length > 60) errores.push('El nombre del plan admite máx. 60 caracteres.');
-    if (!fdesde || !fhasta) errores.push('Indica la vigencia del plan (desde y hasta).');
-    else if (fdesde > fhasta) errores.push('La vigencia «desde» es posterior a «hasta».');
-    if (!cmoneda.trim()) errores.push('Indica la moneda del plan.');
-    if (!frecuencias.length) errores.push('Marca al menos una frecuencia de pago.');
-    const errorProductores = validarProductores(productoresSel);
-    if (errorProductores) errores.push(errorProductores);
+  /** Lo que nest-api rechazaría, dicho por cobertura y con el paso donde se corrige. */
+  function validarCombo(): Falta[] {
+    const faltas: Falta[] = [];
+    const falta = (p: PasoId, t: string) => faltas.push({ paso: p, texto: t });
 
-    if (!incluidas.length) errores.push('Incluye al menos una cobertura en el combo.');
-    const nombre = (v: VistaCobertura) =>
-      `Cobertura ${v.cobertura.ccobertura}${v.cobertura.descripcion ? ` (${v.cobertura.descripcion})` : ''}`;
+    if (modoEdicion && cargandoPlan) falta('producto', 'Espera a que termine de leerse el plan de Sis2000.');
+    if (errorPlan) falta('producto', 'No se pudo leer el plan de Sis2000.');
+    if (planOriginal?.bloqueo) falta('producto', planOriginal.bloqueo);
+    if (!producto) falta('producto', 'Elige el producto.');
+
+    if (producto && !incluidas.length) falta('coberturas', 'Marca al menos una cobertura para el plan.');
+    if (cramo && cargandoTarifas) falta('coberturas', 'Espera a que terminen de cargarse las tarifas de las coberturas.');
+    for (const { cc, vista } of delPlanConProblema) {
+      falta(
+        'precios',
+        !vista
+          ? `Una cobertura del plan (${cc}) ya no aparece en el ramo: no se puede guardar sin perderla. Usa el modo avanzado o pide revisarla a Técnico.`
+          : vista.vigentes.length
+            ? `«${nombreCob(vista)}»: la tarifa que tenía el plan ya no está vigente. Elige una de las vigentes.`
+            : `«${nombreCob(vista)}»: no tiene ninguna tarifa vigente. Pide a Técnico renovarla antes de guardar el plan.`,
+      );
+    }
+
     if (personas) {
       const min = entero(edadMin);
       const max = entero(edadMax);
-      if (!cparens) errores.push('Parentescos: marca al menos uno (por ejemplo, Titular).');
-      else if (new Set(cparens).size !== cparens.length) errores.push('Parentescos: hay códigos repetidos.');
-      if (min == null || max == null) errores.push('Indica la edad mínima y máxima del plan (enteros).');
-      else if (min > max) errores.push('La edad mínima es mayor que la máxima.');
+      if (!cparens) falta('precios', '¿Quiénes se aseguran?: marca al menos un parentesco (por ejemplo, Titular).');
+      else if (new Set(cparens).size !== cparens.length) falta('precios', 'Hay parentescos repetidos.');
+      if (min == null || max == null) falta('precios', 'Indica la edad mínima y la máxima (números enteros).');
+      else if (min > max) falta('precios', 'La edad mínima es mayor que la máxima.');
       for (const v of incluidas) {
-        const n = nombre(v);
+        const n = `«${nombreCob(v)}»`;
         const tabla = tablaDe(v.cobertura.ccobertura);
-        if (!v.fila.ctarifa) errores.push(`${n}: falta la tarifa.`);
-        if (!tabla) errores.push(`${n}: falta la tabla de tasas por edad (la del plan o la de la cobertura).`);
-        else if (tabla.length > 10) errores.push(`${n}: la tabla de tasas admite máx. 10 caracteres.`);
-        if (numero(v.fila.msumamax) < 0 || numero(v.fila.mprima) < 0) errores.push(`${n}: no admite montos negativos.`);
+        if (!tabla) falta('precios', `${n}: falta la tabla de precios por edad (la del plan o una propia).`);
+        else if (tabla.length > 10) falta('precios', `${n}: el código de la tabla admite máx. 10 caracteres.`);
+        if (numero(v.fila.msumamax) < 0 || numero(v.fila.mprima) < 0) falta('precios', `${n}: no admite montos negativos.`);
       }
-      if (!errores.length) errores.push(...validatePlanPayload(armarPayload()));
-      return errores;
-    }
-    for (const v of incluidas) {
-      const n = nombre(v);
-      const min = numero(v.fila.msumamin);
-      const max = numero(v.fila.msumamax);
-      const tasa = numero(v.fila.pprima);
-      const prima = numero(v.fila.mprima);
-      if (!v.fila.ctarifa) errores.push(`${n}: falta la tarifa.`);
-      if (v.calculada) continue; // suma, tasa y prima llegan al emitir
-      if (!(max > 0)) errores.push(`${n}: la suma máxima debe ser mayor a 0.`);
-      if (min > max) errores.push(`${n}: la suma mínima es mayor que la máxima.`);
-      if (min < 0 || tasa < 0 || prima < 0) errores.push(`${n}: no admite montos negativos.`);
-      if (!(tasa > 0) && !(prima > 0)) errores.push(`${n}: indica una tasa o una prima fija mayor a 0.`);
-    }
-    const basica = incluidas.find((v) => v.cobertura.ccobertura === '1');
-    if (basica) {
-      const maxBasica = numero(basica.fila.msumamax);
+    } else {
       for (const v of incluidas) {
-        if (v === basica || v.obligatoria || v.calculada) continue;
+        const n = `«${nombreCob(v)}»`;
+        if (v.calculada) continue; // suma, tasa y prima llegan al emitir
+        const min = numero(v.fila.msumamin);
         const max = numero(v.fila.msumamax);
-        if (max > maxBasica) {
-          errores.push(
-            `${nombre(v)}: es opcional y su suma máxima (${formatoMonto(max)}) supera la de la básica (cobertura 1: ${formatoMonto(maxBasica)}).`,
-          );
+        const tasa = numero(v.fila.pprima);
+        const prima = numero(v.fila.mprima);
+        if (!(max > 0)) falta('precios', `${n}: la suma asegurada máxima debe ser mayor a 0.`);
+        if (min > max) falta('precios', `${n}: la suma mínima es mayor que la máxima.`);
+        if (min < 0 || tasa < 0 || prima < 0) falta('precios', `${n}: no admite montos negativos.`);
+        if (v.fila.modo === 'tasa' && !(tasa > 0)) falta('precios', `${n}: escribe la tasa % (mayor a 0).`);
+        if (v.fila.modo === 'prima' && !(prima > 0)) falta('precios', `${n}: escribe la prima fija (mayor a 0).`);
+      }
+      const basica = incluidas.find((v) => v.cobertura.ccobertura === '1');
+      if (basica) {
+        const maxBasica = numero(basica.fila.msumamax);
+        for (const v of incluidas) {
+          if (v === basica || v.obligatoria || v.calculada) continue;
+          const max = numero(v.fila.msumamax);
+          if (max > maxBasica) {
+            falta(
+              'precios',
+              `«${nombreCob(v)}» es opcional y su suma máxima (${formatoMonto(max)}) supera la de la cobertura básica «${nombreCob(basica)}» (${formatoMonto(maxBasica)}).`,
+            );
+          }
         }
       }
     }
 
-    if (!errores.length) errores.push(...validatePlanPayload(armarPayload()));
-    return errores;
+    const codigo = cplan.trim();
+    if (!codigo) falta('datos', 'Escribe el código del plan.');
+    else if (codigo.length > 6) falta('datos', 'El código del plan admite máx. 6 caracteres.');
+    if (!xplan.trim()) falta('datos', 'Escribe el nombre del plan.');
+    else if (xplan.trim().length > 60) falta('datos', 'El nombre del plan admite máx. 60 caracteres.');
+    if (!fdesde || !fhasta) falta('datos', 'Indica la vigencia del plan (desde y hasta).');
+    else if (fdesde > fhasta) falta('datos', 'La fecha «desde» es posterior a «hasta».');
+    if (!cmoneda.trim()) falta('datos', 'Elige la moneda del plan.');
+    if (!frecuencias.length) falta('datos', 'Marca al menos una forma de pago (anual, mensual…).');
+    if (observacion.trim().length > 255) falta('datos', 'Las observaciones admiten máx. 255 caracteres.');
+    const errorProductores = validarProductores(productoresSel);
+    if (errorProductores) falta('datos', errorProductores);
+
+    if (!faltas.length) validatePlanPayload(armarPayload()).forEach((t) => falta('revisar', t));
+    return faltas;
   }
 
-  const errores = validarCombo();
+  const faltas = validarCombo();
+  const errores = faltas.map((f) => f.texto);
+  const faltasDe = (i: number) => faltas.filter((f) => f.paso === PASOS[i].id).map((f) => f.texto);
+
+  /** Primer paso con cosas pendientes (hasta ahí se puede llegar con la barra). */
+  const limitePasos = (() => {
+    for (let i = 0; i < PASOS.length - 1; i += 1) if (faltasDe(i).length) return i;
+    return PASOS.length - 1;
+  })();
+
+  function estadoPaso(i: number): EstadoPaso {
+    if (i === paso) return 'actual';
+    if (i > limitePasos && i > paso) return 'bloqueado';
+    if (i === PASOS.length - 1) return planGuardado ? 'hecho' : 'pendiente';
+    return faltasDe(i).length ? 'pendiente' : 'hecho';
+  }
+
+  function irAPaso(i: number) {
+    const destino = Math.max(0, Math.min(PASOS.length - 1, i));
+    setPaso(destino);
+    setAvisoPaso(null);
+    arriba.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function siguiente() {
+    if (faltasDe(paso).length) {
+      setAvisoPaso(paso);
+      if (paso === PASOS.findIndex((p) => p.id === 'datos') || paso === PASOS.findIndex((p) => p.id === 'precios')) {
+        setIntentoCrear(true);
+      }
+      return;
+    }
+    irAPaso(paso + 1);
+  }
 
   function limpiarResultado() {
     setErrorCrear(null);
-    if (planCreado) setProveedoresKey((k) => k + 1);
-    setPlanCreado(null);
+    if (planGuardado && !planGuardado.editado) setProveedoresKey((k) => k + 1);
+    setPlanGuardado(null);
     setCotizacion(null);
     setErrorCotizar(null);
   }
 
-  async function crear() {
+  /** Pide confirmación antes de escribir en Sis2000 (si falta algo, lleva al paso donde se corrige). */
+  function pedirConfirmacion() {
+    setIntentoCrear(true);
+    if (faltas.length) {
+      const primero = PASOS.findIndex((p) => p.id === faltas[0].paso);
+      if (primero >= 0 && primero !== paso) irAPaso(primero);
+      setAvisoPaso(primero >= 0 ? primero : paso);
+      return;
+    }
+    setConfirmando(true);
+  }
+
+  async function guardarPlan() {
     setIntentoCrear(true);
     limpiarResultado();
-    if (errores.length) return;
+    if (errores.length) {
+      setConfirmando(false);
+      return;
+    }
     setCreando(true);
     try {
       const payload = armarPayload();
-      await api.createSis2000MasterPlan(payload);
+      const cuerpo = { ...payload, motivoCambio: motivo.trim() || undefined };
+      if (modoEdicion && editId) await api.updateSis2000MasterPlan(editId, cuerpo);
+      else await api.createSis2000MasterPlan(cuerpo);
       const ifrecuencia =
-        FRECUENCIAS.find((f) => frecuencias.includes(f.ifrecuencia))?.ifrecuencia ?? 'A';
-      setPlanCreado({ cramo, cplan: String(payload.cplan), tipo: tipoPlan, ifrecuencia });
-      // Creado: el borrador ya no hace falta (si se recarga, no debe proponer el mismo plan otra vez).
-      borrarBorrador();
+        opcionesFrecuencia.find((f) => frecuencias.includes(f.ifrecuencia))?.ifrecuencia ?? 'A';
+      setPlanGuardado({ cramo, cplan: String(payload.cplan), tipo: tipoPlan, ifrecuencia, editado: modoEdicion });
+      setMotivo('');
+      setVersionHistorial((n) => n + 1);
+      if (modoEdicion) {
+        // Lo recién agregado ya es parte del plan (no se puede quitar desde aquí).
+        setPlanOriginal((prev) =>
+          prev ? { ...prev, plan: { ...prev.plan, ...payload }, coberturas: incluidas.map((v) => v.cobertura.ccobertura) } : prev,
+        );
+      } else {
+        // Creado: el borrador ya no hace falta (si se recarga, no debe proponer el mismo plan otra vez).
+        sinBorrador.current = true;
+        borrarBorrador();
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setErrorCrear(
-          `Ya existe un plan con ese código en el ramo ${cramo} (${cplan.trim()}). Usa otro código de plan.`,
+          `Ya existe un plan con el código ${cplan.trim()} en este ramo. Vuelve a «Datos del plan» y usa otro código.`,
         );
       } else {
         setErrorCrear(
-          `No se pudo crear el plan. ${traducirErrorSis2000(e instanceof Error ? e.message : 'Error al crear el plan en Sis2000')} Lo que llenaste sigue guardado en esta pantalla.`,
+          `No se pudo ${modoEdicion ? 'guardar' : 'crear'} el plan. ${traducirErrorSis2000(e instanceof Error ? e.message : 'Error al escribir en Sis2000')} Lo que llenaste sigue en esta pantalla.`,
         );
       }
     } finally {
       setCreando(false);
+      setConfirmando(false);
     }
   }
 
-  /** Cotiza el plan recién creado con spCalculoRiesgoGeneral (solo lectura: no emite). */
+  /** Cotiza el plan guardado con spCalculoRiesgoGeneral (solo lectura: no emite). */
   async function cotizar() {
-    if (!planCreado) return;
+    if (!planGuardado) return;
     setCotizando(true);
     setErrorCotizar(null);
     setCotizacion(null);
     try {
       const rows = await api.cotizarSis2000Plan(
-        planCreado.cramo,
-        planCreado.cplan,
-        planCreado.ifrecuencia,
+        planGuardado.cramo,
+        planGuardado.cplan,
+        planGuardado.ifrecuencia,
       );
       if (!rows.length) {
         setErrorCotizar(
-          'La cotización no devolvió coberturas: revisa que el plan tenga suma y tasa o prima.',
+          'La cotización no devolvió coberturas: revisa que el plan tenga suma asegurada y tasa o prima.',
         );
         return;
       }
@@ -1237,12 +1624,16 @@ export function Sis2000ComboPage() {
     xdescripcion_l: !nuevoProducto.xdescripcion_l.trim() ? 'Escribe el nombre.' : undefined,
   };
 
-  /** Crea el producto en el ramo elegido (sp_CrearProducto), recarga el catálogo y lo deja elegido. */
-  async function crearProductoEnRamo() {
+  function pedirConfirmacionProducto() {
     setIntentoProducto(true);
     setErrorNuevoProducto(null);
-    setAvisoProducto(null);
     if (!ramoElegido || erroresProducto.cproducto || erroresProducto.xdescripcion_l) return;
+    setConfirmandoProducto(true);
+  }
+
+  /** Crea el producto en el ramo elegido (sp_CrearProducto), recarga el catálogo y lo deja elegido. */
+  async function crearProductoEnRamo() {
+    setAvisoProducto(null);
     setGuardandoProducto(true);
     try {
       const r = await api.crearSis2000Producto({
@@ -1279,35 +1670,25 @@ export function Sis2000ComboPage() {
       }
       if (nuevo) {
         elegirProducto(nuevo.clave);
-        setAvisoProducto(`${mensaje} Producto ${codigo} elegido: sigue con el tipo de plan y las coberturas.`);
+        setAvisoProducto(`${mensaje} «${datosNuevo.xdescripcion_l.trim()}» quedó elegido: sigue con el tipo de plan.`);
       } else {
-        const provisional = {
-          cproducto: codigo,
-          cramo: ramoElegido,
-          u_version: null,
-          xdescripcion_l: datosNuevo.xdescripcion_l.trim(),
+        const provisional = productoProvisional(codigo, ramoElegido, datosNuevo.xdescripcion_l.trim(), {
           xdescripcion_c: datosNuevo.xdescripcion_c.trim() || null,
           xabreviatura: datosNuevo.xabreviatura.trim(),
           iproductor: datosNuevo.iproductor,
           icanal: datosNuevo.icanal,
-          xform: '',
-          cprog: null,
-          ifuente: null,
-          bok: null,
-          cerror: null,
-          fingreso: null,
-          cusuario: null,
-        } as unknown as Sis2000Product;
+        } as Partial<Sis2000Product>);
         setProductos((prev) => [...(lista ?? prev), provisional]);
         elegirProducto(`${codigo}|${ramoElegido}`);
         setAvisoProducto(
-          `${mensaje} Producto ${codigo} elegido (todavía no aparece en el catálogo de Sis2000, pero ya puedes armar el plan).`,
+          `${mensaje} «${datosNuevo.xdescripcion_l.trim()}» quedó elegido (todavía no aparece en el catálogo de Sis2000, pero ya puedes armar el plan).`,
         );
       }
     } catch (e) {
       setErrorNuevoProducto(e instanceof Error ? e.message : 'No se pudo crear el producto en Sis2000');
     } finally {
       setGuardandoProducto(false);
+      setConfirmandoProducto(false);
     }
   }
 
@@ -1362,13 +1743,13 @@ export function Sis2000ComboPage() {
     }
   }
 
-  function coberturaCreada(ccobertura: string, ctarifa: string, config: CoberturaSumaConfig | null) {
+  function coberturaCreada(ccobertura: string, config: CoberturaSumaConfig | null, nombre: string) {
     porIncluir.current.add(ccobertura);
     if (config) setSumaConfig((prev) => ({ ...prev, [ccobertura.toUpperCase()]: config }));
     setMostrarNuevaCobertura(false);
     setSearch('');
     setAvisoCobertura(
-      `Cobertura ${ccobertura} (tarifa ${ctarifa}) creada en el ramo ${cramo}. Ya aparece en la tabla, marcada para este combo.`,
+      `La cobertura «${nombre || ccobertura}» quedó creada en el ramo con su tarifa. Ya aparece en la lista, marcada para este plan.`,
     );
     limpiarResultado();
     void refrescarCoberturas();
@@ -1376,7 +1757,7 @@ export function Sis2000ComboPage() {
 
   function cerrarNuevaCobertura() {
     setMostrarNuevaCobertura(false);
-    // Si la cobertura quedó grabada sin tarifa, que se vea en la tabla («sin tarifa vigente»).
+    // Si la cobertura quedó grabada sin tarifa, que se vea en la lista («sin tarifa vigente»).
     void refrescarCoberturas();
   }
 
@@ -1422,162 +1803,268 @@ export function Sis2000ComboPage() {
   }
 
   const ocupado = cargandoProductos || cargandoCoberturas;
-  const columnasMonto = personas ? MONTOS_PERSONAS : MONTOS;
-
-  // ── Estado de cada paso (barra superior y revisión final) ──
-  const datosPlanListos =
-    Boolean(cplan.trim()) &&
-    cplan.trim().length <= 6 &&
-    Boolean(xplan.trim()) &&
-    Boolean(fdesde && fhasta && fdesde <= fhasta) &&
-    Boolean(cmoneda.trim()) &&
-    frecuencias.length > 0 &&
-    !validarProductores(productoresSel);
-  const tablasListas =
-    personas &&
-    incluidas.length > 0 &&
-    Boolean(cparens) &&
-    incluidas.every((v) => Boolean(tablaDe(v.cobertura.ccobertura)));
-  const estadoPaso: Record<(typeof PASOS)[number]['id'], 'hecho' | 'pendiente' | 'no-aplica'> = {
-    'paso-ramo': cramo > 0 || ramoFiltro !== RAMO_TODOS ? 'hecho' : 'pendiente',
-    'paso-producto': producto ? 'hecho' : 'pendiente',
-    'paso-tipo': producto ? 'hecho' : 'pendiente',
-    'paso-coberturas': incluidas.length ? 'hecho' : 'pendiente',
-    'paso-tablas': !personas ? 'no-aplica' : tablasListas ? 'hecho' : 'pendiente',
-    'paso-datos': datosPlanListos ? 'hecho' : 'pendiente',
-    'paso-revisar': planCreado ? 'hecho' : 'pendiente',
-  };
   const nombreParen = (c: number) => nombreParentesco(parentescosCat.find((p) => p.cparen === c), c);
-  /** Mensajes del plan de personas que no bloquean pero conviene revisar antes de crear. */
+  const textoParentescos = cparens ? cparens.map(nombreParen).join(', ') : '—';
+  const textoSexo = SEXOS.find((s) => s.valor === csexo)?.etiqueta ?? csexo;
+  const textoFrecuencias =
+    opcionesFrecuencia.filter((f) => frecuencias.includes(f.ifrecuencia)).map((f) => f.xfrecuencia).join(', ') || '—';
+  const textoProductores = productoresSel.todos
+    ? 'todos los productores'
+    : productoresSel.productores
+        .map((p) => (p.xproductor ? `${p.xproductor} (${p.cproductor})` : `productor ${p.cproductor}`))
+        .join(', ') || '—';
+  const textoCanales = !canalesHabilitados
+    ? ''
+    : canalesSel.todos
+      ? 'todos los canales'
+      : canalesSel.canales.map((c) => c.xcanalalt || `canal ${c.ccanalalt}`).join(', ');
+
+  /** Mensajes del plan de personas que no bloquean pero conviene revisar antes de guardar. */
   const avisosPersonas: string[] = [];
   if (personas) {
     tablasDelCombo.forEach((c) => {
       const t = tablasLeidas[c];
       if (t === 'error') avisosPersonas.push(`No se encontró la tabla ${c} en Sis2000: elígela con «Elegir» o créala.`);
-      else if (t && t !== 'cargando' && !(t.tramos ?? []).length) avisosPersonas.push(`La tabla ${c} no tiene tramos de edad: el plan no podrá cotizar.`);
+      else if (t && t !== 'cargando' && !(t.tramos ?? []).length) avisosPersonas.push(`La tabla ${nombreTabla(c)} no tiene tramos de edad: el plan no podrá cotizar.`);
       else if (t && t !== 'cargando') {
         const min = entero(edadMin);
         const max = entero(edadMax);
         const cubre = (e: number) => (t.tramos ?? []).some((x) => e >= x.nedad_min && e <= x.nedad_max);
         if (min != null && max != null && (!cubre(min) || !cubre(max))) {
-          avisosPersonas.push(`La tabla ${c} no cubre todas las edades del plan (${min} a ${max} años): a quien quede fuera no se le podrá calcular la prima.`);
+          avisosPersonas.push(`La tabla ${nombreTabla(c)} no cubre todas las edades del plan (${min} a ${max} años): a quien quede fuera no se le podrá calcular la prima.`);
         }
       }
     });
   }
+  /** Avisos de cosas que no bloquean: coberturas del plan que tenían tasa y prima a la vez. */
+  const avisosCosas = !personas && planOriginal
+    ? incluidas
+        .filter((v) => {
+          const f = planOriginal.plan.coberturas;
+          const orig = Array.isArray(f)
+            ? (f as Record<string, unknown>[]).find((c) => texto(c.ccobertura) === v.cobertura.ccobertura)
+            : undefined;
+          return orig && Number(orig.pprima ?? 0) > 0 && Number(orig.mprima ?? 0) > 0;
+        })
+        .map((v) => `«${nombreCob(v)}» tenía tasa y prima fija a la vez; se guardará solo ${v.fila.modo === 'tasa' ? 'la tasa' : 'la prima fija'}.`)
+    : [];
 
-  return (
-    <AppShell title="Combos de coberturas">
-      <nav
-        aria-label="Pasos para crear el plan"
-        className="sticky top-0 z-30 -mx-1 mb-4 overflow-x-auto rounded-xl border border-border/60 bg-background/95 px-2 py-2 shadow-sm backdrop-blur"
-      >
-        <ol className="flex min-w-max items-center gap-1">
-          {PASOS.map((p, i) => {
-            const estado = estadoPaso[p.id];
-            return (
-              <li key={p.id} className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => irA(p.id === 'paso-tablas' && !personas ? 'paso-coberturas' : p.id)}
-                  disabled={estado === 'no-aplica'}
-                  title={estado === 'no-aplica' ? 'Solo para planes de personas' : undefined}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors',
-                    estado === 'hecho' && 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
-                    estado === 'pendiente' && 'text-foreground hover:bg-muted',
-                    estado === 'no-aplica' && 'cursor-not-allowed text-muted-foreground line-through opacity-60',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
-                      estado === 'hecho' ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {estado === 'hecho' ? <Check className="h-3 w-3" /> : i + 1}
-                  </span>
-                  {p.etiqueta}
-                </button>
-                {i < PASOS.length - 1 && <span className="text-muted-foreground/50">›</span>}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+  /** Cambios frente al plan leído (modo edición), en palabras. */
+  const cambios: string[] = [];
+  if (planOriginal) {
+    const p = planOriginal.plan;
+    const comparar = (etiqueta: string, antes: string, ahora: string) => {
+      if (antes !== ahora) cambios.push(`${etiqueta}: «${antes || '—'}» → «${ahora || '—'}»`);
+    };
+    comparar('Nombre del plan', texto(p.xplan), xplan.trim());
+    comparar('Vigencia desde', fechaCorta(texto(p.fdesde)), fechaCorta(fdesde));
+    comparar('Vigencia hasta', fechaCorta(texto(p.fhasta)), fechaCorta(fhasta));
+    comparar('Moneda', texto(p.cmoneda), cmoneda.trim());
+    comparar('Observaciones', texto(p.xobservacion), observacion.trim());
+    const frecAntes = (Array.isArray(p.frecuencias) ? (p.frecuencias as Record<string, unknown>[]) : [])
+      .map((f) => texto(f.ifrecuencia))
+      .sort()
+      .join(',');
+    if (frecAntes !== [...frecuencias].sort().join(',')) cambios.push(`Formas de pago: ahora ${textoFrecuencias}`);
+    // Productores: números ([80080]) al leer de Sis2000; objetos ({ cproductor }) después de guardar.
+    const codigoProductor = (x: unknown) =>
+      Number(typeof x === 'object' && x !== null ? (x as Record<string, unknown>).cproductor : x);
+    const prodAntes =
+      p.all_productor === true
+        ? 'todos'
+        : (Array.isArray(p.productores) ? (p.productores as unknown[]) : []).map(codigoProductor).sort().join(',');
+    const prodAhora = productoresSel.todos ? 'todos' : productoresSel.productores.map((x) => x.cproductor).sort().join(',');
+    if (prodAntes !== prodAhora) cambios.push(`Quién lo ofrece: ahora ${textoProductores}`);
+    const originales = Array.isArray(p.coberturas) ? (p.coberturas as Record<string, unknown>[]) : [];
+    for (const v of incluidas) {
+      const orig = originales.find((c) => texto(c.ccobertura) === v.cobertura.ccobertura);
+      if (!orig) {
+        cambios.push(`Se agrega la cobertura «${nombreCob(v)}»`);
+        continue;
+      }
+      if (texto(orig.ctarifa) !== v.fila.ctarifa) cambios.push(`«${nombreCob(v)}»: cambia la opción de tarifa`);
+      if (personas) {
+        const p0 = (Array.isArray(orig.parentescos) ? (orig.parentescos as Record<string, unknown>[]) : [])[0] ?? {};
+        if (Number(p0.msumamax ?? 0) !== numero(v.fila.msumamax)) cambios.push(`«${nombreCob(v)}»: suma asegurada ${formatoMonto2(Number(p0.msumamax ?? 0))} → ${formatoMonto2(numero(v.fila.msumamax))}`);
+        if (Number(p0.mprima ?? 0) !== numero(v.fila.mprima)) cambios.push(`«${nombreCob(v)}»: prima por persona ${formatoMonto2(Number(p0.mprima ?? 0))} → ${formatoMonto2(numero(v.fila.mprima))}`);
+        if (texto(p0.ctablatar).toUpperCase() !== tablaDe(v.cobertura.ccobertura).toUpperCase()) cambios.push(`«${nombreCob(v)}»: cambia la tabla de precios por edad`);
+        if ((orig.bobligatoria !== false) !== filaPer(v.cobertura.ccobertura).obligatoria) cambios.push(`«${nombreCob(v)}»: ahora es ${filaPer(v.cobertura.ccobertura).obligatoria ? 'obligatoria' : 'opcional'}`);
+      } else if (!v.calculada) {
+        const montos: Array<[string, number, number]> = [
+          ['suma mínima', Number(orig.msumamin ?? 0), numero(v.fila.msumamin)],
+          ['suma máxima', Number(orig.msumamax ?? 0), numero(v.fila.msumamax)],
+          ['tasa %', Number(orig.pprima ?? 0), v.fila.modo === 'tasa' ? numero(v.fila.pprima) : 0],
+          ['prima fija', Number(orig.mprima ?? 0), v.fila.modo === 'prima' ? numero(v.fila.mprima) : 0],
+        ];
+        montos.forEach(([etq, antes, ahora]) => {
+          if (antes !== ahora) cambios.push(`«${nombreCob(v)}»: ${etq} ${etq === 'tasa %' ? fmtTasa(antes) : formatoMonto2(antes)} → ${etq === 'tasa %' ? fmtTasa(ahora) : formatoMonto2(ahora)}`);
+        });
+      }
+    }
+    if (personas) {
+      const p0 = ((originales[0]?.parentescos as Record<string, unknown>[] | undefined) ?? [])[0];
+      if (p0) {
+        if (Number(p0.nedad_min) !== entero(edadMin) || Number(p0.nedad_max) !== entero(edadMax)) cambios.push(`Edades: ahora de ${edadMin} a ${edadMax} años`);
+        if ((texto(p0.csexo) || 'A') !== csexo) cambios.push(`Sexo: ahora ${textoSexo}`);
+      }
+    }
+  }
 
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            to="/sis2000"
-            className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+  /** Coberturas del plan en palabras (para la revisión y la confirmación). */
+  function descripcionPrecio(v: VistaIncluida): string {
+    if (personas) {
+      const tabla = tablaDe(v.cobertura.ccobertura);
+      const suma = numero(v.fila.msumamax);
+      return `${suma > 0 ? `suma asegurada ${cmoneda} ${formatoMonto2(suma)}; ` : ''}prima según la edad (tabla ${tabla ? nombreTabla(tabla) : 'sin elegir'})`;
+    }
+    if (v.calculada) return `suma asegurada: ${textoSumaCalculada(v.sumaConfig).toLowerCase()}`;
+    const min = numero(v.fila.msumamin);
+    const max = numero(v.fila.msumamax);
+    const suma = min === max ? `suma asegurada ${cmoneda} ${formatoMonto2(max)}` : `suma asegurada de ${cmoneda} ${formatoMonto2(min)} a ${formatoMonto2(max)}`;
+    const precio =
+      v.fila.modo === 'tasa'
+        ? `tasa ${fmtTasa(numero(v.fila.pprima))} % (con la suma máxima: ${cmoneda} ${formatoMonto2(primaReferencia(v))})`
+        : `prima fija ${cmoneda} ${formatoMonto2(numero(v.fila.mprima))}`;
+    return `${suma}; ${precio}`;
+  }
+
+  const tituloPlan = xplan.trim() || 'sin nombre';
+  const accion = modoEdicion ? 'guardar los cambios del' : 'crear el';
+
+  // ──────────────────────────────── Render ────────────────────────────────
+
+  const encabezado = (
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <Link
+          to={modoEdicion ? '/sis2000/plans' : '/sis2000'}
+          className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          {modoEdicion ? 'Planes de Sis2000' : 'Catálogo de Sis2000'}
+        </Link>
+        <h1 className="flex items-center gap-2 text-lg font-bold">
+          <Boxes className="h-5 w-5 text-primary" />
+          {modoEdicion ? `Editar plan «${texto(planOriginal?.plan.xplan) || cplan || editId}»` : 'Combos de coberturas'}
+        </h1>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          {modoEdicion
+            ? 'Cambia los datos del plan, sus montos o agrégale coberturas. Antes de guardar verás qué cambia y lo anterior queda en el historial.'
+            : 'Arma un plan nuevo en Sis2000 juntando las coberturas de un ramo, con su suma asegurada y su precio. Te guiamos paso a paso y nada se guarda hasta que lo confirmes al final.'}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {!modoEdicion && ultimoGuardado && (
+          <span
+            className="text-[11px] text-muted-foreground"
+            title="Lo llenado se guarda en este navegador y se recupera si recargas la página o falla la creación."
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Catálogo Sis2000
+            Borrador guardado {ultimoGuardado}
+          </span>
+        )}
+        {modoEdicion && editId && (
+          <Link
+            to={`/sis2000/plans/${encodeURIComponent(editId)}/json`}
+            className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            title="Editor del plan en JSON, para casos que el formulario no cubre"
+          >
+            Modo avanzado (JSON)
           </Link>
-          <h1 className="flex items-center gap-2 text-lg font-bold">
-            <Boxes className="h-5 w-5 text-primary" />
-            Combos de coberturas
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            nest-api POST /api/v1/configurador/planes → spMantPlanes (
-            {personas
-              ? 'maplanes_per, maplcober_per, mapltarifas_per, mapledades_per'
-              : 'maplanes, maplantar, maplanes_frec, mausuplan'}
-            )
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {ultimoGuardado && (
-            <span className="text-[11px] text-muted-foreground" title="Lo llenado se guarda en este navegador y se recupera si recargas la página o falla la creación.">
-              Borrador guardado {ultimoGuardado}
-            </span>
-          )}
-          <Button type="button" variant="ghost" size="sm" onClick={empezarDeCero}>
+        )}
+        {!modoEdicion && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => empezarDeCero()}>
             Empezar de cero
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={recargar} disabled={ocupado}>
-            <RefreshCw className={cn('h-3.5 w-3.5', ocupado && 'animate-spin')} />
-            Recargar
-          </Button>
-        </div>
+        )}
+        <Button type="button" variant="outline" size="sm" onClick={recargar} disabled={ocupado}>
+          <RefreshCw className={cn('h-3.5 w-3.5', ocupado && 'animate-spin')} />
+          Recargar
+        </Button>
       </div>
+    </div>
+  );
 
-      {borradorRestaurado && !planCreado && (
-        <Alert variant="info" className="mb-3">
-          Recuperamos lo que habías llenado antes en este navegador. Revisa los datos; si prefieres empezar otro combo, usa
-          «Empezar de cero».
-        </Alert>
-      )}
+  // ── Paso 1: Producto ──
+  const pasoProducto = (
+    <>
+      <ComoSeUsa id="combo-producto">
+        <p>
+          Todo plan pertenece a un <strong>producto</strong> de Sis2000, y cada producto vive en un <strong>ramo</strong>{' '}
+          (Responsabilidad Civil, Vida, Salud…). Del ramo salen las coberturas que vas a poder usar.
+        </p>
+        <ol className="list-decimal space-y-0.5 pl-5">
+          <li>Elige el ramo para acortar la lista de productos.</li>
+          <li>Elige el producto. Si no existe todavía, créalo con «Crear producto en este ramo».</li>
+          <li>
+            Indica qué asegura el plan: <strong>cosas</strong> (vehículos, hogar, ganado, responsabilidad civil) o{' '}
+            <strong>personas</strong> (vida, salud, funerario, viajero).
+          </li>
+        </ol>
+        <p className="text-sky-800">Ejemplo: ramo «Responsabilidad Civil», producto «RC General», tipo Cosas.</p>
+      </ComoSeUsa>
 
-      <p className="mb-1 max-w-4xl text-sm text-muted-foreground">
-        Sigue los pasos de arriba: elige el ramo y el producto, el tipo de plan, marca las coberturas que forman el combo
-        y ajusta sus montos. Al final revisa el resumen y crea el plan: el configurador lo da de alta en Sis2000 con
-        exactamente esas coberturas y la emisión usa ese plan.
-      </p>
-      <p className="mb-4 max-w-4xl text-xs text-amber-800 dark:text-amber-200">
-        {personas
-          ? 'Plan de personas: cada cobertura lleva parentescos, rango de edad y una tabla de tasas por edad que ya debe existir en Sis2000 (mapltabedad, con tramos). La tasa y la prima fija por cobertura de cosas no aplican.'
-          : 'Plan de cosas: suma asegurada con tasa o prima fija por cobertura. Para un plan de personas (parentescos, edades y tabla de tasas por edad) cambia «Tipo de plan» a Personas.'}
-      </p>
-
-      <div className="space-y-5">
-        <div id="paso-ramo" className="scroll-mt-20">
-        <SectionPanel
-          title="1–3 · Ramo, producto y tipo de plan"
-          description="El plan se crea en el ramo del producto; de ese ramo salen las coberturas y tarifas."
-          icon={Package}
-        >
-          <div id="paso-producto" className="grid scroll-mt-20 gap-4 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto] sm:items-end">
+      {modoEdicion ? (
+        <SectionPanel title="Producto del plan" description="El ramo, el producto y el tipo de un plan existente no se cambian." icon={Package}>
+          {cargandoPlan && <div className="h-24 animate-pulse rounded-xl bg-muted/60" />}
+          {errorPlan && (
+            <Alert variant="error">
+              {errorPlan}{' '}
+              {editId && (
+                <Link to={`/sis2000/plans/${encodeURIComponent(editId)}/json`} className="font-semibold underline">
+                  Abrir en modo avanzado (JSON)
+                </Link>
+              )}
+            </Alert>
+          )}
+          {!cargandoPlan && !errorPlan && (
+            <dl className="grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-xs text-muted-foreground">Ramo</dt>
+                <dd className="font-semibold">{nombreRamo || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Producto</dt>
+                <dd className="font-semibold">{nombreProducto || 'Buscando el producto…'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Tipo de plan</dt>
+                <dd className="font-semibold">{personas ? 'Personas' : 'Cosas (patrimonial)'}</dd>
+              </div>
+            </dl>
+          )}
+          {planOriginal?.bloqueo && (
+            <Alert variant="warning" className="mt-3">
+              {planOriginal.bloqueo}{' '}
+              {editId && (
+                <Link to={`/sis2000/plans/${encodeURIComponent(editId)}/json`} className="font-semibold underline">
+                  Abrir en modo avanzado
+                </Link>
+              )}
+            </Alert>
+          )}
+          {planOriginal && planOriginal.advertencias.length > 0 && (
+            <DetallesTecnicos titulo={`Avisos de la lectura del plan (${planOriginal.advertencias.length})`}>
+              <ul className="list-disc space-y-0.5 pl-5">
+                {planOriginal.advertencias.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            </DetallesTecnicos>
+          )}
+        </SectionPanel>
+      ) : (
+        <SectionPanel title="¿De qué producto es el plan?" description="El plan se crea dentro del producto; las coberturas salen de su ramo." icon={Package}>
+          <FormGrid>
             <FormField
-              label="Ramo (cramo)"
-              tooltip="Acota la lista de productos a un ramo de Sis2000. «Todos los ramos» muestra todos los productos."
+              label="Ramo"
+              hint="Ejemplo: Responsabilidad Civil, Vida, Salud."
+              tooltip="Lista de ramos de Sis2000. Solo sirve para acortar la lista de productos."
             >
               {cargandoProductos && !productos.length ? (
                 <div className="h-[42px] animate-pulse rounded-xl bg-muted/60" />
               ) : (
                 <Select value={ramoFiltro} onValueChange={elegirRamo}>
-                  <SelectTrigger aria-label="Ramo Sis2000">
+                  <SelectTrigger aria-label="Ramo">
                     <SelectValue placeholder="Todos los ramos" />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
@@ -1592,101 +2079,67 @@ export function Sis2000ComboPage() {
               )}
             </FormField>
             <FormField
-              label="Producto (cproducto)"
-              tooltip="Producto de Sis2000 al que pertenece el plan. Las coberturas y tarifas del combo salen de su ramo."
+              label="Producto"
+              hint={
+                !cargandoProductos && !errorProductos && ramoElegido > 0 && !opcionesProductoFiltradas.length
+                  ? 'Este ramo todavía no tiene productos: créalo abajo.'
+                  : 'El producto comercial al que pertenece el plan.'
+              }
+              tooltip="Productos registrados en Sis2000. Los que también se ofrecen por Nexus lo indican al lado."
             >
               {cargandoProductos && !productos.length ? (
                 <div className="h-[42px] animate-pulse rounded-xl bg-muted/60" />
               ) : (
                 <Select value={claveProducto} onValueChange={elegirProducto}>
-                  <SelectTrigger aria-label="Producto Sis2000">
+                  <SelectTrigger aria-label="Producto">
                     <SelectValue placeholder="Elige un producto…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
-                    {opcionesProductoFiltradas.map((o) => (
-                      <SelectItem key={o.clave} value={o.clave} disabled={!o.cramo}>
-                        {o.cproducto} · {texto(o.producto.xdescripcion_l) || 'Sin nombre'} ·{' '}
-                        {o.cramo ? `ramo ${o.cramo}` : 'sin ramo'}
-                        {o.tieneNexus ? ' · también en Nexus' : ''}
-                      </SelectItem>
-                    ))}
+                    {opcionesProductoFiltradas.map((o) => {
+                      const nombre = texto(o.producto.xdescripcion_l) || 'Sin nombre';
+                      const repetido = (nombresRepetidos.get(nombre.toUpperCase()) ?? 0) > 1;
+                      return (
+                        <SelectItem key={o.clave} value={o.clave} disabled={!o.cramo}>
+                          {nombre}
+                          {repetido ? ` (${o.cproducto})` : ''}
+                          {ramoFiltro === RAMO_TODOS && o.cramo ? ` · ramo ${o.cramo}` : ''}
+                          {!o.cramo ? ' · sin ramo' : ''}
+                          {o.tieneNexus ? ' · también en Nexus' : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               )}
             </FormField>
-            {cramo > 0 && (
-              <div className="flex flex-wrap items-center gap-3 pb-2">
-                <Badge>Ramo {cramo}</Badge>
-                {opcionProducto && opcionProducto.formularios.length > 1 && (
-                  <span
-                    className="text-xs text-muted-foreground"
-                    title="maproductos tiene una fila por formulario (SysIP y Nexus); el plan es el mismo para ambas."
-                  >
-                    Formularios: {opcionProducto.formularios.join(' · ')}
-                  </span>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setAvisoCobertura(null);
-                    setMostrarNuevaCobertura((v) => !v);
-                  }}
-                  disabled={!catalogo || catalogo.cramo !== cramo}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Nueva cobertura en este ramo
-                </Button>
-              </div>
-            )}
-          </div>
-          {ramoElegido > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
+          </FormGrid>
+
+          {ramoElegido > 0 && !mostrarNuevoProducto && (
+            <div className="mt-3">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setAvisoProducto(null);
-                  if (mostrarNuevoProducto) cerrarNuevoProducto();
-                  else setMostrarNuevoProducto(true);
+                  setMostrarNuevoProducto(true);
                 }}
                 disabled={guardandoProducto}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Crear producto en este ramo
               </Button>
-              {!cargandoProductos && !errorProductos && !opcionesProductoFiltradas.length && (
-                <span className="text-xs text-muted-foreground">
-                  Este ramo no tiene productos en Sis2000
-                </span>
-              )}
             </div>
           )}
           {ramoElegido > 0 && mostrarNuevoProducto && (
-            <div className="mt-3 rounded-xl border border-border/60 bg-card p-4">
-              <p className="mb-3 text-sm font-semibold">Nuevo producto en el ramo {ramoElegido}</p>
+            <div className="mt-4 rounded-xl border border-border/60 bg-slate-50/60 p-4">
+              <p className="mb-1 text-sm font-semibold">Nuevo producto en {nombreRamo || opcionesRamo.find((r) => r.cramo === ramoElegido)?.etiqueta || `el ramo ${ramoElegido}`}</p>
+              <p className="mb-3 text-xs text-muted-foreground">Se crea en Sis2000 cuando lo confirmes; después lo puedes usar en este y en otros planes.</p>
               <FormGrid>
                 <FormField
-                  label="Código (cproducto)"
-                  htmlFor="nuevo-prod-codigo"
-                  hint="Sin espacios. Máx. 6 caracteres (lo que admite el plan)."
-                  error={intentoProducto ? erroresProducto.cproducto : undefined}
-                >
-                  <Input
-                    id="nuevo-prod-codigo"
-                    maxLength={6}
-                    value={nuevoProducto.cproducto}
-                    onChange={(e) =>
-                      setNuevoProducto((p) => ({ ...p, cproducto: e.target.value.replace(/\s/g, '') }))
-                    }
-                  />
-                </FormField>
-                <FormField
-                  label="Nombre"
+                  label="Nombre del producto *"
                   htmlFor="nuevo-prod-nombre"
-                  hint="Máx. 60 caracteres."
+                  hint="Como lo verá el asegurado. Ejemplo: RC GENERAL PARTICULAR. Máx. 60 caracteres."
                   error={intentoProducto ? erroresProducto.xdescripcion_l : undefined}
                 >
                   <Input
@@ -1697,9 +2150,25 @@ export function Sis2000ComboPage() {
                   />
                 </FormField>
                 <FormField
+                  label="Código del producto *"
+                  htmlFor="nuevo-prod-codigo"
+                  hint="Identificador corto, sin espacios (máx. 6). Ejemplo: RCG01."
+                  tooltip="Clave con la que Sis2000 y la emisión identifican el producto. Pídela a Técnico si hay una convención."
+                  error={intentoProducto ? erroresProducto.cproducto : undefined}
+                >
+                  <Input
+                    id="nuevo-prod-codigo"
+                    maxLength={6}
+                    value={nuevoProducto.cproducto}
+                    onChange={(e) =>
+                      setNuevoProducto((p) => ({ ...p, cproducto: e.target.value.replace(/\s/g, '').toUpperCase() }))
+                    }
+                  />
+                </FormField>
+                <FormField
                   label="Nombre corto"
                   htmlFor="nuevo-prod-corto"
-                  hint="Opcional. Máx. 15 caracteres; vacío = inicio del nombre."
+                  hint="Opcional, para reportes (máx. 15). Vacío = inicio del nombre."
                 >
                   <Input
                     id="nuevo-prod-corto"
@@ -1708,7 +2177,7 @@ export function Sis2000ComboPage() {
                     onChange={(e) => setNuevoProducto((p) => ({ ...p, xdescripcion_c: e.target.value }))}
                   />
                 </FormField>
-                <FormField label="Abreviatura" htmlFor="nuevo-prod-abrev" hint="Opcional. Máx. 5 caracteres.">
+                <FormField label="Abreviatura" htmlFor="nuevo-prod-abrev" hint="Opcional (máx. 5). Ejemplo: RCG.">
                   <Input
                     id="nuevo-prod-abrev"
                     maxLength={5}
@@ -1725,7 +2194,7 @@ export function Sis2000ComboPage() {
                     checked={nuevoProducto.iproductor}
                     onChange={(e) => setNuevoProducto((p) => ({ ...p, iproductor: e.target.checked }))}
                   />
-                  Lo venden productores
+                  Lo ofrecen productores
                 </label>
                 <label className={ETIQUETA_OPCION}>
                   <input
@@ -1734,7 +2203,7 @@ export function Sis2000ComboPage() {
                     checked={nuevoProducto.icanal}
                     onChange={(e) => setNuevoProducto((p) => ({ ...p, icanal: e.target.checked }))}
                   />
-                  Lo venden canales
+                  Lo ofrecen canales
                 </label>
               </div>
               {errorNuevoProducto && (
@@ -1743,16 +2212,10 @@ export function Sis2000ComboPage() {
                 </Alert>
               )}
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button type="button" size="sm" onClick={() => void crearProductoEnRamo()} disabled={guardandoProducto}>
-                  {guardandoProducto ? 'Creando…' : 'Guardar producto'}
+                <Button type="button" size="sm" onClick={pedirConfirmacionProducto} disabled={guardandoProducto}>
+                  {guardandoProducto ? 'Creando…' : 'Crear producto'}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={cerrarNuevoProducto}
-                  disabled={guardandoProducto}
-                >
+                <Button type="button" variant="outline" size="sm" onClick={cerrarNuevoProducto} disabled={guardandoProducto}>
                   Cancelar
                 </Button>
               </div>
@@ -1763,35 +2226,29 @@ export function Sis2000ComboPage() {
               {avisoProducto}
             </Alert>
           )}
-          {avisoCobertura && (
-            <Alert variant="success" className="mt-3">
-              {avisoCobertura}
-            </Alert>
-          )}
           {errorProductos && (
             <Alert variant="error" className="mt-3">
-              {errorProductos}
+              No se pudo leer la lista de productos de Sis2000. Pulsa «Recargar» o inténtalo en unos minutos.
             </Alert>
           )}
-          {!cproducto && !errorProductos && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Elige un producto para ver las coberturas de su ramo.
+
+          <div className="mt-5 border-t border-border/50 pt-4">
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+              ¿Qué asegura el plan?
+              <InfoTip text="Cambia los datos que se piden: en cosas, suma asegurada y tasa o prima por cobertura; en personas, quiénes se aseguran, sus edades y una tabla de precios por edad." />
             </p>
-          )}
-          <div id="paso-tipo" className="mt-4 scroll-mt-20 border-t border-border/50 pt-4">
-            <p className="mb-2 text-sm font-semibold">Tipo de plan</p>
             <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Tipo de plan">
               {(
                 [
                   {
                     valor: 'cosas',
                     titulo: 'Cosas (patrimonial)',
-                    texto: 'Vehículos, hogar, ganado… Suma asegurada con tasa % o prima fija por cobertura.',
+                    texto: 'Vehículos, hogar, ganado, responsabilidad civil… Suma asegurada con tasa % o prima fija.',
                   },
                   {
                     valor: 'personas',
                     titulo: 'Personas',
-                    texto: 'Vida, salud, funerario, viajero… Parentescos, edades y tabla de precios por edad.',
+                    texto: 'Vida, salud, funerario, viajero… Quiénes se aseguran, sus edades y el precio según la edad.',
                   },
                   {
                     valor: 'automovil',
@@ -1834,1062 +2291,1173 @@ export function Sis2000ComboPage() {
                 );
               })}
             </div>
+            {esPersonas && !personas && (
+              <Alert variant="warning" className="mt-3">
+                Este producto es de personas y elegiste «Cosas». Si el plan asegura personas (con edades y parentescos),
+                cambia a Personas.
+                <div className="mt-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => cambiarTipoPlan('personas')}>
+                    Cambiar a Personas
+                  </Button>
+                </div>
+              </Alert>
+            )}
           </div>
-          {esPersonas && !personas && (
-            <Alert variant="warning" className="mt-3">
-              Este producto usa el formulario de personas y el tipo de plan elegido es Cosas. Si el
-              plan lleva parentescos y tabla de tasas por edad, cambia «Tipo de plan» a Personas.
-              <div className="mt-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => cambiarTipoPlan('personas')}>
-                  Cambiar a Personas
-                </Button>
-              </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            ¿Quieres cambiar un plan que ya existe?{' '}
+            <Link to="/sis2000/plans" className="font-semibold text-primary underline-offset-2 hover:underline">
+              Búscalo en Planes de Sis2000
+            </Link>{' '}
+            y pulsa «Editar».
+          </p>
+          <DetallesTecnicos>
+            <p>
+              Producto: <code>{cproducto || '—'}</code> · ramo <code>{cramo || '—'}</code>
+              {opcionProducto && opcionProducto.formularios.length > 0 && <> · formularios {opcionProducto.formularios.join(', ')}</>}
+            </p>
+            <p>
+              Alta de producto: nest-api <code>POST /api/v1/configurador/productos</code> → sp_CrearProducto (maproductos).
+            </p>
+          </DetallesTecnicos>
+        </SectionPanel>
+      )}
+    </>
+  );
+
+  // ── Paso 2: Coberturas ──
+  const pasoCoberturas = (
+    <>
+      <ComoSeUsa id="combo-coberturas">
+        <p>
+          Marca las coberturas que va a tener el plan. Las <strong>obligatorias</strong> entran marcadas solas; las{' '}
+          <strong>opcionales</strong> el asegurado las puede tomar o no.
+        </p>
+        <ul className="list-disc space-y-0.5 pl-5">
+          <li>Si falta una cobertura, créala con «Crear cobertura nueva» (queda en el ramo y marcada en este plan).</li>
+          <li>Una cobertura «sin tarifa vigente» no se puede usar hasta que Técnico le cargue una tarifa.</li>
+          <li>En el siguiente paso pones la suma asegurada y el precio de cada una.</li>
+        </ul>
+        {modoEdicion && (
+          <p className="font-medium">
+            Editando: las coberturas que ya tiene el plan aparecen con candado y no se pueden quitar desde aquí; puedes
+            agregar otras.
+          </p>
+        )}
+      </ComoSeUsa>
+
+      {!cramo ? (
+        <SectionPanel title="Coberturas del plan" icon={Shield}>
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Primero elige el producto en el paso 1: las coberturas salen de su ramo.
+          </p>
+        </SectionPanel>
+      ) : (
+        <SectionPanel
+          title={`Coberturas de ${nombreRamo || `el ramo ${cramo}`}`}
+          description="Todas las coberturas del ramo; las comparten todos sus productos. Marca solo las de este plan."
+          icon={Shield}
+        >
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="w-full max-w-sm">
+              <Input placeholder="Buscar por nombre…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <label className={ETIQUETA_OPCION}>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={soloMarcadas}
+                onChange={(e) => setSoloMarcadas(e.target.checked)}
+              />
+              Ver solo las marcadas ({incluidas.length})
+            </label>
+            <label className={ETIQUETA_OPCION}>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={mostrarInactivas}
+                onChange={(e) => setMostrarInactivas(e.target.checked)}
+              />
+              Mostrar inactivas{inactivas ? ` (${inactivas})` : ''}
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => {
+                setAvisoCobertura(null);
+                setMostrarNuevaCobertura((v) => !v);
+              }}
+              disabled={!catalogo || catalogo.cramo !== cramo}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Crear cobertura nueva
+            </Button>
+          </div>
+
+          {avisoCobertura && (
+            <Alert variant="success" className="mb-3">
+              {avisoCobertura}
             </Alert>
           )}
-        </SectionPanel>
-        </div>
 
-        {cramo > 0 && mostrarNuevaCobertura && catalogo && catalogo.cramo === cramo && (
-          <SectionPanel
-            title={`Nueva cobertura en el ramo ${cramo}`}
-            description="nest-api POST /api/v1/configurador/coberturas y /tarifas → macoberturas, matarifa y matarifa_d. Al crearla queda marcada en este combo."
-            icon={Plus}
-          >
-            <Sis2000NuevaCoberturaForm
-              key={cramo}
-              cramo={cramo}
-              existentes={catalogo.coberturas.map((c) => c.fila)}
-              monedaSugerida={cmoneda || '$'}
-              onCreada={(c) => coberturaCreada(c.ccobertura, c.ctarifa, c.sumaConfig)}
-              onCancelar={cerrarNuevaCobertura}
-            />
-          </SectionPanel>
-        )}
-
-        <div id="paso-coberturas" className="scroll-mt-20">
-        {!cramo && (
-          <SectionPanel title="4 · Coberturas" description="Elige primero el ramo y el producto." icon={Shield}>
-            <p className="text-xs text-muted-foreground">Las coberturas aparecen aquí en cuanto eliges un producto.</p>
-          </SectionPanel>
-        )}
-        {cramo > 0 && (
-          <SectionPanel
-            title={`4 · Coberturas del ramo ${cramo}`}
-            description={
-              personas
-                ? 'Marca las que forman el combo. Suma y prima vienen del detalle vigente de la tarifa (matarifa_d); en el plan se graban por parentesco (mapltarifas_per) junto con la tabla de tasas por edad.'
-                : 'Marca las que forman el combo. Sumas, tasa y prima fija vienen del detalle vigente de la tarifa (matarifa_d); si los cambias, solo aplican a este plan (maplantar).'
-            }
-            icon={Shield}
-          >
-            <p className="mb-3 text-xs text-muted-foreground">
-              Se muestran todas las coberturas del ramo {cramo}
-              {producto ? ` (las comparten todos sus productos, no solo ${cproducto})` : ''}. Marca solo las que lleva
-              este plan; al cambiar de producto o de ramo la selección empieza de nuevo.
-            </p>
-            <div className="mb-3 flex flex-wrap items-center gap-3">
-              <div className="w-full max-w-md">
-                <Input
-                  placeholder="Buscar cobertura…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <label className={ETIQUETA_OPCION}>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-primary"
-                  checked={mostrarInactivas}
-                  onChange={(e) => setMostrarInactivas(e.target.checked)}
-                />
-                Mostrar inactivas{inactivas ? ` (${inactivas})` : ''}
-              </label>
-              {!personas && incluidas.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={sumaCerradaEnTodas}
-                  title="Suma asegurada cerrada: la mínima queda igual a la máxima en todas las coberturas marcadas."
-                >
-                  <Equal className="h-3.5 w-3.5" />
-                  Suma cerrada en todas (mín = máx)
-                </Button>
-              )}
-              {personas && incluidas.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => abrirBuscadorTabla('plan')}
-                  title="Elige una tabla existente y úsala en todas las coberturas marcadas."
-                >
-                  <Search className="h-3.5 w-3.5" />
-                  Misma tabla de tasas para todas
-                </Button>
-              )}
+          {mostrarNuevaCobertura && catalogo && catalogo.cramo === cramo && (
+            <div className="mb-4 rounded-2xl border border-indigo-200 bg-indigo-50/30 p-4">
+              <p className="mb-1 text-sm font-bold text-slate-800">Nueva cobertura en {nombreRamo || `el ramo ${cramo}`}</p>
+              <Sis2000NuevaCoberturaForm
+                key={cramo}
+                cramo={cramo}
+                existentes={catalogo.coberturas.map((c) => c.fila)}
+                monedaSugerida={cmoneda || '$'}
+                onCreada={(c) => coberturaCreada(c.ccobertura, c.sumaConfig, c.nombre ?? '')}
+                onCancelar={cerrarNuevaCobertura}
+              />
             </div>
+          )}
 
-            {cargandoTarifas && (
-              <div className="mb-3 max-w-md">
-                <p className="mb-1 text-xs text-muted-foreground">
-                  Cargando tarifas: {tarifasListas} de {totalTarifas}…
-                </p>
-                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-indigo-500 transition-all"
-                    style={{ width: `${totalTarifas ? (tarifasListas / totalTarifas) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {errorCoberturas && <Alert variant="error">{errorCoberturas}</Alert>}
-            {cargandoCoberturas && <div className="h-48 animate-pulse rounded-2xl bg-muted/60" />}
-
-            {!cargandoCoberturas && !errorCoberturas && catalogo && vistas.length === 0 && (
-              <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                El ramo {cramo} no tiene coberturas{mostrarInactivas ? '' : ' activas'}. Créala con
-                «Nueva cobertura en este ramo».
+          {cargandoTarifas && (
+            <div className="mb-3 max-w-md" aria-live="polite">
+              <p className="mb-1 text-xs text-muted-foreground">
+                Leyendo tarifas: {tarifasListas} de {totalTarifas}…
               </p>
-            )}
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-indigo-500 transition-all"
+                  style={{ width: `${totalTarifas ? (tarifasListas / totalTarifas) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
 
-            {!cargandoCoberturas && !errorCoberturas && vistas.length > 0 && (
-              <div className="tabla-cabecera-fija rounded-xl border border-border/60">
-                <table className="w-full min-w-[1100px] text-left text-sm">
-                  <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Incluir</th>
-                      <th className="px-3 py-2">Código</th>
-                      <th className="px-3 py-2">Cobertura</th>
-                      <th className="px-3 py-2">Tarifa</th>
-                      <th className="px-3 py-2">
-                        <span className="inline-flex items-center gap-1">
-                          Obligatoria
-                          <InfoTip
-                            text={
-                              personas
-                                ? 'En planes de personas se guarda por plan (maplcober_per): marca si la cobertura es obligatoria al emitir.'
-                                : 'Solo lectura. En planes de cosas no se guarda por plan: sale de la tarifa (matarifa.bobligatoria). La cobertura 1 es la básica. Las obligatorias entran marcadas.'
-                            }
-                          />
-                        </span>
-                      </th>
-                      {columnasMonto.map((m) => (
-                        <th key={m.campo} className="px-3 py-2 text-right">
-                          <span className="inline-flex items-center gap-1">
-                            {m.etiqueta}
-                            <InfoTip text={m.ayuda} />
-                          </span>
-                        </th>
-                      ))}
-                      {personas && (
-                        <th className="px-3 py-2">
-                          <span className="inline-flex items-center gap-1">
-                            Tabla de tasas
-                            <InfoTip text={'Código de la tabla de precios por edad (mapltabedad_d). Créala con "Crear tabla" o usa una existente. Vacía = la tabla del plan.'} />
-                          </span>
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtradas.map((v) => {
-                      const { cobertura: c, fila } = v;
-                      const habilitada = Boolean(fila && v.tarifa);
-                      const incluida = Boolean(habilitada && fila?.incluir);
-                      return (
-                        <tr
-                          key={c.ccobertura}
-                          className={cn(
-                            'border-b border-border/30',
-                            incluida && 'bg-indigo-50/60',
-                            !habilitada && 'text-muted-foreground',
-                          )}
-                        >
-                          <td className="px-3 py-2">
+          {errorCoberturas && (
+            <Alert variant="error">No se pudieron leer las coberturas del ramo. Pulsa «Recargar».</Alert>
+          )}
+          {cargandoCoberturas && <div className="h-48 animate-pulse rounded-2xl bg-muted/60" />}
+
+          {!cargandoCoberturas && !errorCoberturas && catalogo && vistas.length === 0 && (
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Este ramo no tiene coberturas{mostrarInactivas ? '' : ' activas'}. Créala con «Crear cobertura nueva».
+            </p>
+          )}
+
+          {!cargandoCoberturas && !errorCoberturas && vistas.length > 0 && (
+            <div className="tabla-cabecera-fija rounded-xl border border-border/60">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="w-12 px-3 py-2">
+                      <span className="sr-only">Incluir</span>
+                    </th>
+                    <th className="px-3 py-2">Cobertura</th>
+                    <th className="px-3 py-2">
+                      <span className="inline-flex items-center gap-1">
+                        {personas ? 'Obligatoria en el plan' : 'Tipo'}
+                        <InfoTip
+                          text={
+                            personas
+                              ? 'Marca si el asegurado la lleva siempre. Se guarda en este plan.'
+                              : 'Viene de la tarifa de la cobertura: las obligatorias van siempre en la póliza.'
+                          }
+                        />
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtradas.map((v) => {
+                    const { cobertura: c, fila } = v;
+                    const habilitada = Boolean(fila && v.tarifa);
+                    const incluida = Boolean(habilitada && fila?.incluir);
+                    const bloqueada = delPlan.has(c.ccobertura);
+                    return (
+                      <tr
+                        key={c.ccobertura}
+                        className={cn(
+                          'border-b border-border/30',
+                          incluida && 'bg-indigo-50/60',
+                          !habilitada && !bloqueada && 'text-muted-foreground',
+                        )}
+                      >
+                        <td className="px-3 py-2 align-top">
+                          {bloqueada ? (
+                            <span title="Ya es parte del plan" className="inline-flex text-indigo-600">
+                              <Lock className="h-4 w-4" />
+                            </span>
+                          ) : (
                             <input
+                              id={`cob-${c.ccobertura}`}
                               type="checkbox"
                               className="h-4 w-4 accent-primary"
-                              aria-label={`Incluir cobertura ${c.ccobertura}`}
                               checked={incluida}
                               disabled={!habilitada}
                               onChange={(e) => cambiarFila(c.ccobertura, { incluir: e.target.checked })}
                             />
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs">{c.ccobertura}</td>
-                          <td className="px-3 py-2 text-xs">
-                            {c.descripcion || '—'}
-                            {c.inactiva && (
-                              <Badge variant="draft" className="ml-2 px-2 py-0 text-[10px]">
-                                Inactiva
-                              </Badge>
-                            )}
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <label htmlFor={`cob-${c.ccobertura}`} className={cn('font-medium text-slate-800', habilitada && !bloqueada && 'cursor-pointer')}>
+                            {c.descripcion || 'Cobertura sin nombre'}
+                          </label>
+                          <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
+                            {bloqueada && <Badge variant="submitted" className="px-2 py-0 text-[10px]">Ya en el plan</Badge>}
+                            {c.inactiva && <Badge variant="draft" className="px-2 py-0 text-[10px]">Inactiva</Badge>}
                             {v.calculada && !personas && (
-                              <Badge variant="actuarial" className="ml-2 px-2 py-0 text-[10px]">
-                                Suma calculada al emitir
-                              </Badge>
+                              <Badge variant="actuarial" className="px-2 py-0 text-[10px]">Suma calculada al emitir</Badge>
                             )}
-                            {!personas && (
-                            <button
-                              type="button"
-                              className="ml-2 inline-flex items-center align-middle text-muted-foreground hover:text-foreground"
-                              title="Suma asegurada: fija o calculada al emitir"
-                              aria-label={`Editar suma asegurada de la cobertura ${c.ccobertura}`}
-                              onClick={() => abrirEditorSuma(v)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-xs">{celdaTarifa(v)}</td>
-                          <td className="px-3 py-2 text-xs">
-                            {personas ? (
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 accent-primary"
-                                aria-label={`Cobertura ${c.ccobertura} obligatoria`}
-                                checked={filaPer(c.ccobertura).obligatoria}
-                                disabled={!habilitada}
-                                onChange={(e) => cambiarFilaPer(c.ccobertura, { obligatoria: e.target.checked })}
-                              />
-                            ) : v.obligatoria ? (
-                              <Badge variant="submitted">Obligatoria</Badge>
+                          </span>
+                          {(!v.carga || v.carga.estado === 'cargando') && (
+                            <span className="block text-[11px] text-muted-foreground">Leyendo su tarifa…</span>
+                          )}
+                          {v.carga?.estado === 'error' && (
+                            <span className="block text-[11px] text-rose-600">No se pudo leer su tarifa.</span>
+                          )}
+                          {v.carga?.estado === 'ok' && !v.vigentes.length && (
+                            <span className="block text-[11px] font-semibold text-amber-700">
+                              Sin tarifa vigente: no se puede usar todavía.{' '}
+                              <Link
+                                to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(c.ccobertura)}/tarifas`}
+                                className="font-medium text-primary underline-offset-2 hover:underline"
+                              >
+                                Ver sus tarifas
+                              </Link>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          {personas ? (
+                            incluida ? (
+                              <label className="inline-flex cursor-pointer items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 accent-primary"
+                                  checked={filaPer(c.ccobertura).obligatoria}
+                                  onChange={(e) => cambiarFilaPer(c.ccobertura, { obligatoria: e.target.checked })}
+                                />
+                                {filaPer(c.ccobertura).obligatoria ? 'Obligatoria' : 'Opcional'}
+                              </label>
                             ) : (
-                              <Badge>Opcional</Badge>
-                            )}
-                          </td>
-                          {v.calculada && !personas ? (
-                            <td colSpan={MONTOS.length} className="px-3 py-2 text-xs font-medium text-amber-800">
-                              {textoSumaCalculada(v.sumaConfig)}
-                              <span className="ml-1 font-normal text-muted-foreground">
-                                · unidades × valor por unidad; en el plan se graba en 0
-                              </span>
-                            </td>
+                              <span className="text-muted-foreground">—</span>
+                            )
+                          ) : v.obligatoria ? (
+                            <Badge variant="submitted">Obligatoria</Badge>
                           ) : (
-                          columnasMonto.map((m) => (
-                            <td key={m.campo} className="px-2 py-2 text-right">
-                              {fila && habilitada ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  {m.campo === 'msumamin' && !personas && (
-                                    <button
-                                      type="button"
-                                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
-                                      title="Suma cerrada: igualar la mínima a la máxima"
-                                      aria-label={`Igualar suma mínima a la máxima · cobertura ${c.ccobertura}`}
-                                      disabled={!fila.msumamax || fila.msumamin === fila.msumamax}
-                                      onClick={() => igualarSuma(c.ccobertura)}
-                                    >
-                                      <Equal className="h-3.5 w-3.5" />
-                                    </button>
-                                  )}
-                                  <Input
-                                    type="number"
-                                    inputMode="decimal"
-                                    min={0}
-                                    step="any"
-                                    aria-label={`${m.etiqueta} · cobertura ${c.ccobertura}`}
-                                    value={fila[m.campo]}
-                                    onChange={(e) => cambiarMonto(c.ccobertura, m.campo, e.target.value)}
-                                    className={cn(
-                                      'h-8 w-28 rounded-lg px-2 py-1 text-right text-xs',
-                                      intentoCrear &&
-                                        incluida &&
-                                        !personas &&
-                                        m.campo === 'msumamin' &&
-                                        numero(fila.msumamin) > numero(fila.msumamax) &&
-                                        'border-rose-400 ring-1 ring-rose-300',
-                                    )}
-                                  />
-                                </div>
-                              ) : (
-                                <span className="text-xs">—</span>
-                              )}
-                            </td>
-                          ))
+                            <Badge>Opcional</Badge>
                           )}
-                          {personas && (
-                            <td className="px-2 py-2">
-                              {fila && habilitada ? (
-                                <div className="flex items-center gap-1.5">
-                                  <Input
-                                    aria-label={`Tabla de tasas · cobertura ${c.ccobertura}`}
-                                    value={filaPer(c.ccobertura).ctablatar}
-                                    maxLength={10}
-                                    placeholder={tablaPlan.trim() || 'Tabla'}
-                                    onChange={(e) => cambiarFilaPer(c.ccobertura, { ctablatar: e.target.value })}
-                                    className="h-8 w-28 rounded-lg px-2 py-1 text-xs"
-                                  />
-                                  <button
-                                    type="button"
-                                    className="whitespace-nowrap text-xs font-bold text-indigo-600 hover:underline"
-                                    title="Buscar una tabla que ya exista en Sis2000"
-                                    onClick={() => abrirBuscadorTabla(c.ccobertura, c.descripcion)}
-                                  >
-                                    Elegir
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="whitespace-nowrap text-xs font-bold text-indigo-600 hover:underline"
-                                    onClick={() => abrirCrearTabla(c.ccobertura, c.descripcion)}
-                                  >
-                                    Crear tabla
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="text-xs font-bold text-slate-500 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-                                    disabled={!tablaDe(c.ccobertura)}
-                                    onClick={() => abrirVerTabla(tablaDe(c.ccobertura))}
-                                  >
-                                    Ver
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-xs">—</span>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                    {filtradas.length === 0 && (
-                      <tr>
-                        <td colSpan={5 + columnasMonto.length + (personas ? 1 : 0)} className="px-3 py-6 text-center text-xs text-muted-foreground">
-                          Ninguna cobertura coincide con la búsqueda.
                         </td>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-                <p className="px-3 py-2 text-xs text-muted-foreground">
-                  {filtradas.length} de {vistas.length} cobertura{vistas.length === 1 ? '' : 's'} ·{' '}
-                  {incluidas.length} incluida{incluidas.length === 1 ? '' : 's'}
-                  {sinTarifa ? ` · ${sinTarifa} sin tarifa vigente` : ''}
-                </p>
-              </div>
-            )}
-
-            {editandoSuma && !personas && (
-              <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Suma asegurada · cobertura {editandoSuma}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Se guarda en el configurador (no en Sis2000). Aplica a esta cobertura en cualquier plan del ramo.
-                </p>
-                {errorSuma && <Alert variant="error">{errorSuma}</Alert>}
-                <CoberturaSumaConfigFields
-                  idPrefix={`suma-${editandoSuma}`}
-                  valores={formSuma}
-                  errores={intentoSuma ? erroresSuma : {}}
-                  disabled={guardandoSuma}
-                  onChange={(cambios) => setFormSuma((prev) => ({ ...prev, ...cambios }))}
-                />
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button type="button" variant="outline" disabled={guardandoSuma} onClick={() => setEditandoSuma(null)}>
-                    Cancelar
-                  </Button>
-                  <Button type="button" disabled={guardandoSuma} onClick={() => void guardarSuma()}>
-                    {guardandoSuma ? 'Guardando…' : 'Guardar suma asegurada'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </SectionPanel>
-        )}
-
-        </div>
-
-        <div id="paso-tablas" className="scroll-mt-20">
-        {personas && (
-          <SectionPanel
-            title="5 · Tablas por edad y asegurados"
-            description="Quiénes entran al plan (parentescos, sexo, edades) y con qué tabla de precios por edad se calcula la prima de cada cobertura."
-            icon={Users}
-          >
-            <Alert variant="info" className="mb-4">
-              <p className="font-semibold">¿Qué prima se cobra en un plan de personas?</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                <li>
-                  <strong>Manda la tabla por edad.</strong> Al cotizar o emitir, Sis2000 busca el tramo de la edad de cada
-                  asegurado en la tabla de la cobertura y cobra la <em>prima fija</em> de ese tramo o, si el tramo trae{' '}
-                  <em>tasa %</em>, la tasa × la suma asegurada.
-                </li>
-                <li>
-                  La <strong>prima escrita en la cobertura</strong> (columna «Prima» del paso 4) se graba en el plan, pero no
-                  reemplaza a la tabla: déjala en 0 si la prima sale de la tabla, para que nadie se confunda.
-                </li>
-                <li>
-                  La <strong>suma asegurada</strong> sí sale de la cobertura (columna «Suma asegurada»), y es la que se usa
-                  cuando la tabla cobra por tasa.
-                </li>
-              </ul>
-              <p className="mt-1">En «Revisar y crear» verás, cobertura por cobertura, cómo quedará el cálculo.</p>
-            </Alert>
-            <div className="mb-4 rounded-xl border border-border/60 bg-muted/20 p-4">
-              <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                <Users className="h-3.5 w-3.5" />
-                Asegurados del plan (personas)
-              </p>
-              <FormGrid>
-                <FormField
-                  span={2}
-                  label="Parentescos"
-                  htmlFor="combo-cparen-texto"
-                  hint="Marca quiénes pueden entrar al plan (Titular es el asegurado principal)."
-                  tooltip="Parentescos que admite el plan (catálogo maparent de Sis2000). Cada cobertura incluida se graba para cada parentesco con las mismas edades, suma, prima y tabla de tasas."
-                  error={intentoCrear && !cparens ? 'Marca al menos un parentesco.' : undefined}
-                >
-                  <ParentescosSelector
-                    idPrefix="combo-cparen"
-                    value={parentescosTxt}
-                    onChange={setParentescosTxt}
-                    onCatalogo={setParentescosCat}
-                  />
-                </FormField>
-                <FormField
-                  label="Sexo (csexo)"
-                  htmlFor="combo-csexo"
-                  tooltip="Sexo al que aplica cada parentesco: ambos, masculino o femenino."
-                >
-                  <Select value={csexo} onValueChange={setCsexo}>
-                    <SelectTrigger id="combo-csexo">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SEXOS.map((s) => (
-                        <SelectItem key={s.valor} value={s.valor}>
-                          {s.etiqueta}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormField>
-                <FormField
-                  label="Edad mínima"
-                  htmlFor="combo-edad-min"
-                  tooltip="Edad mínima del asegurado para entrar al plan (nedad_min)."
-                >
-                  <Input
-                    id="combo-edad-min"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    value={edadMin}
-                    onChange={(e) => setEdadMin(e.target.value)}
-                  />
-                </FormField>
-                <FormField
-                  label="Edad máxima"
-                  htmlFor="combo-edad-max"
-                  tooltip="Edad máxima del asegurado para entrar al plan (nedad_max)."
-                >
-                  <Input
-                    id="combo-edad-max"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    value={edadMax}
-                    onChange={(e) => setEdadMax(e.target.value)}
-                  />
-                </FormField>
-                <FormField
-                  label="Tabla de tasas por edad (ctablatar)"
-                  htmlFor="combo-tabla"
-                  hint="Máx. 10 caracteres. La usan todas las coberturas que no indiquen otra en la columna «Tabla de tasas»."
-                  tooltip={'Código de la tabla de precios por edad (mapltabedad_d). Créala con "Crear tabla" o usa una existente.'}
-                >
-                  <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                    <Input
-                      id="combo-tabla"
-                      value={tablaPlan}
-                      maxLength={10}
-                      placeholder="TEMP1"
-                      onChange={(e) => setTablaPlan(e.target.value.toUpperCase())}
-                    />
-                    <Button type="button" size="sm" className="shrink-0" onClick={() => abrirBuscadorTabla('plan')}>
-                      <Search className="h-3.5 w-3.5" />
-                      Elegir
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => abrirCrearTabla('plan')}>
-                      Crear tabla
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0"
-                      disabled={!tablaPlan.trim()}
-                      onClick={() => abrirVerTabla(tablaPlan)}
-                    >
-                      Ver
-                    </Button>
-                  </div>
-                </FormField>
-              </FormGrid>
-            </div>
-            <div className="rounded-xl border border-border/60 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Tabla de cada cobertura</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={!incluidas.length}
-                    onClick={() => abrirBuscadorTabla('plan')}
-                  >
-                    <Search className="h-3.5 w-3.5" />
-                    Misma tabla en todas
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={!tablaPlan.trim() || !Object.values(filasPer).some((f) => f.ctablatar.trim())}
-                    onClick={usarTablaDelPlanEnTodas}
-                    title="Quita la tabla propia de cada cobertura: todas usan la tabla del plan."
-                  >
-                    Usar la del plan en todas
-                  </Button>
-                </div>
-              </div>
-              {!incluidas.length ? (
-                <p className="text-xs text-muted-foreground">Marca coberturas en el paso 4 para asignarles tabla.</p>
-              ) : (
-                <ul className="divide-y divide-border/50">
-                  {incluidas.map((v) => {
-                    const cc = v.cobertura.ccobertura;
-                    const propia = filaPer(cc).ctablatar.trim();
-                    const tabla = tablaDe(cc);
-                    const leida = tabla ? tablasLeidas[tabla.toUpperCase()] : undefined;
-                    return (
-                      <li key={cc} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
-                        <span className="min-w-0">
-                          <span className="font-mono font-semibold">{cc}</span>
-                          {v.cobertura.descripcion && <span className="text-muted-foreground"> · {v.cobertura.descripcion}</span>}
-                        </span>
-                        <span className="flex flex-wrap items-center gap-2">
-                          {tabla ? (
-                            <Badge variant={propia ? 'submitted' : 'default'} className="px-2 py-0 text-[11px]">
-                              {tabla}
-                              {!propia && ' (del plan)'}
-                            </Badge>
-                          ) : (
-                            <span className="font-semibold text-rose-600">Sin tabla</span>
-                          )}
-                          {leida === 'error' && <span className="text-rose-600">no existe en Sis2000</span>}
-                          {leida && leida !== 'error' && leida !== 'cargando' && (
-                            <span className="text-muted-foreground">
-                              {(leida.tramos ?? []).length} tramo{(leida.tramos ?? []).length === 1 ? '' : 's'}
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            className="font-bold text-indigo-600 hover:underline"
-                            onClick={() => abrirBuscadorTabla(cc, v.cobertura.descripcion)}
-                          >
-                            Elegir
-                          </button>
-                          <button
-                            type="button"
-                            className="font-bold text-indigo-600 hover:underline"
-                            onClick={() => abrirCrearTabla(cc, v.cobertura.descripcion)}
-                          >
-                            Crear
-                          </button>
-                          <button
-                            type="button"
-                            className="font-bold text-slate-500 hover:underline disabled:opacity-40"
-                            disabled={!tabla}
-                            onClick={() => abrirVerTabla(tabla)}
-                          >
-                            Ver
-                          </button>
-                        </span>
-                      </li>
                     );
                   })}
-                </ul>
-              )}
-              {avisosPersonas.length > 0 && (
-                <Alert variant="warning" className="mt-3">
-                  <ul className="list-disc space-y-0.5 pl-5">
-                    {avisosPersonas.map((a) => (
-                      <li key={a}>{a}</li>
-                    ))}
-                  </ul>
-                </Alert>
-              )}
-            </div>
-          </SectionPanel>
-        )}
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div id="paso-datos" className="min-w-0 scroll-mt-20 space-y-5 lg:col-span-2">
-          <SectionPanel
-            title="6 · Datos del plan"
-            description={`Cabecera del plan en Sis2000 (${personas ? 'maplanes_per' : 'maplanes'}), frecuencias de pago y quién puede venderlo (mausuplan).`}
-            icon={FileText}
-          >
-            <FormGrid>
-              <FormField
-                label="Código del plan (cplan)"
-                htmlFor="combo-cplan"
-                hint="Máx. 6 caracteres, en mayúsculas."
-                tooltip="Clave del plan dentro del ramo. Con el ramo identifica el plan en Sis2000 y es la que usa la emisión."
-                error={intentoCrear && !cplan.trim() ? 'Escribe el código del plan.' : undefined}
-              >
-                <Input
-                  id="combo-cplan"
-                  value={cplan}
-                  maxLength={6}
-                  placeholder="RCG01"
-                  onChange={(e) => setCplan(e.target.value.toUpperCase())}
-                />
-              </FormField>
-              <FormField
-                label="Nombre del plan (xplan)"
-                htmlFor="combo-xplan"
-                hint="Máx. 60 caracteres."
-                tooltip="Nombre del plan que muestran SysIP y la emisión."
-                error={intentoCrear && !xplan.trim() ? 'Escribe el nombre del plan.' : undefined}
-              >
-                <Input
-                  id="combo-xplan"
-                  value={xplan}
-                  maxLength={60}
-                  onChange={(e) => setXplan(e.target.value)}
-                />
-              </FormField>
-              <FormField
-                label="Vigencia desde (fdesde)"
-                htmlFor="combo-fdesde"
-                tooltip="Desde qué fecha se puede emitir con el plan."
-              >
-                <Input
-                  id="combo-fdesde"
-                  type="date"
-                  value={fdesde}
-                  onChange={(e) => setFdesde(e.target.value)}
-                />
-              </FormField>
-              <FormField
-                label="Vigencia hasta (fhasta)"
-                htmlFor="combo-fhasta"
-                tooltip="Hasta qué fecha se puede emitir con el plan."
-                error={fdesde && fhasta && fdesde > fhasta ? 'La fecha «hasta» debe ser posterior a «desde».' : undefined}
-              >
-                <Input
-                  id="combo-fhasta"
-                  type="date"
-                  value={fhasta}
-                  onChange={(e) => setFhasta(e.target.value)}
-                />
-              </FormField>
-              <FormField
-                label="Moneda (cmoneda)"
-                htmlFor="combo-cmoneda"
-                tooltip="Moneda del plan. Se sugiere la que usan las coberturas del ramo."
-              >
-                {monedas.length ? (
-                  <Select value={cmoneda} onValueChange={setCmoneda}>
-                    <SelectTrigger id="combo-cmoneda">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {opcionesDeMoneda.map((m) => (
-                        <SelectItem key={m.codigo} value={m.codigo}>
-                          {m.codigo}
-                          {m.nombre ? ` · ${m.nombre}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="combo-cmoneda"
-                    value={cmoneda}
-                    maxLength={3}
-                    onChange={(e) => setCmoneda(e.target.value)}
-                  />
-                )}
-              </FormField>
-              <FormField
-                label="Frecuencias de pago"
-                tooltip="Fraccionamientos que admite el plan (maplanes_frec). Marca al menos una."
-              >
-                <div className="flex flex-wrap gap-2">
-                  {FRECUENCIAS.map((f) => (
-                    <label key={f.ifrecuencia} className={ETIQUETA_OPCION}>
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-primary"
-                        checked={frecuencias.includes(f.ifrecuencia)}
-                        onChange={(e) => alternarFrecuencia(f.ifrecuencia, e.target.checked)}
-                      />
-                      {f.xfrecuencia}
-                    </label>
-                  ))}
-                </div>
-              </FormField>
-              <FormField
-                span={2}
-                label="Quién puede venderlo"
-                tooltip="Productor que ve el plan en SysIP (mausuplan) o todos los productores."
-              >
-                <ProductoresSelector idPrefix="combo-prod" value={productoresSel} onChange={setProductoresSel} />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Hoy Sis2000 exige al menos un productor o «Todos» al crear el plan (no se puede dejar en blanco). Después
-                  de creado puedes cambiar a quién se asigna desde «Editar plan».
-                </p>
-              </FormField>
-              <FormField
-                span={2}
-                label="Canales alternos que pueden venderlo"
-                tooltip="Canales alternos (mausuplan, entidad C) que ven el plan: ninguno, uno o varios, o todos. Se guardan por plan y solo se agregan (nunca se borran)."
-              >
-                <CanalesSelector
-                  idPrefix="combo-canal"
-                  value={canalesSel}
-                  onChange={setCanalesSel}
-                  deshabilitado={!canalesHabilitados}
-                />
-              </FormField>
-            </FormGrid>
-          </SectionPanel>
-
-          {/* Igual que en Planes maestro: antes de crear quedan pendientes y se agregan al crear el plan. */}
-          <ProveedoresPlanPanel
-            key={proveedoresKey}
-            className="mt-0"
-            planId={planCreado ? sis2000PlanMasterId(planCreado.cramo, planCreado.cplan) : null}
-          />
-          {/* Tipo de emisión (cobro por días): como los proveedores, antes de crear queda pendiente y se guarda al
-              crear el plan. Si no se activa, nada cambia. */}
-          <CobroDiasPanel
-            key={`cd-${proveedoresKey}`}
-            className="mt-0"
-            planId={planCreado ? sis2000PlanMasterId(planCreado.cramo, planCreado.cplan) : null}
-            coberturas={incluidas.map((v) => ({ ccobertura: v.cobertura.ccobertura, nombre: v.cobertura.descripcion }))}
-            obligatorias={incluidas
-              .filter((v) => (personas ? filaPer(v.cobertura.ccobertura).obligatoria : v.obligatoria))
-              .map((v) => v.cobertura.ccobertura)}
-            cmonedaDefault={cmoneda.trim() || '$'}
-          />
-          </div>
-
-          <Card className="h-fit lg:sticky lg:top-20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Resumen del combo</CardTitle>
-              <CardDescription>
-                {producto ? `Producto ${cproducto} · ramo ${cramo || '—'}` : 'Sin producto elegido'} ·{' '}
-                {personas ? 'plan de personas' : 'plan de cosas'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <dl className="space-y-2 text-sm">
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">Coberturas incluidas</dt>
-                  <dd className="font-semibold">{incluidas.length}</dd>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">
-                    {personas ? 'Suma asegurada más alta' : 'Suma máxima más alta'}
-                  </dt>
-                  <dd className="font-semibold">
-                    {cmoneda} {formatoMonto(resumen.sumaMaxima)}
-                  </dd>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">
-                    {personas ? 'Prima por persona (suma de coberturas)' : 'Prima de referencia'}
-                  </dt>
-                  <dd className="font-semibold">
-                    {cmoneda} {formatoMonto(resumen.prima)}
-                  </dd>
-                </div>
-                {personas && (
-                  <>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="text-muted-foreground">Parentescos</dt>
-                      <dd className="font-semibold">
-                        {cparens ? cparens.map(nombreParen).join(', ') : '—'} · {SEXOS.find((s) => s.valor === csexo)?.etiqueta}
-                      </dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="text-muted-foreground">Edades</dt>
-                      <dd className="font-semibold">
-                        {edadMin || '—'} a {edadMax || '—'} años
-                      </dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="text-muted-foreground">Tabla de tasas</dt>
-                      <dd className="font-semibold">{tablaPlan.trim() || '—'}</dd>
-                    </div>
-                  </>
-                )}
-              </dl>
-              <p className="text-[0.72rem] leading-relaxed text-slate-500">
-                {personas
-                  ? 'Solo referencia: suma de las primas escritas por cobertura. Si la prima sale de la tabla de tasas por edad, la calcula Sis2000 al emitir según la edad del asegurado.'
-                  : 'Solo referencia, calculada con las sumas máximas: tasa × suma máxima ÷ 100, o la prima fija si la cobertura no tiene tasa. La prima real la calcula Sis2000 al cotizar el plan.'}
+                  {filtradas.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                        {soloMarcadas ? 'Todavía no marcaste coberturas.' : 'Ninguna cobertura coincide con la búsqueda.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {incluidas.length} marcada{incluidas.length === 1 ? '' : 's'} de {vistas.length}
+                {sinTarifa ? ` · ${sinTarifa} sin tarifa vigente` : ''}
               </p>
-              <Button type="button" className="w-full" onClick={crear} disabled={creando}>
-                <Send className="h-4 w-4" />
-                {creando ? 'Creando plan…' : 'Crear plan en Sis2000'}
-              </Button>
-              <button
-                type="button"
-                className="w-full text-center text-xs font-medium text-primary hover:underline"
-                onClick={() => irA('paso-revisar')}
-              >
-                Ver la revisión completa antes de crear
-              </button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div id="paso-revisar" className="scroll-mt-20">
-          <SectionPanel
-            title="7 · Revisar y crear"
-            description="Así quedará el plan en Sis2000. Revisa cada dato antes de crearlo; puedes volver a cualquier paso con la barra de arriba."
-            icon={ClipboardCheck}
-          >
-            {errores.length > 0 ? (
-              <Alert variant="warning" className="mb-4">
-                <p className="font-semibold">
-                  Falta{errores.length === 1 ? '' : 'n'} {errores.length} cosa{errores.length === 1 ? '' : 's'} para poder crear el plan:
-                </p>
-                <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                  {errores.map((e, i) => (
-                    <li key={`rev-${i}-${e}`}>{e}</li>
+            </div>
+          )}
+          <DetallesTecnicos>
+            <p>Coberturas: nest-api <code>GET /api/v1/configurador/coberturas?cramo={cramo}</code> (macoberturas). Tarifas: <code>GET /api/v1/configurador/tarifas</code> (matarifa, matarifa_d).</p>
+            {incluidas.length > 0 && (
+              <table className="w-full text-left">
+                <thead>
+                  <tr>
+                    <th className="pr-3">Cobertura</th>
+                    <th className="pr-3">ccobertura</th>
+                    <th className="pr-3">ctarifa</th>
+                    <th>Nombre de tarifa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {incluidas.map((v) => (
+                    <tr key={v.cobertura.ccobertura}>
+                      <td className="pr-3">{nombreCob(v)}</td>
+                      <td className="pr-3 font-mono">{v.cobertura.ccobertura}</td>
+                      <td className="pr-3 font-mono">{v.fila.ctarifa}</td>
+                      <td>{formatTarifaDescripcion(v.tarifa)}</td>
+                    </tr>
                   ))}
-                </ul>
-              </Alert>
-            ) : (
-              <Alert variant="success" className="mb-4">
-                Todo listo: revisa el resumen y pulsa «Crear plan en Sis2000».
-              </Alert>
+                </tbody>
+              </table>
             )}
-            {avisosPersonas.length > 0 && (
-              <Alert variant="warning" className="mb-4">
-                <ul className="list-disc space-y-0.5 pl-5">
-                  {avisosPersonas.map((a) => (
-                    <li key={`rev-${a}`}>{a}</li>
-                  ))}
-                </ul>
-              </Alert>
-            )}
+          </DetallesTecnicos>
+        </SectionPanel>
+      )}
+    </>
+  );
 
-            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              {(
-                [
-                  ['Producto', producto ? `${cproducto} · ${texto(producto.xdescripcion_l) || 'Sin nombre'}` : '—', 'paso-producto'],
-                  ['Ramo', cramo ? (opcionesRamo.find((r) => r.cramo === cramo)?.etiqueta ?? `Ramo ${cramo}`) : '—', 'paso-ramo'],
-                  ['Tipo de plan', personas ? 'Personas' : 'Cosas (patrimonial)', 'paso-tipo'],
-                  ['Plan', cplan.trim() ? `${cplan.trim()} · ${xplan.trim() || 'sin nombre'}` : '—', 'paso-datos'],
-                  ['Vigencia', `${fdesde || '—'} a ${fhasta || '—'}`, 'paso-datos'],
-                  ['Moneda', cmoneda || '—', 'paso-datos'],
-                  [
-                    'Frecuencias de pago',
-                    FRECUENCIAS.filter((f) => frecuencias.includes(f.ifrecuencia)).map((f) => f.xfrecuencia).join(', ') || '—',
-                    'paso-datos',
-                  ],
-                  [
-                    'Quién lo vende',
-                    productoresSel.todos
-                      ? 'Todos los productores'
-                      : productoresSel.productores
-                          .map((p) => (p.xproductor ? `${p.cproductor} · ${p.xproductor}` : String(p.cproductor)))
-                          .join(', ') || '—',
-                    'paso-datos',
-                  ],
-                  ...(personas
-                    ? ([
-                        ['Parentescos', cparens ? cparens.map(nombreParen).join(', ') : '—', 'paso-tablas'],
-                        [
-                          'Sexo y edades',
-                          `${SEXOS.find((s) => s.valor === csexo)?.etiqueta ?? csexo} · ${edadMin || '—'} a ${edadMax || '—'} años`,
-                          'paso-tablas',
-                        ],
-                      ] as Array<[string, string, string]>)
-                    : []),
-                ] as Array<[string, string, string]>
-              ).map(([etiqueta, valor, paso]) => (
-                <div key={etiqueta} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-1">
-                  <dt className="text-muted-foreground">{etiqueta}</dt>
-                  <dd className="flex items-baseline gap-2 text-right font-medium">
-                    <span className="break-words">{valor}</span>
+  /** Editor de suma FIJA / CALCULADA (cosas), se muestra bajo la cobertura que se edita. */
+  const editorSuma = editandoSuma && !personas && (
+    <div className="mt-3 space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Suma asegurada: fija o calculada al emitir</p>
+      <p className="text-xs text-muted-foreground">
+        Se guarda en el configurador y aplica a esta cobertura en cualquier plan del ramo. «Calculada» sirve cuando la
+        suma depende de algo que se conoce al emitir (por ejemplo, kilos × precio por kilo).
+      </p>
+      {errorSuma && <Alert variant="error">{errorSuma}</Alert>}
+      <CoberturaSumaConfigFields
+        idPrefix={`suma-${editandoSuma}`}
+        valores={formSuma}
+        errores={intentoSuma ? erroresSuma : {}}
+        disabled={guardandoSuma}
+        onChange={(cambiosSuma) => setFormSuma((prev) => ({ ...prev, ...cambiosSuma }))}
+      />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" disabled={guardandoSuma} onClick={() => setEditandoSuma(null)}>
+          Cancelar
+        </Button>
+        <Button type="button" disabled={guardandoSuma} onClick={() => void guardarSuma()}>
+          {guardandoSuma ? 'Guardando…' : 'Guardar'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  /** Selector de opción de tarifa (sin código ni nombre interno). */
+  function selectorTarifa(v: VistaCobertura) {
+    if (!v.fila) return null;
+    const vencida = !v.tarifa && v.vigentes.length > 0;
+    if (v.vigentes.length <= 1 && !vencida) return null;
+    return (
+      <FormField
+        label="Opción de tarifa"
+        hint={vencida ? 'La tarifa que tenía el plan venció: elige una vigente.' : 'Esta cobertura tiene varias tarifas vigentes.'}
+        tooltip="Cada opción trae su propia suma y tasa o prima sugeridas; al cambiarla se vuelven a llenar."
+        error={vencida ? 'Elige una tarifa vigente.' : undefined}
+      >
+        <Select value={vencida ? undefined : v.fila.ctarifa} onValueChange={(valor) => cambiarTarifa(v, valor)}>
+          <SelectTrigger aria-label={`Opción de tarifa de ${nombreCob(v)}`}>
+            <SelectValue placeholder="Elige la tarifa…" />
+          </SelectTrigger>
+          <SelectContent>
+            {v.vigentes.map((t, i) => (
+              <SelectItem key={texto(t.ctarifa)} value={texto(t.ctarifa)}>
+                {etiquetaTarifa(t, i, hoy, cmoneda)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FormField>
+    );
+  }
+
+  /** Coberturas del plan que se edita con tarifa vencida y alguna vigente para elegir. */
+  const conTarifaVencida = delPlanConProblema
+    .map((x) => x.vista)
+    .filter((v): v is VistaCobertura => Boolean(v && v.fila && v.vigentes.length));
+
+  // ── Paso 3: Tarifas y tasas ──
+  const pasoPreciosCosas = (
+    <SectionPanel
+      title="Suma asegurada y precio de cada cobertura"
+      description="Los valores sugeridos vienen de la tarifa vigente de cada cobertura; si los cambias, solo aplican a este plan."
+      icon={Calculator}
+    >
+      {!incluidas.length ? (
+        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          Marca coberturas en el paso 2 para ponerles suma y precio.
+        </p>
+      ) : (
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={sumaCerradaEnTodas}
+              title="La suma mínima queda igual a la máxima en todas las coberturas: el asegurado no elige suma."
+            >
+              <Equal className="h-3.5 w-3.5" />
+              Suma fija (mínima = máxima) en todas
+            </Button>
+          </div>
+          <ul className="space-y-3">
+            {incluidas.map((v) => {
+              const cc = v.cobertura.ccobertura;
+              const f = v.fila;
+              const marcarError = (cond: boolean) => intentoCrear && cond && 'border-rose-400 ring-1 ring-rose-300';
+              return (
+                <li key={cc} className="rounded-xl border border-border/60 bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-800">{nombreCob(v)}</p>
+                    {v.obligatoria ? <Badge variant="submitted" className="px-2 py-0 text-[10px]">Obligatoria</Badge> : <Badge className="px-2 py-0 text-[10px]">Opcional</Badge>}
+                    {v.calculada && <Badge variant="actuarial" className="px-2 py-0 text-[10px]">Suma calculada al emitir</Badge>}
                     <button
                       type="button"
-                      className="text-[11px] font-normal text-primary hover:underline"
-                      onClick={() => irA(paso)}
+                      className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-indigo-700"
+                      onClick={() => abrirEditorSuma(v)}
                     >
-                      Cambiar
+                      <Pencil className="h-3 w-3" />
+                      ¿Suma fija o calculada al emitir?
                     </button>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
-            <p className="mb-2 mt-5 text-sm font-semibold">
-              Coberturas del plan ({incluidas.length}) · así se calculará
-            </p>
-            {!incluidas.length ? (
-              <p className="text-xs text-muted-foreground">Todavía no marcaste coberturas (paso 4).</p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-border/60">
-                <table className="w-full min-w-[640px] text-left text-xs">
-                  <thead className="bg-muted/30 text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Cobertura</th>
-                      <th className="px-3 py-2">Tarifa</th>
-                      <th className="px-3 py-2">Obligatoria</th>
-                      <th className="px-3 py-2 text-right">Suma asegurada</th>
-                      <th className="px-3 py-2">Cómo se calcula la prima</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {incluidas.map((v) => {
-                      const cc = v.cobertura.ccobertura;
-                      const f = v.fila;
-                      const oblig = personas ? filaPer(cc).obligatoria : v.obligatoria;
-                      let suma: string;
-                      let calculo: ReactNode;
-                      if (personas) {
-                        const sumaNum = numero(f.msumamax);
-                        suma = sumaNum > 0 ? `${cmoneda} ${formatoMonto2(sumaNum)}` : '—';
-                        const tabla = tablaDe(cc).toUpperCase();
-                        const leida = tabla ? tablasLeidas[tabla] : undefined;
-                        calculo = !tabla ? (
-                          <span className="font-semibold text-rose-600">Falta la tabla por edad</span>
-                        ) : leida === 'cargando' || leida === undefined ? (
-                          <span className="text-muted-foreground">Tabla {tabla}: leyendo tramos…</span>
-                        ) : leida === 'error' ? (
-                          <span className="text-rose-600">La tabla {tabla} no se encontró en Sis2000</span>
-                        ) : (
-                          <div className="space-y-0.5">
-                            <p className="font-medium">Tabla {tabla} (según la edad del asegurado):</p>
-                            <ul className="space-y-0.5">
-                              {(leida.tramos ?? []).slice(0, 8).map((t) => (
-                                <li key={`${t.nedad_min}-${t.nedad_max}`}>
-                                  {t.nedad_min} a {t.nedad_max} años: {precioTramo(t, sumaNum, cmoneda)}
-                                </li>
-                              ))}
-                              {(leida.tramos ?? []).length > 8 && (
-                                <li className="text-muted-foreground">… y {(leida.tramos ?? []).length - 8} tramos más</li>
+                  </div>
+                  {v.calculada ? (
+                    <p className="text-xs text-amber-800">
+                      {textoSumaCalculada(v.sumaConfig)}: la suma asegurada (y su precio) se calculan al emitir, con las
+                      unidades que indique el asegurado. Aquí no hay que llenar montos.
+                    </p>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {selectorTarifa(v)}
+                      <FormField
+                        label="Suma asegurada mínima"
+                        hint={`Lo menos que se puede asegurar. Ejemplo: 1000.`}
+                        tooltip="Sugerida por la tarifa vigente. Si es igual a la máxima, la suma es fija."
+                      >
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="any"
+                          aria-label={`Suma mínima de ${nombreCob(v)}`}
+                          value={f.msumamin}
+                          onChange={(e) => cambiarFila(cc, { msumamin: e.target.value })}
+                          className={cn(marcarError(numero(f.msumamin) > numero(f.msumamax)))}
+                        />
+                      </FormField>
+                      <FormField
+                        label="Suma asegurada máxima *"
+                        hint="Lo más que se puede asegurar. Debe ser mayor a 0."
+                        tooltip="Sugerida por la tarifa vigente. Con tasa, la prima se calcula sobre la suma que elija el asegurado."
+                      >
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="any"
+                            aria-label={`Suma máxima de ${nombreCob(v)}`}
+                            value={f.msumamax}
+                            onChange={(e) => cambiarFila(cc, { msumamax: e.target.value })}
+                            className={cn(marcarError(!(numero(f.msumamax) > 0)))}
+                          />
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                            title="Suma fija: igualar la mínima a la máxima"
+                            aria-label={`Suma fija en ${nombreCob(v)}`}
+                            disabled={!f.msumamax || f.msumamin === f.msumamax}
+                            onClick={() => igualarSuma(cc)}
+                          >
+                            <Equal className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </FormField>
+                      <div className="flex flex-col gap-1.5">
+                        <span className="flex items-center gap-1.5 text-[0.78rem] font-bold tracking-wide text-slate-600">
+                          ¿Cómo se cobra? *
+                          <InfoTip text="Elige una sola: tasa % sobre la suma asegurada, o una prima fija sin importar la suma. Solo se guarda la que elijas." />
+                        </span>
+                        <div className="inline-flex rounded-xl border border-border/60 bg-slate-50 p-0.5 text-xs font-semibold" role="radiogroup" aria-label={`Cómo se cobra ${nombreCob(v)}`}>
+                          {(['tasa', 'prima'] as const).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              role="radio"
+                              aria-checked={f.modo === m}
+                              onClick={() => cambiarFila(cc, { modo: m })}
+                              className={cn(
+                                'flex-1 rounded-lg px-3 py-1.5 transition-colors',
+                                f.modo === m ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-700',
                               )}
-                            </ul>
-                            {numero(f.mprima) > 0 && (
-                              <p className="text-amber-700">
-                                La prima escrita en la cobertura ({cmoneda} {formatoMonto2(numero(f.mprima))}) se graba, pero
-                                manda la tabla.
-                              </p>
-                            )}
-                          </div>
-                        );
-                      } else if (v.calculada) {
-                        suma = 'Al emitir';
-                        calculo = <span>{textoSumaCalculada(v.sumaConfig)}</span>;
-                      } else {
-                        const min = numero(f.msumamin);
-                        const max = numero(f.msumamax);
-                        suma =
-                          min === max
-                            ? `${cmoneda} ${formatoMonto2(max)} (cerrada)`
-                            : `${cmoneda} ${formatoMonto2(min)} a ${formatoMonto2(max)}`;
-                        const tasa = numero(f.pprima);
-                        calculo =
-                          tasa > 0 ? (
-                            <span>
-                              Tasa {tasa.toLocaleString('es-VE', { maximumFractionDigits: 6 })} % × suma (con la máxima:{' '}
-                              {cmoneda} {formatoMonto2((max * tasa) / 100)})
-                            </span>
-                          ) : numero(f.mprima) > 0 ? (
-                            <span>
-                              Prima fija {cmoneda} {formatoMonto2(numero(f.mprima))}
-                            </span>
-                          ) : (
-                            <span className="font-semibold text-rose-600">Sin tasa ni prima</span>
-                          );
-                      }
-                      return (
-                        <tr key={cc} className="border-t border-border/40 align-top">
-                          <td className="px-3 py-2">
-                            <span className="font-mono font-semibold">{cc}</span>
-                            {v.cobertura.descripcion && <span className="text-muted-foreground"> · {v.cobertura.descripcion}</span>}
-                          </td>
-                          <td className="px-3 py-2">{f.ctarifa || '—'}</td>
-                          <td className="px-3 py-2">{oblig ? 'Sí' : 'No'}</td>
-                          <td className="px-3 py-2 text-right">{suma}</td>
-                          <td className="px-3 py-2">{calculo}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                            >
+                              {m === 'tasa' ? 'Tasa %' : 'Prima fija'}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="any"
+                            aria-label={f.modo === 'tasa' ? `Tasa % de ${nombreCob(v)}` : `Prima fija de ${nombreCob(v)}`}
+                            value={f.modo === 'tasa' ? f.pprima : f.mprima}
+                            onChange={(e) => cambiarFila(cc, f.modo === 'tasa' ? { pprima: e.target.value } : { mprima: e.target.value })}
+                            className={cn('pr-10', marcarError(!((f.modo === 'tasa' ? numero(f.pprima) : numero(f.mprima)) > 0)))}
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            {f.modo === 'tasa' ? '%' : cmoneda}
+                          </span>
+                        </div>
+                        <p className="text-[0.72rem] leading-relaxed text-slate-500">
+                          {f.modo === 'tasa'
+                            ? numero(f.pprima) > 0 && numero(f.msumamax) > 0
+                              ? `Con la suma máxima: ${cmoneda} ${formatoMonto2(primaReferencia(v))}.`
+                              : 'Ejemplo: 0.5 = 0,5 % de la suma asegurada.'
+                            : 'Lo mismo para cualquier suma asegurada.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {editandoSuma === cc && editorSuma}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-3 text-right text-sm">
+            Prima de referencia del plan (con las sumas máximas):{' '}
+            <strong>
+              {cmoneda} {formatoMonto(resumen.prima)}
+            </strong>
+          </p>
+          <p className="text-right text-[0.72rem] text-slate-500">
+            Solo es una referencia: la prima real la calcula Sis2000 al cotizar o emitir.
+          </p>
+        </>
+      )}
+    </SectionPanel>
+  );
 
-            <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
-              {errores.length > 0 && (
-                <span className="text-xs text-amber-700">Completa lo que falta arriba para poder crear el plan.</span>
-              )}
-              <Button type="button" onClick={crear} disabled={creando}>
-                <Send className="h-4 w-4" />
-                {creando ? 'Creando plan…' : 'Crear plan en Sis2000'}
-              </Button>
+  const pasoPreciosPersonas = (
+    <>
+      <SectionPanel
+        title="¿Quiénes se aseguran?"
+        description="Los mismos datos aplican a todas las coberturas del plan."
+        icon={Users}
+      >
+        <FormGrid>
+          <FormField
+            span={2}
+            label="Parentescos que puede incluir el plan *"
+            htmlFor="combo-cparen-texto"
+            hint="Titular es el asegurado principal. Ejemplo: Titular, Cónyuge, Hijos."
+            tooltip="Lista de parentescos de Sis2000. Cada cobertura se guarda para cada parentesco marcado."
+            error={intentoCrear && !cparens ? 'Marca al menos un parentesco.' : undefined}
+          >
+            <ParentescosSelector
+              idPrefix="combo-cparen"
+              value={parentescosTxt}
+              onChange={setParentescosTxt}
+              onCatalogo={setParentescosCat}
+            />
+          </FormField>
+          <FormField label="Sexo" htmlFor="combo-csexo" hint="Normalmente «Ambos».">
+            <Select value={csexo} onValueChange={setCsexo}>
+              <SelectTrigger id="combo-csexo">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SEXOS.map((s) => (
+                  <SelectItem key={s.valor} value={s.valor}>
+                    {s.etiqueta}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              label="Edad mínima *"
+              htmlFor="combo-edad-min"
+              hint="En años. Ejemplo: 0."
+              error={intentoCrear && entero(edadMin) == null ? 'Número entero.' : undefined}
+            >
+              <Input
+                id="combo-edad-min"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={edadMin}
+                onChange={(e) => setEdadMin(e.target.value)}
+              />
+            </FormField>
+            <FormField
+              label="Edad máxima *"
+              htmlFor="combo-edad-max"
+              hint="En años. Ejemplo: 74."
+              error={intentoCrear && entero(edadMax) == null ? 'Número entero.' : undefined}
+            >
+              <Input
+                id="combo-edad-max"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={edadMax}
+                onChange={(e) => setEdadMax(e.target.value)}
+              />
+            </FormField>
+          </div>
+        </FormGrid>
+      </SectionPanel>
+
+      <SectionPanel
+        title="Precio según la edad"
+        description="Cada cobertura usa una tabla de precios por edad; la suma asegurada se indica por cobertura."
+        icon={Calculator}
+        className="mt-5"
+      >
+        <Alert variant="info" className="mb-4">
+          <p className="font-semibold">¿Qué prima se cobra?</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            <li>
+              <strong>Manda la tabla por edad:</strong> al cotizar o emitir, Sis2000 busca el tramo de la edad de cada
+              asegurado y cobra la prima de ese tramo o, si el tramo trae tasa %, la tasa × la suma asegurada.
+            </li>
+            <li>
+              La <strong>prima por persona</strong> de la cobertura es opcional y no reemplaza a la tabla: déjala en 0 si
+              la prima sale de la tabla.
+            </li>
+          </ul>
+        </Alert>
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-slate-50/60 p-3 text-sm">
+          <span className="font-semibold">Tabla para todas las coberturas:</span>
+          {tablaPlan.trim() ? (
+            <Badge variant="submitted">{nombreTabla(tablaPlan.trim())}</Badge>
+          ) : (
+            <span className="text-muted-foreground">ninguna</span>
+          )}
+          <Button type="button" size="sm" onClick={() => abrirBuscadorTabla('plan')} disabled={!incluidas.length}>
+            <Search className="h-3.5 w-3.5" />
+            Elegir tabla existente
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => abrirCrearTabla('plan')}>
+            Crear tabla nueva
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={!tablaPlan.trim() || !Object.values(filasPer).some((x) => x.ctablatar.trim())}
+            onClick={usarTablaDelPlanEnTodas}
+            title="Quita la tabla propia de cada cobertura: todas usan la del plan."
+          >
+            Usar esta en todas
+          </Button>
+        </div>
+        {!incluidas.length ? (
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Marca coberturas en el paso 2 para ponerles suma y tabla.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {incluidas.map((v) => {
+              const cc = v.cobertura.ccobertura;
+              const propia = filaPer(cc).ctablatar.trim();
+              const tabla = tablaDe(cc);
+              const leida = tabla ? tablasLeidas[tabla.toUpperCase()] : undefined;
+              return (
+                <li key={cc} className="rounded-xl border border-border/60 bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-800">{nombreCob(v)}</p>
+                    <Badge variant={filaPer(cc).obligatoria ? 'submitted' : 'default'} className="px-2 py-0 text-[10px]">
+                      {filaPer(cc).obligatoria ? 'Obligatoria' : 'Opcional'}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {selectorTarifa(v)}
+                    <FormField
+                      label="Suma asegurada por persona"
+                      hint="Ejemplo: 5000. Sugerida por la tarifa; 0 si la suma sale de la tabla."
+                    >
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="any"
+                        aria-label={`Suma asegurada de ${nombreCob(v)}`}
+                        value={v.fila.msumamax}
+                        onChange={(e) => cambiarFila(cc, { msumamax: e.target.value })}
+                      />
+                    </FormField>
+                    <FormField label="Prima por persona (opcional)" hint="Déjala en 0 si la prima sale de la tabla por edad.">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="any"
+                        aria-label={`Prima por persona de ${nombreCob(v)}`}
+                        value={v.fila.mprima}
+                        onChange={(e) => cambiarFila(cc, { mprima: e.target.value })}
+                      />
+                    </FormField>
+                    <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
+                      <span className="text-[0.78rem] font-bold tracking-wide text-slate-600">Tabla de precios por edad *</span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        {tabla ? (
+                          <Badge variant={propia ? 'submitted' : 'default'} className="px-2 py-0.5 text-[11px]">
+                            {nombreTabla(tabla)}
+                            {!propia && ' · la del plan'}
+                          </Badge>
+                        ) : (
+                          <span className="font-semibold text-rose-600">Sin tabla</span>
+                        )}
+                        {leida === 'error' && <span className="text-rose-600">no existe en Sis2000</span>}
+                        {leida && leida !== 'error' && leida !== 'cargando' && (
+                          <span className="text-muted-foreground">
+                            {(leida.tramos ?? []).length} tramo{(leida.tramos ?? []).length === 1 ? '' : 's'} de edad
+                          </span>
+                        )}
+                        <Button type="button" size="sm" variant="outline" onClick={() => abrirBuscadorTabla(cc, v.cobertura.descripcion)}>
+                          Elegir
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => abrirCrearTabla(cc, v.cobertura.descripcion)}>
+                          Crear
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={!tabla} onClick={() => abrirVerTabla(tabla)}>
+                          Ver tramos
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {avisosPersonas.length > 0 && (
+          <Alert variant="warning" className="mt-3">
+            <ul className="list-disc space-y-0.5 pl-5">
+              {avisosPersonas.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+      </SectionPanel>
+    </>
+  );
+
+  const pasoPrecios = (
+    <>
+      <ComoSeUsa id={personas ? 'combo-precios-personas' : 'combo-precios-cosas'}>
+        {personas ? (
+          <>
+            <p>Indica quiénes pueden asegurarse y con qué tabla se calcula el precio de cada cobertura.</p>
+            <ol className="list-decimal space-y-0.5 pl-5">
+              <li>Marca los parentescos (Titular, Cónyuge, Hijos…) y el rango de edades del plan.</li>
+              <li>Elige una tabla de precios por edad para todas o una por cobertura. Si no existe, créala.</li>
+              <li>Revisa la suma asegurada por persona de cada cobertura.</li>
+            </ol>
+          </>
+        ) : (
+          <>
+            <p>Para cada cobertura indica cuánto se puede asegurar y cómo se cobra.</p>
+            <ol className="list-decimal space-y-0.5 pl-5">
+              <li>
+                <strong>Suma asegurada:</strong> de una mínima a una máxima. Si deben ser iguales (suma fija), usa el botón
+                «=».
+              </li>
+              <li>
+                <strong>¿Cómo se cobra?</strong> elige <em>Tasa %</em> (porcentaje de la suma) o <em>Prima fija</em> (monto
+                fijo). Solo una de las dos.
+              </li>
+            </ol>
+            <p className="text-sky-800">
+              Ejemplo: suma de 1.000 a 50.000 con tasa 0,5 % → con 50.000 asegurados la prima es 250.
+            </p>
+          </>
+        )}
+      </ComoSeUsa>
+      {conTarifaVencida.length > 0 && (
+        <div className="mb-4 space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+          <p className="text-sm font-semibold text-amber-900">
+            Estas coberturas del plan tienen una tarifa que ya no está vigente. Elige una vigente para poder guardar
+            (se conservan los montos del plan).
+          </p>
+          {conTarifaVencida.map((v) => (
+            <div key={v.cobertura.ccobertura}>
+              <p className="mb-2 text-sm font-semibold">{nombreCob(v)}</p>
+              {selectorTarifa(v)}
             </div>
-          </SectionPanel>
+          ))}
+        </div>
+      )}
+      {personas ? pasoPreciosPersonas : pasoPreciosCosas}
+      <DetallesTecnicos>
+        <p>
+          {personas
+            ? 'Se graban por parentesco en mapltarifas_per (msuma, msumamax, mprima, ctablatar), las edades en mapledades_per y la obligatoriedad en maplcober_per. Tablas por edad: mapltabedad / mapltabedad_d.'
+            : 'Se graban en maplantar: msumamin, msumamax, mprima (prima fija) y pprima (tasa %). Solo una de mprima/pprima va con valor; la otra en 0.'}
+        </p>
+        {incluidas.length > 0 && (
+          <p>
+            {incluidas
+              .map((v) => `${v.cobertura.ccobertura}/${v.fila.ctarifa}${personas ? ` → ${tablaDe(v.cobertura.ccobertura) || 'sin tabla'}` : ''}`)
+              .join(' · ')}
+          </p>
+        )}
+      </DetallesTecnicos>
+    </>
+  );
+
+  // ── Paso 4: Datos del plan ──
+  const pasoDatos = (
+    <>
+      <ComoSeUsa id="combo-datos">
+        <p>Los datos que identifican al plan y cómo se vende.</p>
+        <ul className="list-disc space-y-0.5 pl-5">
+          <li>
+            El <strong>código</strong> es corto (máx. 6) y no se puede repetir en el ramo; el <strong>nombre</strong> es el
+            que ven SysIP y la emisión.
+          </li>
+          <li>La <strong>vigencia</strong> indica desde y hasta cuándo se puede emitir con el plan.</li>
+          <li>
+            <strong>Quién lo ofrece:</strong> los productores (y canales, si está habilitado) que podrán verlo al emitir.
+          </li>
+        </ul>
+      </ComoSeUsa>
+      <SectionPanel title="Identificación y vigencia" icon={FileText}>
+        <FormGrid>
+          <FormField
+            label="Nombre del plan *"
+            htmlFor="combo-xplan"
+            hint="Como lo verán SysIP y la emisión. Ejemplo: RC GENERAL PLAN BÁSICO. Máx. 60."
+            error={intentoCrear && !xplan.trim() ? 'Escribe el nombre del plan.' : undefined}
+          >
+            <Input id="combo-xplan" value={xplan} maxLength={60} onChange={(e) => setXplan(e.target.value)} />
+          </FormField>
+          <FormField
+            label="Código del plan *"
+            htmlFor="combo-cplan"
+            hint={modoEdicion ? 'El código de un plan existente no cambia.' : 'Corto y único en el ramo (máx. 6, en mayúsculas). Ejemplo: RCG01.'}
+            tooltip="Con el ramo identifica el plan en Sis2000; es el que usa la emisión."
+            error={intentoCrear && !cplan.trim() ? 'Escribe el código del plan.' : undefined}
+          >
+            <Input
+              id="combo-cplan"
+              value={cplan}
+              maxLength={6}
+              placeholder="RCG01"
+              disabled={modoEdicion}
+              onChange={(e) => setCplan(e.target.value.toUpperCase().replace(/\s/g, ''))}
+            />
+          </FormField>
+          <FormField label="Se puede emitir desde *" htmlFor="combo-fdesde" hint="Normalmente hoy.">
+            <Input id="combo-fdesde" type="date" value={fdesde} onChange={(e) => setFdesde(e.target.value)} />
+          </FormField>
+          <FormField
+            label="Se puede emitir hasta *"
+            htmlFor="combo-fhasta"
+            hint="Si no tiene fin, deja 31/12/2099."
+            error={fdesde && fhasta && fdesde > fhasta ? 'Debe ser posterior a «desde».' : undefined}
+          >
+            <Input id="combo-fhasta" type="date" value={fhasta} onChange={(e) => setFhasta(e.target.value)} />
+          </FormField>
+          <FormField
+            label="Moneda *"
+            htmlFor="combo-cmoneda"
+            hint="Se sugiere la que usan las coberturas del ramo."
+            tooltip="Moneda de las sumas y primas del plan. Por ahora un plan tiene una sola moneda."
+          >
+            {monedas.length ? (
+              <Select value={cmoneda} onValueChange={setCmoneda}>
+                <SelectTrigger id="combo-cmoneda">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {opcionesDeMoneda.map((m) => (
+                    <SelectItem key={m.codigo} value={m.codigo}>
+                      {m.nombre ? `${m.nombre} (${m.codigo})` : m.codigo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input id="combo-cmoneda" value={cmoneda} maxLength={3} onChange={(e) => setCmoneda(e.target.value)} />
+            )}
+          </FormField>
+          <FormField
+            label="Formas de pago *"
+            hint="Cómo puede fraccionar el pago el asegurado. Marca al menos una."
+            error={intentoCrear && !frecuencias.length ? 'Marca al menos una.' : undefined}
+          >
+            <div className="flex flex-wrap gap-2">
+              {opcionesFrecuencia.map((f) => (
+                <label key={f.ifrecuencia} className={ETIQUETA_OPCION}>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={frecuencias.includes(f.ifrecuencia)}
+                    onChange={(e) => alternarFrecuencia(f.ifrecuencia, e.target.checked)}
+                  />
+                  {f.xfrecuencia}
+                </label>
+              ))}
+            </div>
+          </FormField>
+          <FormField
+            span={2}
+            label="Observaciones del plan"
+            htmlFor="combo-xobservacion"
+            hint="Opcional. Nota interna del plan (máx. 255). Ejemplo: Plan aprobado en comité del 04/11."
+            error={observacion.trim().length > 255 ? 'Máx. 255 caracteres.' : undefined}
+          >
+            <textarea
+              id="combo-xobservacion"
+              className="min-h-[64px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              maxLength={255}
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+            />
+          </FormField>
+        </FormGrid>
+      </SectionPanel>
+
+      <SectionPanel title="¿Quién puede ofrecer el plan?" icon={Users} className="mt-5">
+        <FormGrid>
+          <FormField
+            span={2}
+            label="Productores *"
+            hint="Busca por nombre o código y elige uno o varios, o «Todos los productores»."
+            tooltip="Solo los productores elegidos verán el plan al emitir."
+          >
+            <ProductoresSelector idPrefix="combo-prod" value={productoresSel} onChange={setProductoresSel} />
+          </FormField>
+          <FormField
+            span={2}
+            label="Canales"
+            hint={canalesHabilitados ? 'Opcional. Canales (por ejemplo, aliados comerciales) que también podrán ofrecerlo. Solo se agregan; no se quitan.' : 'Por ahora el servidor no permite asignar canales desde aquí.'}
+          >
+            <CanalesSelector idPrefix="combo-canal" value={canalesSel} onChange={setCanalesSel} deshabilitado={!canalesHabilitados} />
+          </FormField>
+        </FormGrid>
+      </SectionPanel>
+
+      {/* Igual que en Planes maestro: antes de crear quedan pendientes y se agregan al crear el plan. */}
+      <ProveedoresPlanPanel
+        key={proveedoresKey}
+        className="mt-5"
+        planId={modoEdicion && editId ? editId : planGuardado ? sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan) : null}
+        onCambio={() => setVersionHistorial((n) => n + 1)}
+      />
+      {/* Tipo de emisión (cobro por días): como los proveedores, antes de crear queda pendiente y se guarda al
+          crear el plan. Si no se activa, nada cambia. */}
+      <CobroDiasPanel
+        key={`cd-${proveedoresKey}`}
+        className="mt-5"
+        planId={modoEdicion && editId ? editId : planGuardado ? sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan) : null}
+        coberturas={incluidas.map((v) => ({ ccobertura: v.cobertura.ccobertura, nombre: v.cobertura.descripcion }))}
+        obligatorias={incluidas
+          .filter((v) => (personas ? filaPer(v.cobertura.ccobertura).obligatoria : v.obligatoria))
+          .map((v) => v.cobertura.ccobertura)}
+        cmonedaDefault={cmoneda.trim() || '$'}
+      />
+      <DetallesTecnicos>
+        <p>
+          Cabecera en {personas ? 'maplanes_per' : 'maplanes'} (cplan, xplan, fdesde, fhasta, cmoneda, xobservacion), formas de pago
+          en maplanes_frec, productores y canales en mausuplan. Proveedores en maplprov_per.
+        </p>
+      </DetallesTecnicos>
+    </>
+  );
+
+  // ── Paso 5: Revisar y confirmar ──
+  const listaCoberturasTexto = (
+    <ul className="space-y-1.5">
+      {incluidas.map((v) => (
+        <li key={v.cobertura.ccobertura} className="rounded-lg border border-border/40 bg-white px-3 py-2">
+          <span className="font-semibold">{nombreCob(v)}</span>
+          <span className="text-muted-foreground">
+            {' '}
+            · {(personas ? filaPer(v.cobertura.ccobertura).obligatoria : v.obligatoria) ? 'obligatoria' : 'opcional'}
+            {delPlan.has(v.cobertura.ccobertura) || !modoEdicion ? '' : ' · nueva en el plan'}
+          </span>
+          <span className="block text-xs text-slate-600">{descripcionPrecio(v)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  const pasoRevisar = (
+    <>
+      <ComoSeUsa id="combo-revisar">
+        <p>
+          Lee el resumen: es exactamente lo que se {modoEdicion ? 'guardará en el plan' : 'creará'} en Sis2000. Si algo no
+          está bien, usa «Cambiar» o la barra de pasos para volver. Al confirmar se escribe en Sis2000 y queda una copia en
+          el historial para poder restaurarlo.
+        </p>
+      </ComoSeUsa>
+      <SectionPanel
+        title={modoEdicion ? 'Revisa los cambios antes de guardar' : 'Revisa el plan antes de crearlo'}
+        icon={ClipboardCheck}
+      >
+        {faltas.length > 0 ? (
+          <Alert variant="warning" className="mb-4">
+            <p className="font-semibold">
+              Falta{faltas.length === 1 ? '' : 'n'} {faltas.length} cosa{faltas.length === 1 ? '' : 's'}:
+            </p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {faltas.map((f, i) => (
+                <li key={`rev-${i}-${f.texto}`}>
+                  {f.texto}{' '}
+                  <button
+                    type="button"
+                    className="font-semibold underline"
+                    onClick={() => irAPaso(PASOS.findIndex((p) => p.id === f.paso))}
+                  >
+                    Ir a «{PASOS.find((p) => p.id === f.paso)?.titulo}»
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Alert>
+        ) : (
+          !planGuardado && (
+            <Alert variant="success" className="mb-4">
+              Todo listo. Revisa el resumen y pulsa «{modoEdicion ? 'Guardar cambios' : 'Crear plan'}».
+            </Alert>
+          )
+        )}
+
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 text-sm leading-relaxed text-slate-800">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">En pocas palabras</p>
+          <p>
+            Se va a {accion} plan <strong>«{tituloPlan}»</strong> (código {cplan.trim() || '—'}) del producto{' '}
+            <strong>{nombreProducto || '—'}</strong>
+            {nombreRamo ? <> en {nombreRamo}</> : null}, para asegurar <strong>{personas ? 'personas' : 'cosas'}</strong>.
+          </p>
+          <p>
+            Se podrá emitir del <strong>{fechaCorta(fdesde) || '—'}</strong> al <strong>{fechaCorta(fhasta) || '—'}</strong>, en{' '}
+            <strong>{cmoneda || '—'}</strong>, con pago <strong>{textoFrecuencias.toLowerCase()}</strong>. Lo podrán ofrecer{' '}
+            <strong>{textoProductores}</strong>
+            {textoCanales ? <> y {textoCanales}</> : null}.
+          </p>
+          {personas && (
+            <p>
+              Asegura a: <strong>{textoParentescos}</strong> ({textoSexo.toLowerCase()}), de <strong>{edadMin || '—'}</strong> a{' '}
+              <strong>{edadMax || '—'}</strong> años.
+            </p>
+          )}
+          <p className="mt-2">
+            Tendrá <strong>{incluidas.length}</strong> cobertura{incluidas.length === 1 ? '' : 's'}
+            {!personas && incluidas.length > 0 && (
+              <>
+                {' '}
+                y una prima de referencia de <strong>{cmoneda} {formatoMonto(resumen.prima)}</strong> con las sumas máximas
+              </>
+            )}
+            :
+          </p>
+          <div className="mt-2">{incluidas.length ? listaCoberturasTexto : <p className="text-muted-foreground">Ninguna todavía.</p>}</div>
+          {observacion.trim() && <p className="mt-2 text-xs">Observaciones: {observacion.trim()}</p>}
         </div>
 
-        {intentoCrear && errores.length > 0 && (
-          <Alert variant="warning">
-            <p className="font-semibold">Antes de crear el plan revisa:</p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5">
-              {errores.map((e, i) => (
-                <li key={`${i}-${e}`}>{e}</li>
+        {modoEdicion && (
+          <div className="mt-4 rounded-2xl border border-border/60 p-4">
+            <p className="mb-2 text-sm font-semibold">Qué cambia frente a lo que está hoy en Sis2000</p>
+            {cambios.length ? (
+              <ul className="list-disc space-y-0.5 pl-5 text-sm">
+                {cambios.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay cambios: el plan quedaría igual.</p>
+            )}
+          </div>
+        )}
+
+        {[...avisosPersonas, ...avisosCosas].length > 0 && (
+          <Alert variant="warning" className="mt-4">
+            <ul className="list-disc space-y-0.5 pl-5">
+              {[...avisosPersonas, ...avisosCosas].map((a) => (
+                <li key={`rev-${a}`}>{a}</li>
               ))}
             </ul>
           </Alert>
         )}
 
-        {errorCrear && <Alert variant="error">{errorCrear}</Alert>}
+        <dl className="mt-4 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          {(
+            [
+              ['Producto', nombreProducto || '—', 'producto'],
+              ['Tipo de plan', personas ? 'Personas' : 'Cosas (patrimonial)', 'producto'],
+              ['Coberturas', `${incluidas.length} marcada${incluidas.length === 1 ? '' : 's'}`, 'coberturas'],
+              ['Montos y precios', personas ? 'Por tabla de edad' : 'Suma y tasa o prima', 'precios'],
+              ['Nombre y código', `${tituloPlan} (${cplan.trim() || '—'})`, 'datos'],
+              ['Quién lo ofrece', textoProductores, 'datos'],
+            ] as Array<[string, string, PasoId]>
+          ).map(([etiqueta, valor, p]) => (
+            <div key={etiqueta} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-1">
+              <dt className="text-muted-foreground">{etiqueta}</dt>
+              <dd className="flex items-baseline gap-2 text-right font-medium">
+                <span className="break-words">{valor}</span>
+                <button
+                  type="button"
+                  className="text-[11px] font-normal text-primary hover:underline"
+                  onClick={() => irAPaso(PASOS.findIndex((x) => x.id === p))}
+                >
+                  Cambiar
+                </button>
+              </dd>
+            </div>
+          ))}
+        </dl>
 
-        {planCreado && (
-          <Alert variant="success">
+        <div className="mt-4 max-w-xl">
+          <FormField
+            label="Motivo del cambio (opcional)"
+            htmlFor="combo-motivo"
+            hint="Queda en el historial junto con la copia de lo anterior. Ejemplo: Ajuste de tasas aprobado por Técnico."
+          >
+            <Input id="combo-motivo" value={motivo} maxLength={500} onChange={(e) => setMotivo(e.target.value)} />
+          </FormField>
+        </div>
+
+        {errorCrear && (
+          <Alert variant="error" className="mt-4">
+            {errorCrear}
+          </Alert>
+        )}
+
+        {planGuardado && (
+          <Alert variant="success" className="mt-4">
             <p className="font-semibold">
-              Plan de {planCreado.tipo} creado en Sis2000: ramo {planCreado.cramo}, plan {planCreado.cplan}
+              {planGuardado.editado ? 'Cambios guardados' : 'Plan creado'} en Sis2000: «{tituloPlan}» ({planGuardado.cplan}).
+            </p>
+            <p className="mt-1 text-xs">
+              {planGuardado.editado
+                ? 'Lo anterior quedó en el historial (más abajo) y se puede restaurar.'
+                : 'Ya se puede usar en la emisión. Si elegiste proveedores o cobro por días, se agregaron al plan.'}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              {planCreado.tipo === 'cosas' && (
+              {planGuardado.tipo === 'cosas' && (
                 <Button type="button" variant="outline" size="sm" onClick={cotizar} disabled={cotizando}>
                   <Calculator className="h-3.5 w-3.5" />
-                  {cotizando ? 'Cotizando…' : 'Cotizar en Sis2000'}
+                  {cotizando ? 'Cotizando…' : 'Probar cotización en Sis2000'}
                 </Button>
               )}
-              <Link
-                to={`/sis2000/plans/${encodeURIComponent(sis2000PlanMasterId(planCreado.cramo, planCreado.cplan))}/edit`}
-                className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-              >
-                Editar plan
-              </Link>
+              {!planGuardado.editado && (
+                <>
+                  <Link
+                    to={`/sis2000/plans/${encodeURIComponent(sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan))}/edit`}
+                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    Editar este plan
+                  </Link>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => empezarDeCero(false)}
+                  >
+                    Crear otro plan
+                  </button>
+                </>
+              )}
             </div>
           </Alert>
         )}
 
-        {errorCotizar && <Alert variant="error">{errorCotizar}</Alert>}
+        {errorCotizar && (
+          <Alert variant="error" className="mt-3">
+            {errorCotizar}
+          </Alert>
+        )}
 
-        {cotizacion && planCreado && (
-          <div className="overflow-x-auto rounded-lg border border-border/50">
+        {cotizacion && planGuardado && (
+          <div className="mt-3 overflow-x-auto rounded-lg border border-border/50">
             <p className="border-b border-border/50 bg-muted/30 px-2 py-2 text-xs font-semibold">
-              Cotización Sis2000 · plan {planCreado.cplan} · frecuencia{' '}
-              {FRECUENCIAS.find((f) => f.ifrecuencia === planCreado.ifrecuencia)?.xfrecuencia ??
-                planCreado.ifrecuencia}
+              Cotización de prueba · pago{' '}
+              {(opcionesFrecuencia.find((f) => f.ifrecuencia === planGuardado.ifrecuencia)?.xfrecuencia ?? planGuardado.ifrecuencia).toLowerCase()}
             </p>
             <table className="w-full text-xs">
               <thead className="bg-muted/50 text-left">
@@ -2903,78 +3471,222 @@ export function Sis2000ComboPage() {
               <tbody>
                 {cotizacion.map((r, i) => (
                   <tr key={`${String(r.ccober)}-${i}`} className="border-t border-border/50">
-                    <td className="p-2">
-                      {texto(r.ccober)} · {texto(r.xcobertura)}
-                    </td>
-                    <td className="p-2 text-right">
-                      {Number(r.msumaasegext ?? 0).toLocaleString('es-VE')}
-                    </td>
-                    <td className="p-2 text-right">
-                      {Number(r.mprimaext ?? 0).toLocaleString('es-VE')}
-                    </td>
-                    <td className="p-2 text-right">
-                      {Number(r.mcomisionext ?? 0).toLocaleString('es-VE')}
-                    </td>
+                    <td className="p-2">{texto(r.xcobertura) || texto(r.ccober)}</td>
+                    <td className="p-2 text-right">{Number(r.msumaasegext ?? 0).toLocaleString('es-VE')}</td>
+                    <td className="p-2 text-right">{Number(r.mprimaext ?? 0).toLocaleString('es-VE')}</td>
+                    <td className="p-2 text-right">{Number(r.mcomisionext ?? 0).toLocaleString('es-VE')}</td>
                   </tr>
                 ))}
                 <tr className="border-t border-border font-semibold">
-                  <td className="p-2">Total (moneda del plan)</td>
+                  <td className="p-2">Total ({cmoneda})</td>
                   <td className="p-2" />
-                  <td className="p-2 text-right">
-                    {totalCotizacion('mprimaext').toLocaleString('es-VE')}
-                  </td>
-                  <td className="p-2 text-right">
-                    {totalCotizacion('mcomisionext').toLocaleString('es-VE')}
-                  </td>
+                  <td className="p-2 text-right">{totalCotizacion('mprimaext').toLocaleString('es-VE')}</td>
+                  <td className="p-2 text-right">{totalCotizacion('mcomisionext').toLocaleString('es-VE')}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         )}
 
-        {tablaDlg && (
-          <TablaEdadDialog
-            key={`${tablaDlg.modo}-${tablaDlg.destino}-${tablaDlg.codigo}`}
-            modo={tablaDlg.modo}
-            codigo={tablaDlg.codigo}
-            descripcion={tablaDlg.descripcion}
-            onClose={() => setTablaDlg(null)}
-            onCreada={(codigo) => {
-              if (tablaDlg.destino === 'plan') setTablaPlan(codigo);
-              else cambiarFilaPer(tablaDlg.destino, { ctablatar: codigo });
-              // Recién creada: que «Así se calculará» la vuelva a leer.
-              setTablasLeidas((prev) => {
-                const next = { ...prev };
-                delete next[codigo.toUpperCase()];
-                return next;
-              });
-            }}
-            tramosIniciales={
-              entero(edadMin) != null && entero(edadMax) != null
-                ? [{ desde: String(entero(edadMin)), hasta: String(entero(edadMax)), tasa: '', prima: '' }]
-                : undefined
-            }
-          />
-        )}
+        <DetallesTecnicos>
+          <p>
+            {modoEdicion ? (
+              <>
+                nest-api <code>PUT /api/v1/configurador/planes/{cramo}/{cplan.trim()}</code> → spMantPlanes (U)
+              </>
+            ) : (
+              <>
+                nest-api <code>POST /api/v1/configurador/planes</code> → spMantPlanes (C)
+              </>
+            )}{' '}
+            · tablas {personas ? 'maplanes_per, maplcober_per, mapltarifas_per, mapledades_per' : 'maplanes, maplantar'}, maplanes_frec,
+            mausuplan. Canales: <code>POST …/planes/:cramo/:cplan/canales</code> (solo alta).
+          </p>
+          <pre className="max-h-72 overflow-auto rounded-lg bg-white p-2 font-mono text-[11px] text-slate-700">
+            {(() => {
+              try {
+                return JSON.stringify(armarPayload(), null, 2);
+              } catch {
+                return '—';
+              }
+            })()}
+          </pre>
+        </DetallesTecnicos>
+      </SectionPanel>
 
-        {buscadorDlg && (
-          <TablaEdadBuscador
-            destino={buscadorDlg.etiqueta}
-            valorActual={buscadorDlg.valor}
-            permitirTodas={incluidas.length > 1 || buscadorDlg.destino === 'plan'}
-            onClose={() => setBuscadorDlg(null)}
-            onElegir={(codigo, enTodas) => {
-              asignarTabla(buscadorDlg.destino, codigo, enTodas);
-              setBuscadorDlg(null);
-            }}
-            onCrearNueva={(sugerido) => {
-              const { destino, descripcion } = buscadorDlg;
-              setBuscadorDlg(null);
-              abrirCrearTabla(destino, descripcion, sugerido);
-            }}
+      {modoEdicion && editId && (
+        <HistorialPanel
+          entidad="PLAN"
+          clave={claveHistorial.plan(editId.split('-')[0], editId.split('-').slice(1).join('-'))}
+          recargar={versionHistorial}
+          onRestaurado={() => window.location.reload()}
+        />
+      )}
+    </>
+  );
+
+  const botonGuardar = (
+    <Button type="button" onClick={pedirConfirmacion} disabled={creando || Boolean(planGuardado && !modoEdicion)}>
+      <Send className="h-4 w-4" />
+      {creando ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Crear plan en Sis2000'}
+    </Button>
+  );
+
+  const contenidoPasos: ReactNode[] = [pasoProducto, pasoCoberturas, pasoPrecios, pasoDatos, pasoRevisar];
+
+  return (
+    <AppShell title={modoEdicion ? 'Editar plan' : 'Combos de coberturas'}>
+      <div ref={arriba} className="scroll-mt-4" />
+      {encabezado}
+
+      {borradorRestaurado && !planGuardado && (
+        <Alert variant="info" className="mb-3">
+          Recuperamos lo que habías llenado antes en este navegador. Revisa los datos; si prefieres empezar otro plan, usa
+          «Empezar de cero».
+        </Alert>
+      )}
+
+      <BarraPasos pasos={PASOS} actual={paso} estado={estadoPaso} onIr={irAPaso} />
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="min-w-0">
+          {/* Todos los pasos quedan montados (los paneles de proveedores y cobro por días guardan lo pendiente). */}
+          {contenidoPasos.map((contenido, i) => (
+            <div key={PASOS[i].id} hidden={i !== paso}>
+              {contenido}
+            </div>
+          ))}
+          <NavegacionPasos
+            actual={paso}
+            total={PASOS.length}
+            onAtras={() => irAPaso(paso - 1)}
+            onSiguiente={siguiente}
+            faltan={faltasDe(paso)}
+            mostrarFaltan={avisoPaso === paso}
+            etiquetaSiguiente={paso === PASOS.length - 2 ? 'Revisar' : undefined}
+            accionFinal={botonGuardar}
           />
-        )}
+        </div>
+
+        <Card className="hidden h-fit xl:sticky xl:top-28 xl:block">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Tu plan</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <p>
+              <span className="text-muted-foreground">Producto:</span> {nombreProducto || '—'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Tipo:</span> {personas ? 'Personas' : 'Cosas'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Coberturas:</span> {incluidas.length}
+            </p>
+            {!personas && (
+              <p>
+                <span className="text-muted-foreground">Prima de referencia:</span> {cmoneda} {formatoMonto(resumen.prima)}
+              </p>
+            )}
+            {personas && (
+              <p>
+                <span className="text-muted-foreground">Asegurados:</span> {textoParentescos}, {edadMin || '—'} a {edadMax || '—'} años
+              </p>
+            )}
+            <p>
+              <span className="text-muted-foreground">Plan:</span> {xplan.trim() || '—'}
+            </p>
+            <p className={cn('pt-1 font-semibold', faltas.length ? 'text-amber-700' : 'text-emerald-700')}>
+              {faltas.length ? `Faltan ${faltas.length} dato${faltas.length === 1 ? '' : 's'}` : 'Listo para revisar'}
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {confirmando && (
+        <ConfirmarDialog
+          titulo={modoEdicion ? '¿Guardar los cambios en Sis2000?' : '¿Crear el plan en Sis2000?'}
+          confirmar={creando ? 'Guardando…' : modoEdicion ? 'Sí, guardar cambios' : 'Sí, crear el plan'}
+          ocupado={creando}
+          onCancelar={() => setConfirmando(false)}
+          onConfirmar={() => void guardarPlan()}
+        >
+          <p>
+            Se va a {accion} plan <strong>«{tituloPlan}»</strong> ({cplan.trim()}) del producto <strong>{nombreProducto}</strong> con{' '}
+            {incluidas.length} cobertura{incluidas.length === 1 ? '' : 's'}.
+          </p>
+          {modoEdicion && cambios.length > 0 && (
+            <ul className="list-disc space-y-0.5 pl-5 text-xs">
+              {cambios.slice(0, 8).map((c) => (
+                <li key={`conf-${c}`}>{c}</li>
+              ))}
+              {cambios.length > 8 && <li>… y {cambios.length - 8} cambio(s) más.</li>}
+            </ul>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Esto escribe en Sis2000. Queda una copia de lo anterior en el historial del configurador para poder restaurarlo.
+          </p>
+        </ConfirmarDialog>
+      )}
+
+      {confirmandoProducto && (
+        <ConfirmarDialog
+          titulo="¿Crear el producto en Sis2000?"
+          confirmar={guardandoProducto ? 'Creando…' : 'Sí, crear producto'}
+          cancelar="Volver"
+          ocupado={guardandoProducto}
+          onCancelar={() => setConfirmandoProducto(false)}
+          onConfirmar={() => void crearProductoEnRamo()}
+        >
+          <p>
+            Se va a crear el producto <strong>«{nuevoProducto.xdescripcion_l.trim()}»</strong> ({nuevoProducto.cproducto.trim()}) en{' '}
+            {opcionesRamo.find((r) => r.cramo === ramoElegido)?.etiqueta ?? `el ramo ${ramoElegido}`}.
+          </p>
+          <p className="text-xs text-muted-foreground">Los productos no se borran desde el configurador.</p>
+        </ConfirmarDialog>
+      )}
+
+      {tablaDlg && (
+        <TablaEdadDialog
+          key={`${tablaDlg.modo}-${tablaDlg.destino}-${tablaDlg.codigo}`}
+          modo={tablaDlg.modo}
+          codigo={tablaDlg.codigo}
+          descripcion={tablaDlg.descripcion}
+          onClose={() => setTablaDlg(null)}
+          onCreada={(codigo) => {
+            if (tablaDlg.destino === 'plan') setTablaPlan(codigo);
+            else cambiarFilaPer(tablaDlg.destino, { ctablatar: codigo });
+            // Recién creada: que «Así se calculará» la vuelva a leer.
+            setTablasLeidas((prev) => {
+              const next = { ...prev };
+              delete next[codigo.toUpperCase()];
+              return next;
+            });
+          }}
+          tramosIniciales={
+            entero(edadMin) != null && entero(edadMax) != null
+              ? [{ desde: String(entero(edadMin)), hasta: String(entero(edadMax)), tasa: '', prima: '' }]
+              : undefined
+          }
+        />
+      )}
+
+      {buscadorDlg && (
+        <TablaEdadBuscador
+          destino={buscadorDlg.etiqueta}
+          valorActual={buscadorDlg.valor}
+          permitirTodas={incluidas.length > 1 || buscadorDlg.destino === 'plan'}
+          onClose={() => setBuscadorDlg(null)}
+          onElegir={(codigo, enTodas) => {
+            asignarTabla(buscadorDlg.destino, codigo, enTodas);
+            setBuscadorDlg(null);
+          }}
+          onCrearNueva={(sugerido) => {
+            const { destino, descripcion } = buscadorDlg;
+            setBuscadorDlg(null);
+            abrirCrearTabla(destino, descripcion, sugerido);
+          }}
+        />
+      )}
     </AppShell>
   );
 }

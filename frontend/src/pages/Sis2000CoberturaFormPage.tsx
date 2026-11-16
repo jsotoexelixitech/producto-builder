@@ -54,8 +54,8 @@ function NuevaCoberturaPage({ cramo }: { cramo: number }) {
       </Link>
       <h1 className="mb-1 text-lg font-bold">Nueva cobertura en el ramo {cramo}</h1>
       <p className="mb-4 text-xs text-muted-foreground">
-        nest-api POST /api/v1/configurador/coberturas y /tarifas → macoberturas, matarifa y
-        matarifa_d. Para meterla en un plan del producto, ve a{' '}
+        Crea la cobertura en el ramo con su tarifa (suma asegurada y tasa o prima vigentes). Para usarla en un
+        plan, ve a{' '}
         <Link to="/sis2000/combos" className="text-primary underline-offset-2 hover:underline">
           Combos de coberturas
         </Link>
@@ -79,7 +79,7 @@ function NuevaCoberturaPage({ cramo }: { cramo: number }) {
             onCreada={(c) =>
               navigate(backHref, {
                 state: {
-                  aviso: `Cobertura ${c.ccobertura} (tarifa ${c.ctarifa}) creada en el ramo ${c.cramo}.`,
+                  aviso: `Cobertura «${c.nombre || c.ccobertura}» creada en el ramo ${c.cramo} con su tarifa.`,
                 },
               })
             }

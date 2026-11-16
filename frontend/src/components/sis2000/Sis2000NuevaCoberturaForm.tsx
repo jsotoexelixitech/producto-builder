@@ -13,6 +13,7 @@ import {
   type NuevaCoberturaForm,
 } from '@/lib/sis2000-nueva-cobertura';
 import { CoberturaSumaConfigFields } from '@/components/sis2000/CoberturaSumaConfigFields';
+import { ConfirmarDialog, DetallesTecnicos } from '@/components/sis2000/AsistentePasos';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FormField, FormGrid } from '@/components/ui/form-field';
@@ -36,6 +37,8 @@ export interface CoberturaCreada {
   cramo: number;
   ccobertura: string;
   ctarifa: string;
+  /** Nombre de la cobertura (para los avisos). */
+  nombre: string;
   /** Suma asegurada (FIJA / CALCULADA) guardada en el configurador; null si quedó FIJA. */
   sumaConfig: CoberturaSumaConfig | null;
 }
@@ -72,6 +75,8 @@ export function Sis2000NuevaCoberturaForm({
   const [coberturaGrabada, setCoberturaGrabada] = useState<string | null>(null);
   /** Configuración de suma ya guardada en el configurador (se reintenta si falló). */
   const [sumaGrabada, setSumaGrabada] = useState<CoberturaSumaConfig | null>(null);
+  /** Pide confirmación antes de escribir en Sis2000. */
+  const [confirmando, setConfirmando] = useState(false);
 
   useEffect(() => {
     api
@@ -123,14 +128,20 @@ export function Sis2000NuevaCoberturaForm({
     }));
   }
 
-  async function crear(e: React.FormEvent) {
+  function pedirConfirmacion(e: React.FormEvent) {
     e.preventDefault();
     setIntento(true);
     setError(null);
     if (hayErrores) {
-      setError('Revisa los campos marcados en rojo.');
+      setError('Revisa los campos marcados en rojo (algunos pueden estar en «Códigos y datos internos»).');
       return;
     }
+    setConfirmando(true);
+  }
+
+  async function crear() {
+    setConfirmando(false);
+    setError(null);
     setGuardando(true);
     const ccobertura = coberturaGrabada ?? form.ccobertura.trim().toUpperCase();
     try {
@@ -153,7 +164,7 @@ export function Sis2000NuevaCoberturaForm({
         setSumaGrabada(sumaConfig);
       } catch (ex) {
         setError(
-          `La cobertura ${ccobertura} quedó creada en el ramo ${cramo}, pero no se pudo guardar «Suma calculada al emitir»: ${
+          `La cobertura «${form.xdescripcion_l.trim().toUpperCase() || ccobertura}» quedó creada, pero no se pudo guardar «Suma calculada al emitir»: ${
             ex instanceof Error ? ex.message : 'error desconocido'
           }. Pulsa «Crear tarifa» para reintentar.`,
         );
@@ -163,10 +174,16 @@ export function Sis2000NuevaCoberturaForm({
     }
     try {
       await api.createSis2000Tarifa(payloadTarifa(cramo, { ...form, ccobertura }));
-      onCreada({ cramo, ccobertura, ctarifa: form.ctarifa.trim().toUpperCase(), sumaConfig });
+      onCreada({
+        cramo,
+        ccobertura,
+        ctarifa: form.ctarifa.trim().toUpperCase(),
+        nombre: form.xdescripcion_l.trim().toUpperCase(),
+        sumaConfig,
+      });
     } catch (ex) {
       setError(
-        `La cobertura ${ccobertura} quedó creada en el ramo ${cramo}, pero su tarifa no: ${
+        `La cobertura «${form.xdescripcion_l.trim().toUpperCase() || ccobertura}» quedó creada, pero su tarifa no: ${
           ex instanceof Error ? ex.message : 'error desconocido'
         }. Corrige los datos de la tarifa y pulsa «Crear tarifa».`,
       );
@@ -181,12 +198,25 @@ export function Sis2000NuevaCoberturaForm({
     : bloqueada
       ? 'Crear tarifa'
       : 'Crear cobertura y tarifa';
+  /** Abre «Códigos y datos internos» si hay un error ahí (si no, quedaría oculto). */
+  const errorEnCodigos =
+    intento &&
+    Boolean(
+      errores.ccobertura ||
+        errores.ctarifa ||
+        errores.xtarifam ||
+        errores.cramoint ||
+        errores.ccoberturaint ||
+        errores.ccontrea ||
+        errores.cramorea,
+    );
+  const nombreCobertura = form.xdescripcion_l.trim().toUpperCase() || 'la cobertura';
 
   return (
-    <form onSubmit={crear} noValidate className="space-y-5">
+    <form onSubmit={pedirConfirmacion} noValidate className="space-y-5">
       <p className="text-xs text-muted-foreground">
-        Se crea en Sis2000 la cobertura del ramo {cramo} (macoberturas) con su tarifa y la tasa o prima
-        vigente (matarifa y matarifa_d). Sin tarifa vigente no se puede usar en un plan.
+        Se crea en Sis2000 la cobertura en este ramo junto con su tarifa: suma asegurada y tasa o prima vigentes. Sin
+        tarifa vigente una cobertura no se puede usar en un plan. Los códigos se sugieren solos.
       </p>
 
       {error && <Alert variant={bloqueada ? 'warning' : 'error'}>{error}</Alert>}
@@ -198,24 +228,36 @@ export function Sis2000NuevaCoberturaForm({
         </h5>
         <FormGrid>
           <FormField
-            label="Código (ccobertura) *"
-            htmlFor="nc-ccobertura"
-            tooltip="Código nuevo dentro del ramo, hasta 4 letras o números. Se sugiere el siguiente número libre."
-            error={err('ccobertura')}
+            label="Nombre de la cobertura *"
+            htmlFor="nc-xl"
+            span={2}
+            hint="Es lo que se ve en la póliza. Ejemplo: RESPONSABILIDAD CIVIL CONTRACTUAL. Máx. 60."
+            error={err('xdescripcion_l')}
           >
             <Input
-              id="nc-ccobertura"
-              value={form.ccobertura}
-              maxLength={4}
+              id="nc-xl"
+              value={form.xdescripcion_l}
+              maxLength={60}
               disabled={bloqueada}
-              onChange={(e) => cambiar('ccobertura', e.target.value)}
+              placeholder="RESPONSABILIDAD CIVIL CONTRACTUAL"
+              onChange={(e) => cambiar('xdescripcion_l', e.target.value)}
             />
           </FormField>
           <FormField
-            label="Moneda *"
-            tooltip="Moneda de las sumas y primas de la cobertura (macoberturas.cmoneda)."
-            error={err('cmoneda')}
+            label="Nombre corto"
+            htmlFor="nc-xc"
+            hint="Opcional, para reportes (máx. 15). Vacío = primeros 15 caracteres del nombre."
+            error={err('xdescripcion_c')}
           >
+            <Input
+              id="nc-xc"
+              value={form.xdescripcion_c}
+              maxLength={15}
+              disabled={bloqueada}
+              onChange={(e) => cambiar('xdescripcion_c', e.target.value)}
+            />
+          </FormField>
+          <FormField label="Moneda *" hint="Moneda de la suma asegurada y la prima." error={err('cmoneda')}>
             {monedas.length ? (
               <Select
                 value={form.cmoneda}
@@ -231,8 +273,7 @@ export function Sis2000NuevaCoberturaForm({
                   )}
                   {monedas.map((m) => (
                     <SelectItem key={m.codigo} value={m.codigo}>
-                      {m.codigo}
-                      {m.nombre ? ` · ${m.nombre}` : ''}
+                      {m.nombre ? `${m.nombre} (${m.codigo})` : m.codigo}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -247,43 +288,7 @@ export function Sis2000NuevaCoberturaForm({
               />
             )}
           </FormField>
-          <FormField
-            label="Nombre de la cobertura *"
-            htmlFor="nc-xl"
-            span={2}
-            tooltip="Descripción larga (macoberturas.xdescripcion_l), máx. 60 caracteres. Es lo que se ve en la póliza."
-            error={err('xdescripcion_l')}
-          >
-            <Input
-              id="nc-xl"
-              value={form.xdescripcion_l}
-              maxLength={60}
-              disabled={bloqueada}
-              placeholder="RESPONSABILIDAD CIVIL CONTRACTUAL"
-              onChange={(e) => cambiar('xdescripcion_l', e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="Nombre corto"
-            htmlFor="nc-xc"
-            hint="Opcional. Si lo dejas vacío se usan los primeros 15 caracteres del nombre."
-            tooltip="Descripción corta (macoberturas.xdescripcion_c), máx. 15 caracteres."
-            error={err('xdescripcion_c')}
-          >
-            <Input
-              id="nc-xc"
-              value={form.xdescripcion_c}
-              maxLength={15}
-              disabled={bloqueada}
-              onChange={(e) => cambiar('xdescripcion_c', e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="Abreviatura"
-            htmlFor="nc-xab"
-            tooltip="Abreviatura de la cobertura (macoberturas.xabreviatura), máx. 5 caracteres. Opcional."
-            error={err('xabreviatura')}
-          >
+          <FormField label="Abreviatura" htmlFor="nc-xab" hint="Opcional (máx. 5). Ejemplo: RCC." error={err('xabreviatura')}>
             <Input
               id="nc-xab"
               value={form.xabreviatura}
@@ -300,7 +305,7 @@ export function Sis2000NuevaCoberturaForm({
             checked={form.obligatoria}
             onChange={(e) => cambiar('obligatoria', e.target.checked)}
           />
-          Obligatoria (entra siempre en los planes que la incluyan)
+          Obligatoria (va siempre en los planes que la incluyan)
         </label>
         <div className="mt-4">
           <CoberturaSumaConfigFields
@@ -314,146 +319,21 @@ export function Sis2000NuevaCoberturaForm({
       </div>
 
       <div>
-        <h5 className={SUBTITULO}>Datos internos y reaseguro (opcional)</h5>
-        <FormGrid>
-          <FormField
-            label="Copiar datos internos de"
-            span={2}
-            hint="Las tarifas de Sis2000 copian el ramo y la cobertura internos de la cobertura. Toma los de una cobertura parecida del ramo."
-            tooltip="Llena ramo interno (cramoint) y cobertura interna (ccoberturaint) con los de la cobertura elegida. Puedes ajustarlos abajo."
-          >
-            <Select
-              value={form.basadaEn || SIN_BASE}
-              onValueChange={elegirBase}
-              disabled={bloqueada}
-            >
-              <SelectTrigger aria-label="Copiar datos internos de">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value={SIN_BASE}>Ninguna (dejar vacíos)</SelectItem>
-                {conCodigo.map((c) => {
-                  const cod = texto(c.ccobertura);
-                  return (
-                    <SelectItem key={cod} value={cod}>
-                      {cod} · {texto(c.xdescripcion_l) || 'Sin nombre'}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label="Ramo interno (cramoint)" htmlFor="nc-cramoint" error={err('cramoint')}>
-            <Input
-              id="nc-cramoint"
-              inputMode="numeric"
-              value={form.cramoint}
-              disabled={bloqueada}
-              onChange={(e) => cambiar('cramoint', e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="Cobertura interna (ccoberturaint)"
-            htmlFor="nc-ccobint"
-            error={err('ccoberturaint')}
-          >
-            <Input
-              id="nc-ccobint"
-              inputMode="numeric"
-              value={form.ccoberturaint}
-              disabled={bloqueada}
-              onChange={(e) => cambiar('ccoberturaint', e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="Contrato de reaseguro (ccontrea)"
-            htmlFor="nc-ccontrea"
-            tooltip="Opcional. Pídelo a reaseguro si la cobertura debe cederse."
-            error={err('ccontrea')}
-          >
-            <Input
-              id="nc-ccontrea"
-              inputMode="numeric"
-              value={form.ccontrea}
-              disabled={bloqueada}
-              onChange={(e) => cambiar('ccontrea', e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="Ramo de reaseguro (cramorea)"
-            htmlFor="nc-cramorea"
-            tooltip="Opcional. También se usa como ramo PCND si no se indica otro."
-            error={err('cramorea')}
-          >
-            <Input
-              id="nc-cramorea"
-              inputMode="numeric"
-              value={form.cramorea}
-              disabled={bloqueada}
-              onChange={(e) => cambiar('cramorea', e.target.value)}
-            />
-          </FormField>
-        </FormGrid>
-      </div>
-
-      <div>
-        <h5 className={SUBTITULO}>Tarifa y tasa vigente</h5>
+        <h5 className={SUBTITULO}>Tarifa: suma asegurada y precio</h5>
         {form.tipoSuma === 'CALCULADA' && (
           <p className="mb-3 text-xs text-muted-foreground">
-            Con suma calculada al emitir, la suma máxima y la tasa o prima de la tarifa son opcionales (se graban
-            en 0 si las dejas vacías).
+            Con suma calculada al emitir, la suma máxima y la tasa o prima son opcionales (quedan en 0 si las dejas
+            vacías).
           </p>
         )}
         <FormGrid>
-          <FormField
-            label="Código de tarifa (ctarifa) *"
-            htmlFor="nc-ctarifa"
-            tooltip="Tarifa de la cobertura (matarifa.ctarifa). Lo normal es 1."
-            error={err('ctarifa')}
-          >
-            <Input
-              id="nc-ctarifa"
-              value={form.ctarifa}
-              maxLength={4}
-              onChange={(e) => cambiar('ctarifa', e.target.value)}
-            />
+          <FormField label="Vigente desde *" htmlFor="nc-fdesde" hint="Desde cuándo vale este precio." error={err('fdesde')}>
+            <Input id="nc-fdesde" type="date" value={form.fdesde} onChange={(e) => cambiar('fdesde', e.target.value)} />
           </FormField>
-          <FormField
-            label="Nombre de la tarifa"
-            htmlFor="nc-xtarifam"
-            hint={`Si lo dejas vacío: «${nombreCortoPorDefecto(form) || '—'}».`}
-            tooltip="Descripción corta de la tarifa (matarifa.xtarifam), máx. 15 caracteres."
-            error={err('xtarifam')}
-          >
-            <Input
-              id="nc-xtarifam"
-              value={form.xtarifam}
-              maxLength={15}
-              onChange={(e) => cambiar('xtarifam', e.target.value)}
-            />
+          <FormField label="Vigente hasta" htmlFor="nc-fhasta" hint="Vacío o 31/12/2099 si no tiene fin." error={err('fhasta')}>
+            <Input id="nc-fhasta" type="date" value={form.fhasta} onChange={(e) => cambiar('fhasta', e.target.value)} />
           </FormField>
-          <FormField label="Vigente desde *" htmlFor="nc-fdesde" error={err('fdesde')}>
-            <Input
-              id="nc-fdesde"
-              type="date"
-              value={form.fdesde}
-              onChange={(e) => cambiar('fdesde', e.target.value)}
-            />
-          </FormField>
-          <FormField label="Vigente hasta" htmlFor="nc-fhasta" error={err('fhasta')}>
-            <Input
-              id="nc-fhasta"
-              type="date"
-              value={form.fhasta}
-              onChange={(e) => cambiar('fhasta', e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="Suma mínima"
-            htmlFor="nc-msumamin"
-            tooltip="Suma asegurada mínima (matarifa_d.msumamin). Vacío = 0."
-            error={err('msumamin')}
-          >
+          <FormField label="Suma asegurada mínima" htmlFor="nc-msumamin" hint="Vacío = 0. Ejemplo: 1000." error={err('msumamin')}>
             <Input
               id="nc-msumamin"
               type="number"
@@ -464,9 +344,9 @@ export function Sis2000NuevaCoberturaForm({
             />
           </FormField>
           <FormField
-            label={form.tipoSuma === 'CALCULADA' ? 'Suma máxima' : 'Suma máxima *'}
+            label={form.tipoSuma === 'CALCULADA' ? 'Suma asegurada máxima' : 'Suma asegurada máxima *'}
             htmlFor="nc-msumamax"
-            tooltip="Suma asegurada máxima (matarifa_d.msumamax). Debe ser mayor a 0, salvo con suma calculada al emitir."
+            hint="Mayor a 0, salvo con suma calculada al emitir. Ejemplo: 50000."
             error={err('msumamax')}
           >
             <Input
@@ -479,7 +359,8 @@ export function Sis2000NuevaCoberturaForm({
             />
           </FormField>
         </FormGrid>
-        <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Cómo se calcula la prima">
+        <p className="mb-2 mt-4 text-[0.78rem] font-bold tracking-wide text-slate-600">¿Cómo se cobra? (elige una)</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Cómo se cobra">
           <label className={ETIQUETA_OPCION}>
             <input
               type="radio"
@@ -506,8 +387,7 @@ export function Sis2000NuevaCoberturaForm({
             <FormField
               label={form.tipoSuma === 'CALCULADA' ? 'Tasa %' : 'Tasa % *'}
               htmlFor="nc-pprima"
-              hint="0,5 = 0,5 % de la suma asegurada."
-              tooltip="Tasa en % (matarifa_d.pprima)."
+              hint="0.5 = 0,5 % de la suma asegurada (hasta 6 decimales)."
               error={err('pprima')}
             >
               <Input
@@ -523,7 +403,7 @@ export function Sis2000NuevaCoberturaForm({
             <FormField
               label={form.tipoSuma === 'CALCULADA' ? 'Prima fija' : 'Prima fija *'}
               htmlFor="nc-mprima"
-              tooltip="Prima fija de la cobertura (matarifa_d.mprima)."
+              hint="Monto fijo, sin importar la suma asegurada. Ejemplo: 25."
               error={err('mprima')}
             >
               <Input
@@ -539,6 +419,102 @@ export function Sis2000NuevaCoberturaForm({
         </FormGrid>
       </div>
 
+      <DetallesTecnicos titulo="Códigos y datos internos (opcional)" abierto={errorEnCodigos}>
+        <p>Se sugieren solos. Cámbialos solo si Técnico o Reaseguro te lo piden.</p>
+        <FormGrid>
+          <FormField
+            label="Código de la cobertura *"
+            htmlFor="nc-ccobertura"
+            hint="Hasta 4 letras o números; se sugiere el siguiente libre del ramo."
+            error={err('ccobertura')}
+          >
+            <Input
+              id="nc-ccobertura"
+              value={form.ccobertura}
+              maxLength={4}
+              disabled={bloqueada}
+              onChange={(e) => cambiar('ccobertura', e.target.value)}
+            />
+          </FormField>
+          <FormField label="Código de la tarifa *" htmlFor="nc-ctarifa" hint="Lo normal es 1." error={err('ctarifa')}>
+            <Input id="nc-ctarifa" value={form.ctarifa} maxLength={4} onChange={(e) => cambiar('ctarifa', e.target.value)} />
+          </FormField>
+          <FormField
+            label="Nombre interno de la tarifa"
+            htmlFor="nc-xtarifam"
+            hint={`Máx. 15. Si lo dejas vacío: «${nombreCortoPorDefecto(form) || '—'}».`}
+            error={err('xtarifam')}
+          >
+            <Input
+              id="nc-xtarifam"
+              value={form.xtarifam}
+              maxLength={15}
+              onChange={(e) => cambiar('xtarifam', e.target.value)}
+            />
+          </FormField>
+          <FormField label="Copiar datos internos de" hint="Toma el ramo y la cobertura internos de una cobertura parecida del ramo.">
+            <Select value={form.basadaEn || SIN_BASE} onValueChange={elegirBase} disabled={bloqueada}>
+              <SelectTrigger aria-label="Copiar datos internos de">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value={SIN_BASE}>Ninguna (dejar vacíos)</SelectItem>
+                {conCodigo.map((c) => {
+                  const cod = texto(c.ccobertura);
+                  return (
+                    <SelectItem key={cod} value={cod}>
+                      {texto(c.xdescripcion_l) || 'Sin nombre'} ({cod})
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Ramo interno" htmlFor="nc-cramoint" error={err('cramoint')}>
+            <Input
+              id="nc-cramoint"
+              inputMode="numeric"
+              value={form.cramoint}
+              disabled={bloqueada}
+              onChange={(e) => cambiar('cramoint', e.target.value)}
+            />
+          </FormField>
+          <FormField label="Cobertura interna" htmlFor="nc-ccobint" error={err('ccoberturaint')}>
+            <Input
+              id="nc-ccobint"
+              inputMode="numeric"
+              value={form.ccoberturaint}
+              disabled={bloqueada}
+              onChange={(e) => cambiar('ccoberturaint', e.target.value)}
+            />
+          </FormField>
+          <FormField
+            label="Contrato de reaseguro"
+            htmlFor="nc-ccontrea"
+            hint="Opcional. Pídelo a Reaseguro si la cobertura se cede."
+            error={err('ccontrea')}
+          >
+            <Input
+              id="nc-ccontrea"
+              inputMode="numeric"
+              value={form.ccontrea}
+              disabled={bloqueada}
+              onChange={(e) => cambiar('ccontrea', e.target.value)}
+            />
+          </FormField>
+          <FormField label="Ramo de reaseguro" htmlFor="nc-cramorea" hint="Opcional." error={err('cramorea')}>
+            <Input
+              id="nc-cramorea"
+              inputMode="numeric"
+              value={form.cramorea}
+              disabled={bloqueada}
+              onChange={(e) => cambiar('cramorea', e.target.value)}
+            />
+          </FormField>
+        </FormGrid>
+        <p>Se graba en macoberturas, matarifa y matarifa_d (nest-api v1/configurador/coberturas y /tarifas).</p>
+      </DetallesTecnicos>
+
       <div className="flex flex-wrap justify-end gap-2">
         {onCancelar && (
           <Button type="button" variant="outline" onClick={onCancelar} disabled={guardando}>
@@ -550,6 +526,42 @@ export function Sis2000NuevaCoberturaForm({
           {boton}
         </Button>
       </div>
+
+      {confirmando && (
+        <ConfirmarDialog
+          titulo={bloqueada ? '¿Crear la tarifa en Sis2000?' : '¿Crear la cobertura en Sis2000?'}
+          confirmar={bloqueada ? 'Sí, crear la tarifa' : 'Sí, crear cobertura y tarifa'}
+          ocupado={guardando}
+          onCancelar={() => setConfirmando(false)}
+          onConfirmar={() => void crear()}
+        >
+          <p>
+            {bloqueada ? (
+              <>Se va a crear la tarifa de «{nombreCobertura}».</>
+            ) : (
+              <>
+                Se va a crear la cobertura <strong>«{nombreCobertura}»</strong> en este ramo
+                {form.obligatoria ? ' (obligatoria)' : ''} con su tarifa vigente desde {form.fdesde || '—'}:
+              </>
+            )}
+          </p>
+          <ul className="list-disc space-y-0.5 pl-5 text-xs">
+            {form.tipoSuma === 'CALCULADA' ? (
+              <li>Suma asegurada calculada al emitir.</li>
+            ) : (
+              <li>
+                Suma asegurada de {form.cmoneda} {form.msumamin.trim() || '0'} a {form.msumamax.trim() || '0'}.
+              </li>
+            )}
+            <li>
+              {form.modo === 'tasa'
+                ? `Tasa ${form.pprima.trim() || '0'} % sobre la suma asegurada.`
+                : `Prima fija ${form.cmoneda} ${form.mprima.trim() || '0'}.`}
+            </li>
+          </ul>
+          <p className="text-xs text-muted-foreground">Las coberturas no se borran desde el configurador (se pueden inactivar).</p>
+        </ConfirmarDialog>
+      )}
     </form>
   );
 }
