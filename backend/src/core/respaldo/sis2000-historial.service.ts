@@ -11,7 +11,6 @@ import {
   aCrearTarifa,
   aEditarCobertura,
   aBajaComision,
-  aBooleano,
   aComision,
   aDeducibleCoberturaPlan,
   aEditarDetalleTarifa,
@@ -62,10 +61,11 @@ export type SeccionRespaldo = 'COMISIONES' | 'DEDUCIBLES' | 'TASAS-ANTIGUEDAD';
 /** Claves de sección (tienen «:»): se respaldan, pero restaurarlas aún no está disponible. */
 export const esClaveSeccion = (clave: string) => clave.includes(':');
 
-/** Respuesta de nest-api que pidió confirmar advertencias: no grabó nada (la versión queda FALLIDA con el motivo). */
+/** nest-api respondió grabado: false (pide confirmar advertencias): no grabó nada (la versión queda FALLIDA). */
 class SinGrabarPorAdvertencias extends Error {
   constructor(readonly respuesta: Obj) {
-    super('No se grabó: nest-api devolvió advertencias y falta confirmarlas.');
+    const adv = Array.isArray(respuesta.advertencias) ? (respuesta.advertencias as unknown[]).map(String).join(' | ') : '';
+    super(`No se grabó: falta confirmar las advertencias de nest-api.${adv ? ` ${adv}` : ''}`.slice(0, 1000));
   }
 }
 
@@ -364,40 +364,53 @@ export class Sis2000HistorialService {
    * Tipo y uso del ramo (macattip): afecta a todos los planes del ramo. Sin `confirmar`, si nest-api devuelve
    * advertencias no graba: la versión queda FALLIDA con ese motivo y se devuelven las advertencias para confirmar.
    */
-  async guardarTipoUso(cramo: number, ctipo: string, ccategotr: string, body: Obj, ctx?: ContextoCambio) {
+  guardarTipoUso(cramo: number, ctipo: string, ccategotr: string, body: Obj, ctx?: ContextoCambio) {
     this.exigirClave(cramo > 0 && Boolean(t(ctipo)) && Boolean(t(ccategotr)), 'Faltan el ramo, el tipo de vehículo y el uso.');
-    const confirmar = aBooleano(body.confirmar) === true;
-    try {
-      return await this.escribir(ctx, {
-        entidad: 'PLAN',
-        clave: claveRespaldo.tiposUsoRamo(cramo),
-        leer: () => this.bridge.leerSis2000TiposUso(cramo),
-        escribir: async () => {
-          const r = await this.bridge.guardarSis2000TipoUso(cramo, ctipo, ccategotr, body);
-          const adv = Array.isArray(r.advertencias) ? r.advertencias : [];
-          if (!confirmar && adv.length && r.guardado !== true) throw new SinGrabarPorAdvertencias(r);
-          return { ...r, guardado: true };
-        },
-        payload: { ctipo: t(ctipo), ccategotr: t(ccategotr), ...aTipoUso(body) },
-      });
-    } catch (e) {
-      if (e instanceof SinGrabarPorAdvertencias) return { ...e.respuesta, guardado: false };
-      throw e;
-    }
+    return this.escribirConConfirmacion(ctx, {
+      entidad: 'PLAN',
+      clave: claveRespaldo.tiposUsoRamo(cramo),
+      leer: () => this.bridge.leerSis2000TiposUso(cramo),
+      escribir: () => this.bridge.guardarSis2000TipoUso(cramo, ctipo, ccategotr, body),
+      payload: { ctipo: t(ctipo), ccategotr: t(ccategotr), ...aTipoUso(body) },
+    });
   }
 
+  /** Reemplaza los tramos vigentes (tramos [] los inactiva). Cobertura que no es de casco: nest-api pide confirmar. */
   guardarTasasAntiguedad(cramo: number, cplan: string, ccober: string, ctarifa: string, body: Obj, ctx?: ContextoCambio) {
     this.exigirClave(
       cramo > 0 && Boolean(t(cplan)) && Boolean(t(ccober)) && Boolean(t(ctarifa)),
       'Faltan el ramo, el plan, la cobertura y la tarifa.',
     );
-    return this.escribir(ctx, {
+    return this.escribirConConfirmacion(ctx, {
       entidad: 'PLAN',
       clave: claveRespaldo.seccionPlan(cramo, cplan, 'TASAS-ANTIGUEDAD'),
       leer: () => this.bridge.listarSis2000TasasAntiguedad(cramo, cplan),
       escribir: () => this.bridge.guardarSis2000TasasAntiguedad(cramo, cplan, ccober, ctarifa, body),
       payload: { ccober: up(ccober), ctarifa: up(ctarifa), ...aTasasAntiguedad(body) },
     });
+  }
+
+  /**
+   * Escrituras en las que nest-api puede responder `grabado: false` con advertencias (pide reenviar con confirmar):
+   * en ese caso no se grabó nada, la versión queda FALLIDA con ese motivo y se devuelve la respuesta para confirmar.
+   */
+  private async escribirConConfirmacion(
+    ctx: ContextoCambio | undefined,
+    op: Omit<OperacionRespaldada<Obj>, 'escribir'> & { escribir: () => Promise<Obj> },
+  ): Promise<Obj> {
+    try {
+      return await this.escribir(ctx, {
+        ...op,
+        escribir: async () => {
+          const r = await op.escribir();
+          if (r.grabado === false) throw new SinGrabarPorAdvertencias(r);
+          return r;
+        },
+      });
+    } catch (e) {
+      if (e instanceof SinGrabarPorAdvertencias) return e.respuesta;
+      throw e;
+    }
   }
 
   // ── Historial y restauración ───────────────────────────────────────────────

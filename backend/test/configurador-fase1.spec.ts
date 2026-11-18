@@ -48,13 +48,13 @@ class NestSimulado {
   async guardarSis2000TipoUso(_cramo: number, ctipo: string, ccategotr: string, body: Obj) {
     const cuerpo = aTipoUso(body);
     if (this.parEnOtroRamo && !cuerpo.confirmar) {
-      return { advertencias: ['El par 1/1 también existe en el ramo 26: el SP los une sin ramo.'] };
+      return { grabado: false, accion: null, advertencias: ['El par 1/1 también existe en el ramo 26: el SP los une sin ramo.'] };
     }
     this.llamadas.push('tipo-uso');
     const fila = this.tiposUso.find((f) => String(f.ctipo) === ctipo && String(f.ccategotr) === ccategotr);
     const { confirmar: _c, ...valores } = cuerpo as Obj;
     Object.assign(fila ?? {}, valores);
-    return { advertencias: [] };
+    return { grabado: true, accion: fila ? 'actualizado' : 'insertado', advertencias: [] };
   }
 }
 
@@ -106,6 +106,7 @@ describe('configurador fase 1: cuerpos hacia nest-api', () => {
     assert.deepEqual(aTasasAntiguedad({ tramos: [{ desde: '0', hasta: '5', pprima: '2.5' }] }), {
       tramos: [{ desde: 0, hasta: 5, pprima: 2.5 }],
     });
+    assert.deepEqual(aTasasAntiguedad({ tramos: [], confirmar: true }), { tramos: [], confirmar: true });
   });
 });
 
@@ -133,10 +134,10 @@ describe('configurador fase 1: respaldo antes de escribir', () => {
     assert.equal(((v2.estado as Obj[])[0] as Obj).iestado, 'I');
   });
 
-  it('tipo/uso con advertencias y sin confirmar: no graba, devuelve las advertencias y la versión queda FALLIDA', async () => {
+  it('tipo/uso con grabado false: no graba, devuelve las advertencias y la versión queda FALLIDA', async () => {
     m.nest.parEnOtroRamo = true;
     const r = (await m.historial.guardarTipoUso(18, '1', '1', { mprimbas: 20 }, { usuario })) as Obj;
-    assert.equal(r.guardado, false);
+    assert.equal(r.grabado, false);
     assert.equal((r.advertencias as string[]).length, 1);
     assert.deepEqual(m.nest.llamadas, []);
     const respaldo = m.repo.respaldos[0];
@@ -145,7 +146,7 @@ describe('configurador fase 1: respaldo antes de escribir', () => {
     assert.equal(v.resultado, 'FALLIDA');
 
     const ok = (await m.historial.guardarTipoUso(18, '1', '1', { mprimbas: 20, confirmar: true }, { usuario })) as Obj;
-    assert.equal(ok.guardado, true);
+    assert.equal(ok.grabado, true);
     assert.deepEqual(m.nest.llamadas, ['tipo-uso']);
     const [v2] = await m.repo.versiones(respaldo.id);
     assert.equal(v2.resultado, 'APLICADA');

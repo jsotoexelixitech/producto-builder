@@ -208,14 +208,17 @@ export function aTipoUso(p: Obj) {
   });
 }
 
-/** PUT planes/:cramo/:cplan/tasas-antiguedad/:ccober/:ctarifa → { tramos: [{ desde, hasta, pprima }] } (nest-api valida). */
+/**
+ * PUT planes/:cramo/:cplan/tasas-antiguedad/:ccober/:ctarifa → { tramos: [{ desde, hasta, pprima }], confirmar? }
+ * (nest-api valida). tramos [] inactiva todos; si la cobertura no es de casco, nest-api pide `confirmar`.
+ */
 export function aTasasAntiguedad(p: Obj) {
   const tramos = (Array.isArray(p.tramos) ? (p.tramos as Obj[]) : []).map((t) => ({
     desde: num(t.desde) ?? 0,
     hasta: num(t.hasta) ?? 0,
     pprima: num(t.pprima) ?? 0,
   }));
-  return { tramos };
+  return aBooleano(p.confirmar) === true ? { tramos, confirmar: true } : { tramos };
 }
 
 export function aCrearDetalleTarifa(p: Obj) {
