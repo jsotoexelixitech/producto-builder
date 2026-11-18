@@ -7,8 +7,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  aBajaComision,
   aBajaProveedorPlan,
   aCobroDias,
+  aComision,
+  aDeducibleCoberturaPlan,
+  aEditarDetalleTarifa,
+  aTasasAntiguedad,
+  aTipoUso,
   aCotizarCobroDias,
   aCrearCobertura,
   aCrearDetalleTarifa,
@@ -655,6 +661,164 @@ export class PartnerBridgeService {
     return body.data ?? payload;
   }
 
+  // ── Configurador fase 1 (.antigravity/CONTRATO-CONFIGURADOR-AUTO.md): ramo, deducibles, comisiones, auto, revisión ──
+
+  private rutaPlan(cramo: number, cplan: string) {
+    return `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}`;
+  }
+
+  /** `data` del sobre + `advertencias` (vengan dentro de data o al lado). */
+  private conAdvertencias(body: NestEnvelope<unknown> & { advertencias?: unknown }): Record<string, unknown> {
+    const data = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? (body.data as Record<string, unknown>) : {};
+    const advertencias = Array.isArray(data.advertencias)
+      ? data.advertencias
+      : Array.isArray(body.advertencias)
+        ? body.advertencias
+        : [];
+    return { ...data, advertencias: advertencias.map((a) => (typeof a === 'string' ? a : String((a as Record<string, unknown>)?.mensaje ?? JSON.stringify(a)))) };
+  }
+
+  /** GET ramos/:cramo → { cramo, xdescripcion_l, familia, secciones }. */
+  async leerSis2000Ramo(cramo: number): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>('GET', `/api/v1/configurador/ramos/${cramo}`);
+    if (!body.data || !Array.isArray(body.data.secciones)) {
+      throw new BadGatewayException('nest-api no devolvió las secciones del ramo.');
+    }
+    return body.data;
+  }
+
+  /** PATCH de una tasa con vigencia (matarifa_d): montos, deducible, cerrar vigencia o inactivar. */
+  async editarSis2000DetalleTarifa(
+    cramo: number,
+    ccober: string,
+    ctarifa: string,
+    fdesde: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PATCH',
+      `/api/v1/configurador/tarifas/${cramo}/${encodeURIComponent(ccober.trim())}/${encodeURIComponent(ctarifa.trim())}/detalles/${encodeURIComponent(fdesde.slice(0, 10))}`,
+      aEditarDetalleTarifa(payload),
+    );
+    return body.data ?? payload;
+  }
+
+  /** PATCH del deducible de una cobertura del plan (maplancob, versión vigente). */
+  async editarSis2000CoberturaPlan(
+    cramo: number,
+    cplan: string,
+    ccobertura: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'PATCH',
+      `${this.rutaPlan(cramo, cplan)}/coberturas/${encodeURIComponent(ccobertura.trim())}`,
+      aDeducibleCoberturaPlan(payload),
+    );
+    return body.data ?? payload;
+  }
+
+  /** Comisiones del plan, incluidas las del ramo (cplan '0') con aplicaA 'ramo'. */
+  async listarSis2000Comisiones(cramo: number, cplan: string): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', `${this.rutaPlan(cramo, cplan)}/comisiones`),
+    );
+  }
+
+  async agregarSis2000Comision(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      `${this.rutaPlan(cramo, cplan)}/comisiones`,
+      aComision(payload),
+    );
+    return body.data ?? payload;
+  }
+
+  async bajaSis2000Comision(cramo: number, cplan: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      `${this.rutaPlan(cramo, cplan)}/comisiones/baja`,
+      aBajaComision(payload),
+    );
+    return body.data ?? payload;
+  }
+
+  async listarSis2000AutoTipos(cramo: number): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', `/api/v1/configurador/auto/${cramo}/tipos`),
+    );
+  }
+
+  async listarSis2000AutoUsos(cramo: number): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', `/api/v1/configurador/auto/${cramo}/usos`),
+    );
+  }
+
+  /** macattip del ramo + planes 'V' del ramo a los que afecta cualquier cambio. */
+  async leerSis2000TiposUso(cramo: number): Promise<{ filas: Record<string, unknown>[]; planesAfectados: string[] }> {
+    const body = await this.request<NestEnvelope<unknown> & { planesAfectados?: unknown }>(
+      'GET',
+      `/api/v1/configurador/auto/${cramo}/tipos-uso`,
+    );
+    const data = body.data;
+    const obj = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+    const filas = Array.isArray(data) ? data : Array.isArray(obj.filas) ? obj.filas : Array.isArray(obj.tiposUso) ? obj.tiposUso : null;
+    if (!filas) throw new BadGatewayException('nest-api no devolvió los tipos y usos del ramo.');
+    const planes = Array.isArray(obj.planesAfectados) ? obj.planesAfectados : Array.isArray(body.planesAfectados) ? body.planesAfectados : [];
+    return {
+      filas: filas as Record<string, unknown>[],
+      planesAfectados: (planes as unknown[]).map((p) => String(p ?? '').trim()).filter(Boolean),
+    };
+  }
+
+  /** Upsert de un par tipo/uso. Sin `confirmar`, si hay pares iguales en otros ramos devuelve advertencias y no graba. */
+  async guardarSis2000TipoUso(cramo: number, ctipo: string, ccategotr: string, payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<unknown>>(
+      'PUT',
+      `/api/v1/configurador/auto/${cramo}/tipos-uso/${encodeURIComponent(ctipo.trim())}/${encodeURIComponent(ccategotr.trim())}`,
+      aTipoUso(payload),
+    );
+    return this.conAdvertencias(body);
+  }
+
+  async listarSis2000TasasAntiguedad(cramo: number, cplan: string): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', `${this.rutaPlan(cramo, cplan)}/tasas-antiguedad`),
+    );
+  }
+
+  /** Reemplaza los tramos 'V' de una cobertura y tarifa del plan (nest-api valida sin huecos ni solapes). */
+  async guardarSis2000TasasAntiguedad(
+    cramo: number,
+    cplan: string,
+    ccober: string,
+    ctarifa: string,
+    payload: Record<string, unknown>,
+  ) {
+    const body = await this.request<NestEnvelope<unknown>>(
+      'PUT',
+      `${this.rutaPlan(cramo, cplan)}/tasas-antiguedad/${encodeURIComponent(ccober.trim())}/${encodeURIComponent(ctarifa.trim())}`,
+      aTasasAntiguedad(payload),
+      60_000,
+    );
+    return this.conAdvertencias(body);
+  }
+
+  /** Revisión «¿se puede emitir?» del plan (solo lectura). */
+  async revisarSis2000Plan(cramo: number, cplan: string): Promise<Record<string, unknown>> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'GET',
+      `${this.rutaPlan(cramo, cplan)}/revision`,
+      undefined,
+      60_000,
+    );
+    if (!body.data || !Array.isArray(body.data.items)) {
+      throw new BadGatewayException('nest-api no devolvió la revisión del plan.');
+    }
+    return body.data;
+  }
+
   // ── Cobro por días (prima diaria × días) ──
 
   private rutaCobroDias(cramo: number, cplan: string) {
@@ -816,13 +980,18 @@ export class PartnerBridgeService {
 
     const parsed = (await res.json().catch(() => ({}))) as NestEnvelope & {
       statusCode?: number;
+      advertencias?: unknown;
     };
 
     if (!res.ok || parsed.status === false) {
       const message =
         parsed.message ??
         `Error nest-api partner (${res.status}) en ${path}`;
-      this.throwNestHttpError(res.status, message);
+      // Avisos del configurador (p. ej. tipo/uso repetido en otro ramo): el front los muestra y reenvía con confirmar.
+      const dataAdv =
+        parsed.data && typeof parsed.data === 'object' ? (parsed.data as { advertencias?: unknown }).advertencias : undefined;
+      const advertencias = Array.isArray(parsed.advertencias) ? parsed.advertencias : Array.isArray(dataAdv) ? dataAdv : undefined;
+      this.throwNestHttpError(res.status, message, advertencias);
     }
 
     return parsed as T;
@@ -846,7 +1015,7 @@ export class PartnerBridgeService {
     return err.message;
   }
 
-  private throwNestHttpError(status: number, message: string | string[]): never {
+  private throwNestHttpError(status: number, message: string | string[], advertencias?: unknown[]): never {
     if (status === 502 || status === 503 || status === 504) {
       throw new BadGatewayException(message);
     }
@@ -862,6 +1031,7 @@ export class PartnerBridgeService {
         message,
         statusCode: status,
         error: HttpException.createBody('', message, status).error,
+        ...(advertencias?.length ? { advertencias } : {}),
       },
       status,
     );

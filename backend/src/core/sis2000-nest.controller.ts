@@ -46,6 +46,43 @@ export class Sis2000NestController {
     return this.coreService.listSis2000Ramos();
   }
 
+  /** { cramo, xdescripcion_l, familia, secciones }: qué secciones lleva la ficha de los planes del ramo. */
+  @Get('ramos/:cramo')
+  leerRamo(@Param() params: Sis2000RamoParamDto) {
+    return this.coreService.leerSis2000Ramo(String(params.cramo));
+  }
+
+  // ── Auto: tipo y uso del vehículo (por ramo: afecta a todos los planes del ramo) ──
+
+  @Get('auto/:cramo/tipos')
+  listarAutoTipos(@Param() params: Sis2000RamoParamDto) {
+    return this.coreService.listarSis2000AutoTipos(String(params.cramo));
+  }
+
+  @Get('auto/:cramo/usos')
+  listarAutoUsos(@Param() params: Sis2000RamoParamDto) {
+    return this.coreService.listarSis2000AutoUsos(String(params.cramo));
+  }
+
+  @Get('auto/:cramo/tipos-uso')
+  leerTiposUso(@Param() params: Sis2000RamoParamDto) {
+    return this.coreService.leerSis2000TiposUso(String(params.cramo));
+  }
+
+  /** Upsert de un par tipo/uso; con advertencias (par en otro ramo) solo graba si viene `confirmar: true`. */
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Put('auto/:cramo/tipos-uso/:ctipo/:ccategotr')
+  guardarTipoUso(
+    @Param('cramo') cramo: string,
+    @Param('ctipo') ctipo: string,
+    @Param('ccategotr') ccategotr: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.guardarSis2000TipoUso(cramo, ctipo, ccategotr, cuerpo, contextoCambio(user, motivo));
+  }
+
   /** Alta de producto en un ramo (sp_CrearProducto); bandera SIS2000_PRODUCTO_ESCRITURA. */
   @Roles(UserRole.PRODUCT_MANAGER)
   @Post('productos')
@@ -183,6 +220,29 @@ export class Sis2000NestController {
   createTarifaDetalle(@Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
     const { cuerpo, motivo } = separarMotivo(body);
     return this.coreService.createSis2000TarifaDetalle(cuerpo, contextoCambio(user, motivo));
+  }
+
+  /** Una tasa con vigencia (matarifa_d): montos, deducible, cerrar vigencia (fhasta) o inactivar (iestado 'I'). */
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Patch('tarifas/:cramo/:ccobertura/:ctarifa/detalles/:fdesde')
+  editarDetalleTarifa(
+    // Parámetros sueltos: el DTO de tarifa no admite :fdesde (forbidNonWhitelisted).
+    @Param('cramo') cramo: string,
+    @Param('ccobertura') ccobertura: string,
+    @Param('ctarifa') ctarifa: string,
+    @Param('fdesde') fdesde: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.editarSis2000DetalleTarifa(
+      cramo,
+      ccobertura,
+      ctarifa,
+      fdesde,
+      cuerpo,
+      contextoCambio(user, motivo),
+    );
   }
 
   @Roles(UserRole.PRODUCT_MANAGER)
@@ -326,6 +386,67 @@ export class Sis2000NestController {
   ) {
     const { cuerpo, motivo } = separarMotivo(body);
     return this.coreService.bajaSis2000ProveedorPlan(id, cuerpo, contextoCambio(user, motivo));
+  }
+
+  // ── Configurador fase 1 (.antigravity/CONTRATO-CONFIGURADOR-AUTO.md): proxies 1:1 de nest-api v1/configurador ──
+  // Las escrituras guardan antes lo que había (historial). Banderas de escritura en nest-api: 403 si están apagadas.
+
+  /** Deducible de una cobertura del plan (maplancob de la versión vigente). */
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Patch('plans/:id/coberturas/:ccobertura')
+  editarDeducibleCoberturaPlan(
+    @Param('id') id: string,
+    @Param('ccobertura') ccobertura: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.editarSis2000DeducibleCoberturaPlan(id, ccobertura, cuerpo, contextoCambio(user, motivo));
+  }
+
+  /** Comisiones del plan (maarancel), incluidas las del ramo (cplan '0') con aplicaA 'ramo'. */
+  @Get('plans/:id/comisiones')
+  listarComisiones(@Param('id') id: string) {
+    return this.coreService.listarSis2000Comisiones(id);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('plans/:id/comisiones')
+  agregarComision(@Param('id') id: string, @Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.agregarSis2000Comision(id, cuerpo, contextoCambio(user, motivo));
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('plans/:id/comisiones/baja')
+  bajaComision(@Param('id') id: string, @Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.bajaSis2000Comision(id, cuerpo, contextoCambio(user, motivo));
+  }
+
+  /** Tasas por antigüedad del vehículo (maplantar_ano) del plan. */
+  @Get('plans/:id/tasas-antiguedad')
+  listarTasasAntiguedad(@Param('id') id: string) {
+    return this.coreService.listarSis2000TasasAntiguedad(id);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Put('plans/:id/tasas-antiguedad/:ccober/:ctarifa')
+  guardarTasasAntiguedad(
+    @Param('id') id: string,
+    @Param('ccober') ccober: string,
+    @Param('ctarifa') ctarifa: string,
+    @Body() body: Cuerpo,
+    @CurrentUser() user: AuthUserPayload,
+  ) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.coreService.guardarSis2000TasasAntiguedad(id, ccober, ctarifa, cuerpo, contextoCambio(user, motivo));
+  }
+
+  /** Revisión «¿se puede emitir?» del plan (solo lectura). */
+  @Get('plans/:id/revision')
+  revisarPlan(@Param('id') id: string) {
+    return this.coreService.revisarSis2000Plan(id);
   }
 
   // ── Tipo de emisión «Cobro por días» (prima diaria × días); bandera SIS2000_PLAN_COBRO_DIAS ──

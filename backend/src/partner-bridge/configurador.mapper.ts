@@ -106,6 +106,24 @@ export function aBajaProveedorPlan(p: Obj) {
   return limpio({ ...claveProveedor(p), fhasta_baja: fecha(p.fhasta_baja) });
 }
 
+/** 'D' (deducible) o 'F' (franquicia); null si llega vacío y `vacioEsNull` (quitar el deducible en un PATCH). */
+function tipoDeducible(v: unknown, vacioEsNull: boolean): 'D' | 'F' | null | undefined {
+  if (v === undefined) return undefined;
+  const e = texto(v).toUpperCase();
+  if (e === 'D' || e === 'F') return e;
+  return vacioEsNull && (v === null || e === '') ? null : undefined;
+}
+
+/** Deducible de matarifa_d / maplancob (contrato configurador §2). */
+function camposDeducible(p: Obj, vacioEsNull = false) {
+  return {
+    bfraded: tipoDeducible(p.bfraded, vacioEsNull),
+    mdedu_fran: num(p.mdedu_fran),
+    mdedu_franext: num(p.mdedu_franext),
+    pdedu_fran: num(p.pdedu_fran),
+  };
+}
+
 export function aDetalleTarifa(p: Obj) {
   return limpio({
     fdesde: fecha(p.fdesde),
@@ -114,7 +132,90 @@ export function aDetalleTarifa(p: Obj) {
     mprima: num(p.mprima),
     msumamin: num(p.msumamin),
     msumamax: num(p.msumamax),
+    ...camposDeducible(p),
   });
+}
+
+/** PATCH tarifas/:cramo/:ccober/:ctarifa/detalles/:fdesde: montos, deducible, cerrar vigencia o iestado 'I'. */
+export function aEditarDetalleTarifa(p: Obj) {
+  return limpio({
+    fhasta: fecha(p.fhasta),
+    pprima: num(p.pprima),
+    mprima: num(p.mprima),
+    msumamin: num(p.msumamin),
+    msumamax: num(p.msumamax),
+    iestado: estado(p.iestado),
+    ...camposDeducible(p, true),
+  });
+}
+
+/** PATCH planes/:cramo/:cplan/coberturas/:ccobertura (maplancob de la versión vigente del plan). */
+export function aDeducibleCoberturaPlan(p: Obj) {
+  return limpio({
+    ...camposDeducible(p, true),
+    mmax_desem: num(p.mmax_desem),
+    mmax_desemext: num(p.mmax_desemext),
+  });
+}
+
+// ── Comisiones (maarancel): '0' en cobertura/tarifa y 0 en productor = todos ──
+
+function claveComision(p: Obj) {
+  return {
+    ctipoprod: num(p.ctipoprod),
+    cproductor: num(p.cproductor) ?? 0,
+    ccober: texto(p.ccober) || '0',
+    ctarifa: texto(p.ctarifa) || '0',
+    fdesde: fecha(p.fdesde),
+  };
+}
+
+export function aComision(p: Obj) {
+  return limpio({ ...claveComision(p), pcomision: num(p.pcomision) });
+}
+
+export function aBajaComision(p: Obj) {
+  return limpio({ ...claveComision(p), fhasta: fecha(p.fhasta) });
+}
+
+// ── Auto: tipo y uso (macattip, por ramo) y tasas por antigüedad (maplantar_ano, por plan) ──
+
+const CAMPOS_TIPO_USO = [
+  'mprimbas',
+  'mprimext',
+  'msumacosas',
+  'msumapers',
+  'msumacosasext',
+  'msumapersext',
+  'ptasaexc',
+  'pdescuento',
+  'precarofic',
+  'precarinfl',
+  'precarremo',
+  'mtoneladas',
+  'mpuestos',
+  'qmaxptos',
+  'qmaxton',
+] as const;
+
+/** PUT auto/:cramo/tipos-uso/:ctipo/:ccategotr; `confirmar` solo si el usuario aceptó las advertencias. */
+export function aTipoUso(p: Obj) {
+  return limpio({
+    ccober: texto(p.ccober),
+    ctarifa: texto(p.ctarifa),
+    ...Object.fromEntries(CAMPOS_TIPO_USO.map((c) => [c, num(p[c])])),
+    confirmar: aBooleano(p.confirmar) === true ? true : undefined,
+  });
+}
+
+/** PUT planes/:cramo/:cplan/tasas-antiguedad/:ccober/:ctarifa → { tramos: [{ desde, hasta, pprima }] } (nest-api valida). */
+export function aTasasAntiguedad(p: Obj) {
+  const tramos = (Array.isArray(p.tramos) ? (p.tramos as Obj[]) : []).map((t) => ({
+    desde: num(t.desde) ?? 0,
+    hasta: num(t.hasta) ?? 0,
+    pprima: num(t.pprima) ?? 0,
+  }));
+  return { tramos };
 }
 
 export function aCrearDetalleTarifa(p: Obj) {

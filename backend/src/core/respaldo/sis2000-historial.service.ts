@@ -10,8 +10,15 @@ import {
   aCrearDetalleTarifa,
   aCrearTarifa,
   aEditarCobertura,
+  aBajaComision,
+  aBooleano,
+  aComision,
+  aDeducibleCoberturaPlan,
+  aEditarDetalleTarifa,
   aEditarTarifa,
   aProveedorPlan,
+  aTasasAntiguedad,
+  aTipoUso,
   partirPlanId,
 } from '../../partner-bridge/configurador.mapper';
 import {
@@ -40,7 +47,27 @@ export const claveRespaldo = {
   tarifa: (cramo: unknown, ccober: unknown, ctarifa: unknown) => `${Number(cramo)}-${up(ccober)}-${up(ctarifa)}`,
   plan: (cramo: unknown, cplan: unknown) => `${Number(cramo)}-${up(cplan)}`,
   producto: (cproducto: unknown) => up(cproducto),
+  /**
+   * Secciones del plan o del ramo que no se reescriben con spMantPlanes (comisiones, deducibles del plan, tasas por
+   * antigüedad, tipo y uso del ramo). Van en la misma tabla de respaldo, con la clave del plan + «:SECCION», para no
+   * mezclarse con las versiones del plan ni necesitar una migración.
+   */
+  seccionPlan: (cramo: unknown, cplan: unknown, seccion: SeccionRespaldo) => `${Number(cramo)}-${up(cplan)}:${seccion}`,
+  /** macattip es del ramo (afecta a todos sus planes): «18-*:TIPOS-USO». */
+  tiposUsoRamo: (cramo: unknown) => `${Number(cramo)}-*:TIPOS-USO`,
 };
+
+export type SeccionRespaldo = 'COMISIONES' | 'DEDUCIBLES' | 'TASAS-ANTIGUEDAD';
+
+/** Claves de sección (tienen «:»): se respaldan, pero restaurarlas aún no está disponible. */
+export const esClaveSeccion = (clave: string) => clave.includes(':');
+
+/** Respuesta de nest-api que pidió confirmar advertencias: no grabó nada (la versión queda FALLIDA con el motivo). */
+class SinGrabarPorAdvertencias extends Error {
+  constructor(readonly respuesta: Obj) {
+    super('No se grabó: nest-api devolvió advertencias y falta confirmarlas.');
+  }
+}
 
 /** "28-12" → [28, "12"]; "28-12-1" → [28, "12", "1"]. */
 function partes(clave: string, n: number): [number, ...string[]] {
@@ -77,7 +104,7 @@ const CAMPOS_COBERTURA = [
   'cramopcnd',
 ];
 const CAMPOS_TARIFA = ['xtarifam', 'xtarifa', 'bobligatoria', 'iestado'];
-const CAMPOS_DETALLE = ['fhasta', 'msumamin', 'msumamax', 'mprima', 'pprima'];
+const CAMPOS_DETALLE = ['fhasta', 'msumamin', 'msumamax', 'mprima', 'pprima', 'bfraded', 'mdedu_fran', 'mdedu_franext', 'pdedu_fran'];
 
 const elegir = (o: Obj, campos: string[]) =>
   Object.fromEntries(campos.filter((c) => o[c] !== undefined && o[c] !== null).map((c) => [c, o[c]]));
@@ -272,6 +299,107 @@ export class Sis2000HistorialService {
     });
   }
 
+  // ── Configurador fase 1: deducibles, comisiones, tipo y uso (auto), tasas por antigüedad (auto) ──
+
+  /** Una tasa con vigencia (matarifa_d): montos, deducible, cerrar vigencia o inactivar. Es un cambio de la tarifa. */
+  editarDetalleTarifa(cramo: number, ccober: string, ctarifa: string, fdesde: string, body: Obj, ctx?: ContextoCambio) {
+    const desde = t(fdesde).slice(0, 10);
+    this.exigirClave(
+      cramo > 0 && Boolean(t(ccober)) && Boolean(t(ctarifa)) && /^\d{4}-\d{2}-\d{2}$/.test(desde),
+      'Faltan el ramo, la cobertura, la tarifa y la fecha desde (AAAA-MM-DD) de la tasa.',
+    );
+    return this.escribir(ctx, {
+      entidad: 'TARIFA',
+      clave: claveRespaldo.tarifa(cramo, ccober, ctarifa),
+      leer: () => this.leerTarifa(cramo, ccober, ctarifa),
+      escribir: () => this.bridge.editarSis2000DetalleTarifa(cramo, ccober, ctarifa, desde, body),
+      payload: { detalle: desde, ...aEditarDetalleTarifa(body) },
+      exigirExistente: true,
+    });
+  }
+
+  /** Deducible de una cobertura del plan (maplancob). Se respalda el plan completo leído de Sis2000. */
+  editarDeducibleCoberturaPlan(cramo: number, cplan: string, ccobertura: string, body: Obj, ctx?: ContextoCambio) {
+    this.exigirClave(cramo > 0 && Boolean(t(cplan)) && Boolean(t(ccobertura)), 'Faltan el ramo, el plan y la cobertura.');
+    return this.escribir(ctx, {
+      entidad: 'PLAN',
+      clave: claveRespaldo.seccionPlan(cramo, cplan, 'DEDUCIBLES'),
+      leer: () => this.leerPlan(cramo, cplan),
+      escribir: () => this.bridge.editarSis2000CoberturaPlan(cramo, cplan, ccobertura, body),
+      payload: { ccobertura: up(ccobertura), ...aDeducibleCoberturaPlan(body) },
+      comparable: (s) => {
+        const filas = s && typeof s === 'object' ? ((s as Obj).filas as Obj | undefined) : undefined;
+        return filas?.maplancob ?? planComparable(s);
+      },
+      exigirExistente: true,
+    });
+  }
+
+  agregarComision(cramo: number, cplan: string, body: Obj, ctx?: ContextoCambio) {
+    return this.escribirComisiones(cramo, cplan, ctx, () => this.bridge.agregarSis2000Comision(cramo, cplan, body), {
+      operacion: 'alta',
+      ...aComision(body),
+    });
+  }
+
+  bajaComision(cramo: number, cplan: string, body: Obj, ctx?: ContextoCambio) {
+    return this.escribirComisiones(cramo, cplan, ctx, () => this.bridge.bajaSis2000Comision(cramo, cplan, body), {
+      operacion: 'baja',
+      ...aBajaComision(body),
+    });
+  }
+
+  private escribirComisiones<T>(cramo: number, cplan: string, ctx: ContextoCambio | undefined, escribir: () => Promise<T>, payload: Obj) {
+    this.exigirClave(cramo > 0 && Boolean(t(cplan)), 'Faltan el ramo y el plan.');
+    return this.escribir(ctx, {
+      entidad: 'PLAN',
+      clave: claveRespaldo.seccionPlan(cramo, cplan, 'COMISIONES'),
+      leer: () => this.bridge.listarSis2000Comisiones(cramo, cplan),
+      escribir,
+      payload,
+    });
+  }
+
+  /**
+   * Tipo y uso del ramo (macattip): afecta a todos los planes del ramo. Sin `confirmar`, si nest-api devuelve
+   * advertencias no graba: la versión queda FALLIDA con ese motivo y se devuelven las advertencias para confirmar.
+   */
+  async guardarTipoUso(cramo: number, ctipo: string, ccategotr: string, body: Obj, ctx?: ContextoCambio) {
+    this.exigirClave(cramo > 0 && Boolean(t(ctipo)) && Boolean(t(ccategotr)), 'Faltan el ramo, el tipo de vehículo y el uso.');
+    const confirmar = aBooleano(body.confirmar) === true;
+    try {
+      return await this.escribir(ctx, {
+        entidad: 'PLAN',
+        clave: claveRespaldo.tiposUsoRamo(cramo),
+        leer: () => this.bridge.leerSis2000TiposUso(cramo),
+        escribir: async () => {
+          const r = await this.bridge.guardarSis2000TipoUso(cramo, ctipo, ccategotr, body);
+          const adv = Array.isArray(r.advertencias) ? r.advertencias : [];
+          if (!confirmar && adv.length && r.guardado !== true) throw new SinGrabarPorAdvertencias(r);
+          return { ...r, guardado: true };
+        },
+        payload: { ctipo: t(ctipo), ccategotr: t(ccategotr), ...aTipoUso(body) },
+      });
+    } catch (e) {
+      if (e instanceof SinGrabarPorAdvertencias) return { ...e.respuesta, guardado: false };
+      throw e;
+    }
+  }
+
+  guardarTasasAntiguedad(cramo: number, cplan: string, ccober: string, ctarifa: string, body: Obj, ctx?: ContextoCambio) {
+    this.exigirClave(
+      cramo > 0 && Boolean(t(cplan)) && Boolean(t(ccober)) && Boolean(t(ctarifa)),
+      'Faltan el ramo, el plan, la cobertura y la tarifa.',
+    );
+    return this.escribir(ctx, {
+      entidad: 'PLAN',
+      clave: claveRespaldo.seccionPlan(cramo, cplan, 'TASAS-ANTIGUEDAD'),
+      leer: () => this.bridge.listarSis2000TasasAntiguedad(cramo, cplan),
+      escribir: () => this.bridge.guardarSis2000TasasAntiguedad(cramo, cplan, ccober, ctarifa, body),
+      payload: { ccober: up(ccober), ctarifa: up(ctarifa), ...aTasasAntiguedad(body) },
+    });
+  }
+
   // ── Historial y restauración ───────────────────────────────────────────────
 
   async historial(entidad: EntidadRespaldo, clave: string) {
@@ -341,6 +469,11 @@ export class Sis2000HistorialService {
   }
 
   private async objetivo(entidad: EntidadRespaldo, clave: string, destino: string, momento: MomentoVersion) {
+    if (esClaveSeccion(clave)) {
+      throw new BadRequestException(
+        'Restaurar comisiones, deducibles del plan, tipo y uso o tasas por antigüedad todavía no está disponible desde el configurador. La copia de lo que había está en el historial: corrígelo desde su sección.',
+      );
+    }
     const nombre = `${NOMBRE_ENTIDAD[entidad]} ${clave}`;
     const respaldo = await this.repo.buscar(entidad, clave);
     if (!respaldo) throw new NotFoundException(`No hay historial de ${nombre}.`);

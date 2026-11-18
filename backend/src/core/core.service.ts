@@ -594,6 +594,100 @@ export class CoreService implements OnModuleInit {
     return this.historial.bajaProveedorPlan(cramo, cplan, body, ctx);
   }
 
+  // ── Configurador fase 1 (CONTRATO-CONFIGURADOR-AUTO): proxies 1:1; escrituras con respaldo previo ──
+
+  /** { cramo, xdescripcion_l, familia, secciones }: las secciones de la ficha del plan salen de aquí. */
+  async leerSis2000Ramo(cramo: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.leerSis2000Ramo(this.ramoValido(cramo));
+  }
+
+  async editarSis2000DetalleTarifa(
+    cramo: string,
+    ccobertura: string,
+    ctarifa: string,
+    fdesde: string,
+    body: Record<string, unknown>,
+    ctx?: ContextoCambio,
+  ) {
+    this.assertPartnerConfigured();
+    return this.historial.editarDetalleTarifa(this.ramoValido(cramo), ccobertura, ctarifa, fdesde, body, ctx);
+  }
+
+  async editarSis2000DeducibleCoberturaPlan(id: string, ccobertura: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.editarDeducibleCoberturaPlan(cramo, cplan, ccobertura, body, ctx);
+  }
+
+  async listarSis2000Comisiones(id: string) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.partnerBridge.listarSis2000Comisiones(cramo, cplan);
+  }
+
+  async agregarSis2000Comision(id: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.agregarComision(cramo, cplan, body, ctx);
+  }
+
+  async bajaSis2000Comision(id: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.bajaComision(cramo, cplan, body, ctx);
+  }
+
+  async listarSis2000AutoTipos(cramo: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listarSis2000AutoTipos(this.ramoValido(cramo));
+  }
+
+  async listarSis2000AutoUsos(cramo: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.listarSis2000AutoUsos(this.ramoValido(cramo));
+  }
+
+  async leerSis2000TiposUso(cramo: string) {
+    this.assertPartnerConfigured();
+    return this.partnerBridge.leerSis2000TiposUso(this.ramoValido(cramo));
+  }
+
+  async guardarSis2000TipoUso(cramo: string, ctipo: string, ccategotr: string, body: Record<string, unknown>, ctx?: ContextoCambio) {
+    this.assertPartnerConfigured();
+    return this.historial.guardarTipoUso(this.ramoValido(cramo), ctipo, ccategotr, body, ctx);
+  }
+
+  async listarSis2000TasasAntiguedad(id: string) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.partnerBridge.listarSis2000TasasAntiguedad(cramo, cplan);
+  }
+
+  async guardarSis2000TasasAntiguedad(
+    id: string,
+    ccober: string,
+    ctarifa: string,
+    body: Record<string, unknown>,
+    ctx?: ContextoCambio,
+  ) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.historial.guardarTasasAntiguedad(cramo, cplan, ccober, ctarifa, body, ctx);
+  }
+
+  async revisarSis2000Plan(id: string) {
+    this.assertPartnerConfigured();
+    const { cramo, cplan } = partirPlanId(id);
+    return this.partnerBridge.revisarSis2000Plan(cramo, cplan);
+  }
+
+  private ramoValido(cramo: string): number {
+    const n = Number(cramo);
+    if (!Number.isInteger(n) || n <= 0) throw new BadRequestException('El ramo debe ser un número entero mayor que 0.');
+    return n;
+  }
+
   // ── Tablas de tasas por edad (mapltabedad): sin historial del configurador; nest-api registra el reemplazo ──
 
   async buscarSis2000TablasEdad(q = '') {
