@@ -97,12 +97,32 @@ export class PartnerBridgeService {
     return Boolean(this.nestApiKey);
   }
 
+  /**
+   * Productos de maproductos: primero nest-api propio (v1/configurador/productos, mismas columnas); si responde 404
+   * (nest-api sin ese endpoint) cae al paquete partner como antes.
+   */
   async listProducts(): Promise<Array<Record<string, unknown>>> {
-    const body = await this.request<NestEnvelope<Array<Record<string, unknown>>>>(
-      'GET',
+    const body = await this.getConfiguradorOPartner<NestEnvelope<Array<Record<string, unknown>>>>(
+      '/api/v1/configurador/productos',
       '/api/v1/partner/products/list',
+      false,
     );
     return Array.isArray(body.data) ? body.data : [];
+  }
+
+  /**
+   * GET al configurador y, si responde 404, al partner. Con soloRutaInexistente solo cae cuando el 404 es de ruta
+   * («Cannot GET …»); un 404 de «producto no existe» se propaga (el partner lee la misma tabla).
+   */
+  private async getConfiguradorOPartner<T>(configurador: string, partner: string, soloRutaInexistente: boolean): Promise<T> {
+    try {
+      return await this.request<T>('GET', configurador);
+    } catch (err) {
+      if (!(err instanceof HttpException) || err.getStatus() !== 404) throw err;
+      if (soloRutaInexistente && !/^cannot get\b/i.test(this.httpExceptionMessage(err).trim())) throw err;
+      this.logger.warn(`${configurador} respondió 404; se usa ${partner} (paquete partner).`);
+    }
+    return this.request<T>('GET', partner);
   }
 
   async listCoreProductSummaries(branch?: string) {
@@ -123,31 +143,23 @@ export class PartnerBridgeService {
     return mapped;
   }
 
+  /** Existe en maproductos (mismo origen que getProductDetail: configurador y, sin ese endpoint, partner). */
   async productExists(cproducto: string): Promise<boolean> {
-    const url = `${this.nestBase}/api/v1/partner/products/detail/${encodeURIComponent(cproducto)}`;
-    let res: Response;
     try {
-      res = await fetch(url, { headers: await this.authHeaders() });
+      await this.getProductDetail(cproducto);
+      return true;
     } catch (err) {
-      this.logger.error(`nest-api partner detail unreachable: ${cproducto}`, err);
-      throw new BadGatewayException(
-        'No se pudo consultar el producto en nest-api partner.',
-      );
+      if (err instanceof HttpException && err.getStatus() === 404) return false;
+      throw err;
     }
-    if (res.status === 404) return false;
-    if (!res.ok) {
-      const parsed = (await res.json().catch(() => ({}))) as NestEnvelope;
-      throw new BadGatewayException(
-        parsed.message ?? `Error nest-api partner detail (${res.status})`,
-      );
-    }
-    return true;
   }
 
   async getProductDetail(cproducto: string): Promise<Record<string, unknown>> {
-    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
-      'GET',
-      `/api/v1/partner/products/detail/${encodeURIComponent(cproducto)}`,
+    const codigo = encodeURIComponent(cproducto);
+    const body = await this.getConfiguradorOPartner<NestEnvelope<Record<string, unknown>>>(
+      `/api/v1/configurador/productos/${codigo}`,
+      `/api/v1/partner/products/detail/${codigo}`,
+      true,
     );
     if (!body.data) {
       throw new BadGatewayException(`Producto Sis2000 ${cproducto} sin detalle.`);
