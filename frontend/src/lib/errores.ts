@@ -257,6 +257,10 @@ export function entenderError(e: unknown, opciones: OpcionesError = {}): ErrorEn
     }
     return salida('no-encontrado', legible);
   }
+  // 501: la operación existe en el contrato pero Sis2000/nest-api todavía no la hace (p. ej. guardar condominio).
+  if (status === 501) {
+    return salida('no-disponible', legible || 'Esta operación todavía no está disponible en Sis2000. Por ahora solo se puede consultar.');
+  }
   if (status === 409 || /PRIMARY KEY|UNIQUE KEY|duplicate key|clave duplicada|ya existe/i.test(crudo)) {
     return salida(
       'duplicado',

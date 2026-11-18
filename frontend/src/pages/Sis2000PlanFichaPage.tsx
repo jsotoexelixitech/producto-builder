@@ -24,6 +24,17 @@ import { DeduciblesPanel } from '@/components/configurador/DeduciblesPanel';
 import { RevisionPlanPanel } from '@/components/configurador/RevisionPlanPanel';
 import { TasasAntiguedadPanel } from '@/components/configurador/TasasAntiguedadPanel';
 import { TiposUsoPanel } from '@/components/configurador/TiposUsoPanel';
+import { CoberturasPlanPanel } from '@/components/configurador/CoberturasPlanPanel';
+import { CondominioPanel } from '@/components/configurador/CondominioPanel';
+import { DescuentosRecargosPanel } from '@/components/configurador/DescuentosRecargosPanel';
+import { EdadesParentescoPanel } from '@/components/configurador/EdadesParentescoPanel';
+import { FrecuenciasPanel } from '@/components/configurador/FrecuenciasPanel';
+import { PlanCabeceraForm } from '@/components/configurador/PlanCabeceraForm';
+import { ProductoForm } from '@/components/configurador/ProductoForm';
+import { QuienVendePanel } from '@/components/configurador/QuienVendePanel';
+import { TarifaDiasPanel } from '@/components/configurador/TarifaDiasPanel';
+import { TasaCascoPanel } from '@/components/configurador/TasaCascoPanel';
+import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
 import { cn } from '@/lib/utils';
 
 type Fila = Record<string, unknown>;
@@ -92,8 +103,15 @@ export function Sis2000PlanFichaPage() {
     setParams(p, { replace: false });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const alCambiar = () => setCambios((n) => n + 1);
+  // Tras guardar en cualquier panel: se vuelve a leer el plan (coberturas, cabecera) y la revisión se recalcula.
+  const alCambiar = () => {
+    setCambios((n) => n + 1);
+    cargarPlan();
+  };
   const editarPlan = `/sis2000/plans/${encodeURIComponent(id)}/edit`;
+  const modoAvanzado = `/sis2000/plans/${encodeURIComponent(id)}/json`;
+  /** Fianzas (o lo que nest-api marque de solo lectura): se consulta, no se edita. */
+  const soloLectura = ramo?.soloLectura === true || familia === 'fianzas';
 
   // Barra del flujo «Nuevo plan»: los 3 primeros pasos ya se hicieron en el asistente de planes.
   const pasosBarra = [
@@ -136,12 +154,23 @@ export function Sis2000PlanFichaPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to={editarPlan}>
-            <Button type="button" variant="outline" size="sm">
-              <Pencil className="h-3.5 w-3.5" />
-              Editar coberturas y datos del plan
-            </Button>
-          </Link>
+          {!soloLectura && (
+            <Link to={editarPlan} title="El asistente de planes (Combos) con este plan cargado">
+              <Button type="button" variant="outline" size="sm">
+                <Pencil className="h-3.5 w-3.5" />
+                Asistente de planes
+              </Button>
+            </Link>
+          )}
+          {!soloLectura && (
+            <Link
+              to={modoAvanzado}
+              className="self-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+              title="Editor del plan completo en JSON, para casos que las pestañas no cubren"
+            >
+              Modo avanzado (JSON)
+            </Link>
+          )}
           {asistente ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => setParams(new URLSearchParams({ seccion }))}>
               Ver como ficha
@@ -163,6 +192,22 @@ export function Sis2000PlanFichaPage() {
           onReintentar={cargarRamo}
           className="mb-3"
         />
+      )}
+      {soloLectura && (
+        <Alert variant="info" className="mb-3">
+          {familia === 'fianzas'
+            ? 'Ramo de fianzas: sin flujo de emisión Nexus. La ficha solo se puede consultar.'
+            : 'Este ramo es de solo lectura en el configurador.'}
+        </Alert>
+      )}
+      {ramo && ramo.avisos.length > 0 && (
+        <Alert variant="warning" className="mb-3">
+          <ul className="list-disc pl-4 text-xs">
+            {ramo.avisos.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </Alert>
       )}
       {leido?.advertencias && leido.advertencias.length > 0 && (
         <Alert variant="info" className="mb-3">
@@ -214,6 +259,8 @@ export function Sis2000PlanFichaPage() {
             filasPlanCob={filasPlanCob}
             moneda={moneda}
             familia={familia}
+            soloLectura={soloLectura}
+            catalogo={catalogo}
             editarPlan={editarPlan}
             cambios={cambios}
             onCambio={alCambiar}
@@ -257,6 +304,8 @@ function Seccion({
   filasPlanCob,
   moneda,
   familia,
+  soloLectura,
+  catalogo,
   editarPlan,
   cambios,
   onCambio,
@@ -270,29 +319,55 @@ function Seccion({
   filasPlanCob: Fila[];
   moneda: string;
   familia?: string;
+  soloLectura: boolean;
+  catalogo: Fila[];
   editarPlan: string;
   cambios: number;
   onCambio: () => void;
   onIrSeccion: (s: string) => void;
 }) {
+  const cplan = txt(plan?.cplan) || id.split('-').slice(1).join('-');
   switch (seccion) {
+    case 'producto':
+      return txt(plan?.cproducto) ? (
+        <ProductoForm key={txt(plan?.cproducto)} cproducto={txt(plan?.cproducto)} cramo={cramo} soloLectura={soloLectura} onGuardado={onCambio} />
+      ) : (
+        <Alert variant="info">El plan no tiene producto: elígelo en «Datos del plan».</Alert>
+      );
+    case 'plan':
+      return <PlanCabeceraForm planId={id} plan={plan} cramo={cramo} soloLectura={soloLectura} onCambio={onCambio} />;
+    case 'coberturas':
+      return <CoberturasPlanPanel planId={id} cramo={cramo} familia={familia} plan={plan} catalogo={catalogo} soloLectura={soloLectura} onCambio={onCambio} />;
     case 'deducibles':
       return <DeduciblesPanel planId={id} cramo={cramo} coberturas={coberturas} filasPlan={filasPlanCob} moneda={moneda} conCopiaEnPlan={familia !== 'personas'} onCambio={onCambio} />;
+    case 'frecuencias':
+      return <FrecuenciasPanel planId={id} soloLectura={soloLectura} onCambio={onCambio} />;
+    case 'quien-vende':
+    case 'canales':
+      return <QuienVendePanel planId={id} soloLectura={soloLectura} onCambio={onCambio} />;
     case 'comisiones':
       return <ComisionesPanel planId={id} coberturas={coberturas} onCambio={onCambio} />;
     case 'tipos-uso':
       return <TiposUsoPanel cramo={cramo} onCambio={onCambio} />;
     case 'tasas-antiguedad':
       return <TasasAntiguedadPanel planId={id} coberturas={coberturas} onCambio={onCambio} />;
+    case 'tasa-casco':
+      return <TasaCascoPanel cramo={cramo} soloLectura={soloLectura} onCambio={onCambio} />;
+    case 'tarifa-dias':
+      return <TarifaDiasPanel planId={id} cplan={cplan} coberturas={coberturas} soloLectura={soloLectura} onCambio={onCambio} />;
+    case 'edades-parentesco':
+      return <EdadesParentescoPanel planId={id} plan={plan} soloLectura={soloLectura} onCambio={onCambio} />;
+    case 'tablas-edad':
+      return <TablasEdadDelPlan plan={plan} editarPlan={editarPlan} soloLectura={soloLectura} />;
+    case 'proveedores':
+      return <ProveedoresPlanPanel planId={id} onCambio={onCambio} />;
+    case 'descuentos-recargos':
+      return <DescuentosRecargosPanel cramo={cramo} soloLectura={soloLectura} onCambio={onCambio} />;
+    case 'condominio':
+      // nest-api todavía no escribe la tarifa de condominio (PUT 501): solo consulta.
+      return <CondominioPanel cramo={cramo} soloLectura onCambio={onCambio} />;
     case 'revision':
       return <RevisionPlanPanel planId={id} onIrSeccion={onIrSeccion} recargar={cambios} />;
-    case 'coberturas':
-      return (
-        <SectionPanel title="Coberturas" description="Qué cubre el plan, con su tarifa y suma asegurada.">
-          <ListaCoberturas plan={plan} coberturas={coberturas} cramo={cramo} />
-          <EnlaceEditar to={editarPlan} texto="Agregar, quitar o cambiar coberturas" />
-        </SectionPanel>
-      );
     case 'tarifas':
       return (
         <SectionPanel title="Tarifas y tasas" description="Cada cobertura cobra según su tarifa; la tasa vigente es la que se usa al emitir.">
@@ -319,45 +394,6 @@ function Seccion({
           </ul>
         </SectionPanel>
       );
-    case 'frecuencias': {
-      const frec = Array.isArray(plan?.frecuencias) ? (plan.frecuencias as Fila[]) : [];
-      return (
-        <SectionPanel title="Formas de pago" description="Cómo se puede pagar el plan (anual, semestral, trimestral, mensual…).">
-          {frec.length ? (
-            <ul className="flex flex-wrap gap-2 text-xs">
-              {frec.map((f) => (
-                <li key={txt(f.ifrecuencia)} className="rounded-full bg-slate-100 px-3 py-1">
-                  {txt(f.xfrecuencia) || txt(f.ifrecuencia)}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Alert variant="warning">El plan no tiene formas de pago: no se podrá ofrecer.</Alert>
-          )}
-          <EnlaceEditar to={editarPlan} texto="Cambiar formas de pago" />
-        </SectionPanel>
-      );
-    }
-    case 'canales': {
-      const lista = (v: unknown) => (Array.isArray(v) ? (v as unknown[]).map((x) => txt(typeof x === 'object' && x ? (x as Fila).cproductor ?? (x as Fila).ccanalalt : x)) : []);
-      const productores = plan?.all_productor === true ? 'Todos' : lista(plan?.productores).join(', ') || 'Ninguno';
-      const canales = plan?.all_canal === true ? 'Todos' : lista(plan?.canales).join(', ') || 'Ninguno';
-      return (
-        <SectionPanel title="Quién lo vende" description="Productores y canales que pueden ofrecer el plan.">
-          <dl className="grid gap-2 text-xs sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 p-3">
-              <dt className="font-semibold text-slate-700">Productores</dt>
-              <dd>{productores}</dd>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-3">
-              <dt className="font-semibold text-slate-700">Canales</dt>
-              <dd>{canales}</dd>
-            </div>
-          </dl>
-          <EnlaceEditar to={editarPlan} texto="Cambiar quién lo vende" />
-        </SectionPanel>
-      );
-    }
     default:
       return (
         <Alert variant="info">
@@ -367,44 +403,38 @@ function Seccion({
   }
 }
 
-function ListaCoberturas({ plan, coberturas, cramo }: { plan: Fila | null; coberturas: ReturnType<typeof coberturasDelPlan>; cramo: number }) {
-  const filas = Array.isArray(plan?.coberturas) ? (plan.coberturas as Fila[]) : [];
-  const monto = (v: unknown) => (v == null || v === '' ? '—' : Number(v).toLocaleString('es-VE'));
-  if (!coberturas.length) return <p className="text-xs text-slate-500">El plan todavía no tiene coberturas.</p>;
+/** Tablas de tasas por edad que usa el plan (personas), por cobertura y parentesco. Se cambian desde «Coberturas». */
+function TablasEdadDelPlan({ plan, editarPlan, soloLectura }: { plan: Fila | null; editarPlan: string; soloLectura: boolean }) {
+  const usos = (Array.isArray(plan?.coberturas) ? (plan.coberturas as Fila[]) : []).flatMap((c) =>
+    (Array.isArray(c.parentescos) ? (c.parentescos as Fila[]) : []).map((p) => ({
+      ccobertura: txt(c.ccobertura),
+      cparen: txt(p.cparen),
+      ctablatar: txt(p.ctablatar),
+    })),
+  );
+  const tablas = [...new Set(usos.map((u) => u.ctablatar).filter(Boolean))];
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200">
-      <table className="w-full min-w-[560px] text-left text-xs">
-        <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase text-slate-500">
-          <tr>
-            <th className="px-3 py-2">Cobertura</th>
-            <th className="px-3 py-2">Tarifa</th>
-            <th className="px-3 py-2 text-right">Suma mín.</th>
-            <th className="px-3 py-2 text-right">Suma máx.</th>
-            <th className="px-3 py-2 text-right">Precio</th>
-          </tr>
-        </thead>
-        <tbody>
-          {coberturas.map((c) => {
-            const f = filas.find((x) => txt(x.ccobertura).toUpperCase() === c.ccobertura.toUpperCase()) ?? {};
-            const precio = Number(f.mprima) > 0 ? monto(f.mprima) : Number(f.pprima) > 0 ? `${monto(f.pprima)} %` : '—';
-            return (
-              <tr key={`${c.ccobertura}|${c.ctarifa}`} className="border-b border-slate-100 last:border-0">
-                <td className="px-3 py-2">
-                  <Link className="hover:underline" to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(c.ccobertura)}/edit`}>
-                    {c.nombre}
-                  </Link>{' '}
-                  <span className="font-mono text-slate-500">({c.ccobertura})</span>
-                </td>
-                <td className="px-3 py-2">{c.ctarifa}</td>
-                <td className="px-3 py-2 text-right">{monto(f.msumamin)}</td>
-                <td className="px-3 py-2 text-right">{monto(f.msumamax)}</td>
-                <td className="px-3 py-2 text-right">{precio}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <SectionPanel title="Tablas de edad" description="Tasas por edad que usan las coberturas del plan. Se asignan por parentesco en «Coberturas».">
+      {tablas.length ? (
+        <ul className="space-y-2 text-xs">
+          {tablas.map((t) => (
+            <li key={t} className="rounded-xl border border-slate-200 p-3">
+              <strong className="font-mono">{t}</strong>
+              <span className="ml-2 text-slate-600">
+                usada en:{' '}
+                {usos
+                  .filter((u) => u.ctablatar === t)
+                  .map((u) => `cobertura ${u.ccobertura} / parentesco ${u.cparen}`)
+                  .join(' · ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Alert variant="warning">El plan no tiene tablas de edad asignadas: sin ellas no se puede cotizar.</Alert>
+      )}
+      {!soloLectura && <EnlaceEditar to={editarPlan} texto="Crear o cambiar tramos de una tabla" />}
+    </SectionPanel>
   );
 }
 

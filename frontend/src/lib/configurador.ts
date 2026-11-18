@@ -3,17 +3,37 @@
 // Lo propio de cada familia (auto, personas, cosas) llega como «secciones» desde GET ramos/:cramo: aquí no se decide
 // nada por número de ramo.
 
-export type FamiliaRamo = 'auto' | 'personas' | 'cosas';
+/** 'cosas' = respuesta de la fase 1 (hoy 'patrimonial'); 'fianzas' es solo lectura (sin emisión Nexus). */
+export type FamiliaRamo = 'auto' | 'personas' | 'cosas' | 'patrimonial' | 'fianzas';
+
+const FAMILIAS: FamiliaRamo[] = ['auto', 'personas', 'cosas', 'patrimonial', 'fianzas'];
+/** Familia conocida o 'cosas' (lo que el configurador trata como ramo de cosas). */
+export const familiaValida = (v: unknown): FamiliaRamo => {
+  const f = String(v ?? '').trim() as FamiliaRamo;
+  return FAMILIAS.includes(f) ? f : 'cosas';
+};
+/** Patrimonial y cosas son lo mismo para la pantalla (cosas es el nombre de la fase 1). */
+export const esPatrimonial = (f: FamiliaRamo | null | undefined) => f === 'patrimonial' || f === 'cosas';
 
 export interface RamoConfigurador {
   cramo: number;
   xdescripcion_l: string;
   familia: FamiliaRamo;
   secciones: string[];
+  /** Personas con planes solo en la póliza plantilla de Técnica. */
+  colectivo: boolean;
+  /** Qué emisión de Nexus le sirve (null = ninguna). */
+  emisionNexus: string | null;
+  /** 'activo' | 'sin-planes' | 'inactivo' ('' si nest-api no lo manda). */
+  estado: string;
+  /** Fianzas u otro ramo que nest-api marca de solo lectura: se ocultan las acciones de escritura. */
+  soloLectura: boolean;
+  /** Avisos de nest-api para el ramo. */
+  avisos: string[];
 }
 
 /** Secciones genéricas del contrato (§1), en su orden fijo. Solo se usan si nest-api no responde GET ramos/:cramo. */
-export const SECCIONES_BASE = ['coberturas', 'tarifas', 'deducibles', 'frecuencias', 'canales', 'comisiones', 'revision'];
+export const SECCIONES_BASE = ['producto', 'plan', 'coberturas', 'tarifas', 'deducibles', 'frecuencias', 'quien-vende', 'comisiones', 'revision'];
 
 /** Cómo se llama cada sección en pantalla; `tabla` va solo en la ayuda (no en el texto principal). */
 export const SECCION_INFO: Record<string, { titulo: string; resumen: string; tabla: string }> = {
@@ -25,6 +45,15 @@ export const SECCION_INFO: Record<string, { titulo: string; resumen: string; tab
   comisiones: { titulo: 'Comisiones', resumen: 'Porcentaje que se paga al intermediario', tabla: 'maarancel' },
   'tipos-uso': { titulo: 'Tipo y uso del vehículo', resumen: 'Prima base de RCV y sumas por tipo y uso', tabla: 'macattip' },
   'tasas-antiguedad': { titulo: 'Tasa por antigüedad', resumen: 'Tasa de casco según los años del vehículo', tabla: 'maplantar_ano' },
+  producto: { titulo: 'Producto', resumen: 'A qué producto pertenece el plan y quién lo ve', tabla: 'maproductos' },
+  'quien-vende': { titulo: 'Quién lo vende', resumen: 'Productores, canales y gestores que pueden ofrecer el plan', tabla: 'mausuplan' },
+  'tasa-casco': { titulo: 'Tasa de casco', resumen: 'Tasa de casco por características del vehículo (versiones)', tabla: 'macalcasco / macobtipo / marangosum / marangoano' },
+  'tarifa-dias': { titulo: 'Tarifa por días', resumen: 'Prima según los días de viaje (Binacional)', tabla: 'maplantar_dias' },
+  'edades-parentesco': { titulo: 'Edades por parentesco', resumen: 'Edad mínima y máxima de cada asegurado', tabla: 'mapledades_per' },
+  'tablas-edad': { titulo: 'Tablas de edad', resumen: 'Tasas por edad que usan las coberturas', tabla: 'mapltabedad' },
+  proveedores: { titulo: 'Proveedores', resumen: 'Clínicas y proveedores del plan', tabla: 'maplprov_per' },
+  'descuentos-recargos': { titulo: 'Descuentos y recargos', resumen: 'Dispositivos de seguridad y sustancias peligrosas del ramo', tabla: 'madisseg / masustac' },
+  condominio: { titulo: 'Condominio', resumen: 'Tasas por antigüedad, reparto y rango del ramo', tabla: 'MATARIFA_ANTIGUEDAD_NEXUS / MATARIFA_REPARTO_NEXUS / MATARIFA_RANGO_NEXUS' },
   revision: { titulo: 'Revisión', resumen: '¿El plan se puede emitir?', tabla: '' },
   /** La revisión usa «plan» para la cabecera (código, producto): se corrige en el formulario del plan. */
   plan: { titulo: 'Datos del plan', resumen: 'Nombre, código, producto y vigencia', tabla: 'maplanes / maplanes_per' },
@@ -34,7 +63,7 @@ export const SECCION_INFO: Record<string, { titulo: string; resumen: string; tab
  * Secciones que ya resuelve el asistente de planes existente (Combos: producto → coberturas → tarifas → datos del plan,
  * con formas de pago y quién lo vende). El flujo «Nuevo plan» sigue después con el resto de las secciones del ramo.
  */
-export const SECCIONES_DEL_ASISTENTE_DE_PLAN = ['coberturas', 'tarifas', 'frecuencias', 'canales'];
+export const SECCIONES_DEL_ASISTENTE_DE_PLAN = ['producto', 'plan', 'coberturas', 'tarifas', 'frecuencias', 'canales', 'quien-vende'];
 
 /** Pasos del flujo «Nuevo plan» que se hacen en el asistente de planes (antes de que exista el plan). */
 export const PASOS_PREVIOS_NUEVO_PLAN = [
@@ -66,12 +95,16 @@ export const fechaIso = (v: unknown): string => {
 
 /** Normaliza GET ramos/:cramo; las secciones desconocidas se respetan (otra familia puede traer las suyas). */
 export function normalizarRamo(r: Record<string, unknown>): RamoConfigurador {
-  const familia = texto(r.familia) as FamiliaRamo;
   return {
     cramo: Number(r.cramo),
     xdescripcion_l: texto(r.xdescripcion_l ?? r.xdescripcion),
-    familia: familia === 'auto' || familia === 'personas' ? familia : 'cosas',
+    familia: familiaValida(r.familia),
     secciones: (Array.isArray(r.secciones) ? r.secciones : []).map(texto).filter(Boolean),
+    colectivo: r.colectivo === true,
+    emisionNexus: texto(r.emisionNexus) || null,
+    estado: texto(r.estado),
+    soloLectura: r.soloLectura === true || familiaValida(r.familia) === 'fianzas',
+    avisos: (Array.isArray(r.avisos) ? r.avisos : []).map(texto).filter(Boolean),
   };
 }
 
@@ -444,17 +477,17 @@ export interface RevisionPlan {
 
 export function normalizarRevision(r: Record<string, unknown>): RevisionPlan {
   const items = (Array.isArray(r.items) ? (r.items as Record<string, unknown>[]) : []).map((i): ItemRevision => {
-    const nivel = texto(i.nivel) as NivelRevision;
+    const nivel = texto(i.nivel);
     return {
       codigo: texto(i.codigo),
-      nivel: nivel === 'error' || nivel === 'aviso' ? nivel : 'ok',
+      // 'info' (p. ej. ramo sin numeración de recibos) se muestra como aviso: no impide emitir.
+      nivel: nivel === 'error' || nivel === 'aviso' ? nivel : nivel === 'info' ? 'aviso' : 'ok',
       mensaje: texto(i.mensaje),
       seccion: texto(i.seccion),
     };
   });
-  const familia = texto(r.familia) as FamiliaRamo;
   return {
-    familia: familia === 'auto' || familia === 'personas' ? familia : 'cosas',
+    familia: familiaValida(r.familia),
     listo: r.listo === true,
     items,
   };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Layers, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
@@ -17,7 +17,8 @@ export function Sis2000MasterPlansPage() {
   const [plans, setPlans] = useState<Sis2000NestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [ramoFilter, setRamoFilter] = useState('18');
+  const [busqueda] = useSearchParams();
+  const [ramoFilter, setRamoFilter] = useState(() => busqueda.get('cramo')?.trim() || '18');
   const [search, setSearch] = useState('');
 
   async function load() {
@@ -80,7 +81,7 @@ export function Sis2000MasterPlansPage() {
             className="self-center text-xs text-muted-foreground underline-offset-2 hover:underline"
             title="Editor en JSON para casos que el formulario no cubre"
           >
-            Nuevo plan en JSON
+            Nuevo plan (modo avanzado, JSON)
           </Link>
           <Link to="/sis2000/combos">
             <Button type="button" size="sm">
@@ -153,7 +154,7 @@ export function Sis2000MasterPlansPage() {
                             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
                             title="Editor en JSON para casos que el formulario no cubre"
                           >
-                            JSON
+                            Modo avanzado
                           </Link>
                         </div>
                       )}

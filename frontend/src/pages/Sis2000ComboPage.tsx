@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Boxes,
@@ -657,6 +657,9 @@ export function Sis2000ComboPage() {
   /** Con :id (cramo-cplan) la pantalla edita un plan existente; sin él arma un combo nuevo. */
   const { id: editId } = useParams<{ id?: string }>();
   const modoEdicion = Boolean(editId);
+  /** «Crear plan» desde el catálogo de ramos: /sis2000/combos?cramo=28 deja elegido ese ramo. */
+  const [busqueda] = useSearchParams();
+  const ramoPedido = editId ? '' : (busqueda.get('cramo') ?? '').trim();
   const hoy = useMemo(hoyIso, []);
   /** Borrador guardado en este navegador (se lee una sola vez al abrir la pantalla; no aplica al editar). */
   const [inicio] = useState(() => (editId ? null : leerBorrador()));
@@ -689,7 +692,7 @@ export function Sis2000ComboPage() {
   /** Producto elegido: clave cproducto|cramo (maproductos repite cada producto en SysIP y Nexus). */
   const [claveProducto, setClaveProducto] = useState(inicio?.claveProducto ?? '');
   /** Ramo elegido para filtrar el selector de producto (RAMO_TODOS = sin filtro). */
-  const [ramoFiltro, setRamoFiltro] = useState(inicio?.ramoFiltro || RAMO_TODOS);
+  const [ramoFiltro, setRamoFiltro] = useState(/^\d+$/.test(ramoPedido) ? ramoPedido : inicio?.ramoFiltro || RAMO_TODOS);
   /** Ramos de Sis2000 (maramos). Vacío si no se pudieron leer: el selector usa los ramos deducidos de los productos. */
   const [ramosSis2000, setRamosSis2000] = useState<Array<{ cramo: number; xdescripcion: string }>>([]);
   const [mostrarNuevoProducto, setMostrarNuevoProducto] = useState(false);

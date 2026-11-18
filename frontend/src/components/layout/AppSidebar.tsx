@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Boxes, Database, Eye, Layers, ListChecks, LogOut, Plus, Shield } from 'lucide-react';
+import { Boxes, Database, Eye, Layers, ListChecks, LogOut, Plus, Shapes, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,13 @@ const NAV = [
     label: 'Sis2000 QA',
     icon: Database,
     match: (p: string) =>
-      p.startsWith('/sis2000') && !p.startsWith('/sis2000/combos') && !p.startsWith('/sis2000/plans'),
+      p.startsWith('/sis2000') && !p.startsWith('/sis2000/combos') && !p.startsWith('/sis2000/plans') && !p.startsWith('/sis2000/ramos'),
+  },
+  {
+    href: '/sis2000/ramos',
+    label: 'Ramos',
+    icon: Shapes,
+    match: (p: string) => p.startsWith('/sis2000/ramos'),
   },
   {
     href: '/sis2000/combos',

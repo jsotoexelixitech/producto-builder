@@ -128,6 +128,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// ── Configurador fase 2: rutas y escritura genérica ──
+type CuerpoF2 = Record<string, unknown>;
+/** Respuesta de una escritura: datos de nest-api + `advertencias` (informativas) y `grabado: false` si pide confirmar. */
+export type RespuestaEscrituraF2 = Record<string, unknown> & { advertencias?: string[]; grabado?: boolean };
+const rutaPlanF2 = (planId: string) => `/core/sis2000/plans/${encodeURIComponent(planId)}`;
+const rutaRamoF2 = (cramo: number) => `/core/sis2000/ramos/${encodeURIComponent(String(cramo))}`;
+/** El tercer parámetro (tiempo máximo) es informativo: el builder ya espera a nest-api con su propio límite. */
+function enviar(metodo: 'POST' | 'PUT' | 'PATCH' | 'DELETE', ruta: string, body?: CuerpoF2, _ms?: number) {
+  return request<RespuestaEscrituraF2>(ruta, { method: metodo, body: body === undefined ? undefined : JSON.stringify(body) });
+}
+
 export const api = {
   login: async (email: string, password: string) => {
     const res = await fetch(`${BASE}/auth/login`, {
@@ -329,9 +340,12 @@ export const api = {
   /** Banderas del servidor (p. ej. canales en planes). */
   getSis2000Funciones: () =>
     request<{ canalesEnPlan: boolean; cobroDias?: boolean; crearProducto?: boolean }>('/core/sis2000/funciones'),
-  /** Ramos de Sis2000 (maramos). */
+  /**
+   * Ramos de Sis2000 (maramos). Fase 2: cada fila trae además ctiporamo, colectivo, emisionNexus, estado, planes,
+   * productos, soloLectura, avisos, condominio, tarifaDias y secciones (se normaliza con normalizarRamoCatalogo).
+   */
   listSis2000Ramos: () =>
-    request<{ cramo: number; xdescripcion: string; familia?: string }[]>('/core/sis2000/ramos'),
+    request<Array<{ cramo: number; xdescripcion: string; familia?: string } & Record<string, unknown>>>('/core/sis2000/ramos'),
   /** Alta de producto en un ramo (sp_CrearProducto); requiere SIS2000_PRODUCTO_ESCRITURA en el builder. */
   crearSis2000Producto: (body: {
     cproducto: string;
@@ -603,6 +617,86 @@ export const api = {
   /** Revisión «¿se puede emitir?» (solo lectura). */
   revisarSis2000Plan: (planId: string) =>
     request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/revision`),
+
+  // ── Configurador fase 2 «editar todo» (CONTRATO-CONFIGURADOR-FASE2): proxies 1:1; escrituras con respaldo previo ──
+  // `motivoCambio` en el cuerpo es opcional (queda en el historial). Las respuestas se normalizan en lib/configurador-fase2.
+  listarSis2000Frecuencias: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/frecuencias`),
+  agregarSis2000Frecuencia: (planId: string, body: CuerpoF2) => enviar('POST', `${rutaPlanF2(planId)}/frecuencias`, body),
+  editarSis2000Frecuencia: (planId: string, ifrecuencia: string, body: CuerpoF2) =>
+    enviar('PATCH', `${rutaPlanF2(planId)}/frecuencias/${encodeURIComponent(ifrecuencia.trim())}`, body),
+  listarSis2000FrecuenciasProductor: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/frecuencias-productor`),
+  agregarSis2000FrecuenciaProductor: (planId: string, body: CuerpoF2) =>
+    enviar('POST', `${rutaPlanF2(planId)}/frecuencias-productor`, body),
+  /** Borra de verdad (la tabla no tiene estado); `ndias` elige la fila si el productor tiene la letra con varios días. */
+  borrarSis2000FrecuenciaProductor: (planId: string, cproductor: string, ifrecuencia: string, motivoCambio?: string, ndias?: number | null) => {
+    const qs = new URLSearchParams();
+    if (motivoCambio) qs.set('motivo', motivoCambio);
+    if (ndias != null) qs.set('ndias', String(ndias));
+    const q = qs.toString();
+    return enviar(
+      'DELETE',
+      `${rutaPlanF2(planId)}/frecuencias-productor/${encodeURIComponent(cproductor.trim())}/${encodeURIComponent(ifrecuencia.trim())}${q ? `?${q}` : ''}`,
+    );
+  },
+  /** Lista paginada (query ya armada con consultaQuienVende). */
+  listarSis2000QuienVende: (planId: string, query = '') => request<unknown>(`${rutaPlanF2(planId)}/quien-vende${query}`),
+  resumenSis2000QuienVende: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/quien-vende/resumen`),
+  agregarSis2000QuienVende: (planId: string, body: CuerpoF2) => enviar('POST', `${rutaPlanF2(planId)}/quien-vende`, body, 120_000),
+  bajaSis2000QuienVende: (planId: string, body: CuerpoF2) => enviar('POST', `${rutaPlanF2(planId)}/quien-vende/baja`, body, 120_000),
+  /** maproductos tal cual (nest-api propio): objeto o lista si el código se repite en varios ramos. */
+  leerSis2000ProductoConfigurador: (cproducto: string) =>
+    request<unknown>(`/core/sis2000/productos/${encodeURIComponent(cproducto.trim())}`),
+  /** PATCH de maproductos (no cambia cproducto ni cramo; el cramo del cuerpo elige la fila). */
+  editarSis2000Producto: (cproducto: string, body: CuerpoF2) =>
+    enviar('PATCH', `/core/sis2000/productos/${encodeURIComponent(cproducto.trim())}`, body),
+  /** Alta de producto con todos los campos de ProductoForm (sp_CrearProducto + igestor/xform). */
+  crearSis2000ProductoCompleto: (body: CuerpoF2) => enviar('POST', '/core/sis2000/productos', body, 60_000),
+  /** Cabecera del plan (versión vigente): xplan, cmoneda, cproducto, iestado. */
+  editarSis2000CabeceraPlan: (planId: string, body: CuerpoF2) => enviar('PATCH', rutaPlanF2(planId), body),
+  agregarSis2000CoberturaPlan: (planId: string, body: CuerpoF2) => enviar('POST', `${rutaPlanF2(planId)}/coberturas`, body),
+  editarSis2000TarifaCoberturaPlan: (planId: string, ccobertura: string, ctarifa: string, body: CuerpoF2) =>
+    enviar('PATCH', `${rutaPlanF2(planId)}/coberturas/${encodeURIComponent(ccobertura.trim())}/tarifas/${encodeURIComponent(ctarifa.trim())}`, body),
+  bajaSis2000CoberturaPlan: (planId: string, ccobertura: string, body: CuerpoF2) =>
+    enviar('POST', `${rutaPlanF2(planId)}/coberturas/${encodeURIComponent(ccobertura.trim())}/baja`, body),
+  agregarSis2000CoberturaPersonas: (planId: string, body: CuerpoF2) => enviar('POST', `${rutaPlanF2(planId)}/coberturas-personas`, body),
+  editarSis2000CoberturaPersonas: (planId: string, ccobertura: string, ctarifa: string, body: CuerpoF2) =>
+    enviar(
+      'PATCH',
+      `${rutaPlanF2(planId)}/coberturas-personas/${encodeURIComponent(ccobertura.trim())}/tarifas/${encodeURIComponent(ctarifa.trim())}`,
+      body,
+    ),
+  bajaSis2000CoberturaPersonas: (planId: string, ccobertura: string, body: CuerpoF2) =>
+    enviar('POST', `${rutaPlanF2(planId)}/coberturas-personas/${encodeURIComponent(ccobertura.trim())}/baja`, body),
+  listarSis2000Edades: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/edades`),
+  guardarSis2000Edad: (planId: string, cparen: string | number, body: CuerpoF2) =>
+    enviar('PUT', `${rutaPlanF2(planId)}/edades/${encodeURIComponent(String(cparen))}`, body),
+  /** tipo: 'dispositivos' (madisseg, % de descuento) o 'sustancias' (masustac, % de recargo). */
+  listarSis2000DescRec: (cramo: number, tipo: 'dispositivos' | 'sustancias') => request<unknown>(`${rutaRamoF2(cramo)}/${tipo}`),
+  agregarSis2000DescRec: (cramo: number, tipo: 'dispositivos' | 'sustancias', body: CuerpoF2) =>
+    enviar('POST', `${rutaRamoF2(cramo)}/${tipo}`, body),
+  editarSis2000DescRec: (cramo: number, tipo: 'dispositivos' | 'sustancias', codigo: string, body: CuerpoF2) =>
+    enviar('PATCH', `${rutaRamoF2(cramo)}/${tipo}/${encodeURIComponent(codigo.trim())}`, body),
+  /** tabla: 'antiguedad' | 'reparto' | 'rango' (MATARIFA_*_NEXUS). */
+  leerSis2000Condominio: (cramo: number, tabla: string) => request<unknown>(`${rutaRamoF2(cramo)}/condominio/${encodeURIComponent(tabla)}`),
+  guardarSis2000Condominio: (cramo: number, tabla: string, body: CuerpoF2) =>
+    enviar('PUT', `${rutaRamoF2(cramo)}/condominio/${encodeURIComponent(tabla)}`, body),
+  listarSis2000TarifaDias: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/tarifa-dias`),
+  guardarSis2000TarifaDias: (planId: string, ccober: string, ctarifa: string, body: CuerpoF2) =>
+    enviar('PUT', `${rutaPlanF2(planId)}/tarifa-dias/${encodeURIComponent(ccober.trim())}/${encodeURIComponent(ctarifa.trim())}`, body),
+  leerSis2000TasaCasco: (cramo: number) => request<unknown>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco`),
+  /** Historial de versiones de la tasa de casco (global). */
+  listarSis2000VersionesCasco: (cramo: number, limit = 50) => request<unknown>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones?limit=${limit}`),
+  /** Vista previa de un ajuste porcentual (no escribe). */
+  vistaPreviaSis2000Casco: (cramo: number, body: CuerpoF2) => enviar('POST', `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/vista-previa`, body),
+  /** Propuesta: AJUSTE (movimiento, porcentaje, alcance, filtros) o RESTAURACION (version_id); siempre con cusuario y motivo. */
+  crearSis2000VersionCasco: (cramo: number, body: CuerpoF2) => enviar('POST', `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones`, body),
+  /** Publicar = aprobar: { cusuario (distinto del que propuso), comentario? }. */
+  publicarSis2000VersionCasco: (cramo: number, versionId: string, body: CuerpoF2) =>
+    enviar('POST', `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones/${encodeURIComponent(versionId)}/publicar`, body),
+  rechazarSis2000VersionCasco: (cramo: number, versionId: string, body: CuerpoF2) =>
+    enviar('POST', `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones/${encodeURIComponent(versionId)}/rechazar`, body),
+  cancelarSis2000VersionCasco: (cramo: number, versionId: string, body: CuerpoF2) =>
+    enviar('POST', `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones/${encodeURIComponent(versionId)}/cancelar`, body),
 
   // Planes maestro (spMantPlanes)
   listSis2000MasterPlans: () =>
