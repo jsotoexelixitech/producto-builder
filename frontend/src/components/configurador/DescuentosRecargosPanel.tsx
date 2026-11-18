@@ -21,17 +21,19 @@ import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
 
-const TEXTOS: Record<TipoDescRec, { titulo: string; efecto: string; tabla: string; nuevo: string }> = {
+const TEXTOS: Record<TipoDescRec, { titulo: string; efecto: string; tabla: string; ayuda: string; nuevo: string }> = {
   dispositivos: {
     titulo: 'Dispositivos de seguridad (% de descuento)',
     efecto: 'descuento',
     tabla: 'madisseg (cdisseg, xdisseg, pdisseg)',
+    ayuda: 'Descuento por cada dispositivo de seguridad que declare el asegurado. Los % de los dispositivos elegidos se suman y se descuentan de la prima. Es del ramo: afecta a todos sus planes.',
     nuevo: 'Agregar dispositivo',
   },
   sustancias: {
     titulo: 'Sustancias peligrosas (% de recargo)',
     efecto: 'recargo',
     tabla: 'masustac (csustanc, xsustanc, porcenta)',
+    ayuda: 'Recargo por cada sustancia peligrosa que haya en el riesgo. Los % de las sustancias elegidas se suman y se recargan a la prima. Es del ramo: afecta a todos sus planes.',
     nuevo: 'Agregar sustancia',
   },
 };
@@ -44,7 +46,7 @@ export function DescuentosRecargosPanel({ cramo, soloLectura, onCambio }: { cram
   return (
     <SectionPanel
       title="Descuentos y recargos"
-      description="Porcentajes que se descuentan por dispositivos de seguridad o se recargan por sustancias peligrosas."
+      description="Descuentos por dispositivos de seguridad y recargos por sustancias peligrosas que la cotización aplica sobre la prima. Son valores del ramo: un cambio afecta a todos sus planes."
       icon={BadgePercent}
     >
       <div className="space-y-5 text-xs">
@@ -165,7 +167,7 @@ function BloqueDescRec({ cramo, tipo, soloLectura, onCambio }: { cramo: number; 
     <div className="space-y-3">
       <p className="flex items-center gap-1 text-sm font-semibold text-slate-800">
         {t.titulo}
-        <InfoTip text={`En Sis2000: ${t.tabla}. No tiene estado activo/inactivo: para quitarlo se pone el % en 0.`} />
+        <InfoTip text={`${t.ayuda} No se puede dar de baja: para quitarlo, pon el % en 0.\nEn Sis2000: ${t.tabla}`} />
       </p>
       <AlertaError error={error} onReintentar={cargar} />
       {ok && <Alert variant="success">{ok}</Alert>}

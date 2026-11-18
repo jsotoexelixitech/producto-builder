@@ -162,7 +162,7 @@ function SelectorCoberturaTarifa({
       <div>
         <Label htmlFor={`${idBase}-tar`} className="inline-flex items-center gap-1">
           Tarifa
-          <InfoTip text="Tarifas activas de la cobertura (matarifa)." />
+          <InfoTip text={'Tarifa de la cobertura que usará el plan; solo salen las activas. La tarifa debe tener una sola tasa vigente: la emisión no mira fechas, solo «vigente».\nEn Sis2000: matarifa.ctarifa'} />
         </Label>
         <select
           id={`${idBase}-tar`}
@@ -309,7 +309,7 @@ function CoberturasCosas({ planId, cramo, familia, plan, catalogo, soloLectura, 
   const erroresNueva = nueva?.intento ? validarCoberturaPlan(nueva.form, true) : {};
 
   return (
-    <SectionPanel title="Coberturas del plan" description="Qué cubre el plan, con su suma asegurada y su precio (prima fija o tasa sobre la suma)." icon={ShieldCheck}>
+    <SectionPanel title="Coberturas del plan" description="Qué cubre el plan, con su suma asegurada y su precio: prima fija o tasa % sobre la suma. En automóvil, las coberturas de RCV (daños a personas y a cosas) se cobran completas en la primera cuota cuando el pago es fraccionado." icon={ShieldCheck}>
       <div className="space-y-4 text-xs">
         <EstadoEscritura esc={esc} />
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -406,7 +406,7 @@ function CoberturasCosas({ planId, cramo, familia, plan, catalogo, soloLectura, 
               <label className="inline-flex items-center gap-2 text-slate-700">
                 <input type="checkbox" checked={nueva.form.bobligatoria} onChange={(e) => setNueva({ ...nueva, form: { ...nueva.form, bobligatoria: e.target.checked } })} />
                 Obligatoria (el asegurado no puede quitarla)
-                <InfoTip text="Sis2000 toma la obligatoriedad de la tarifa del ramo (matarifa): esta marca no se graba en el plan; si no coincide, Sis2000 lo avisa." />
+                <InfoTip text={'Obligatoria u opcional no se decide en el plan: viene de la tarifa del ramo y aplica a todos los planes que la usan. Esta marca no se graba en el plan; si no coincide con la tarifa, se te avisa.\nEn Sis2000: matarifa.bobligatoria'} />
               </label>
               <div className="flex flex-wrap items-end gap-3">
                 <CampoMotivo id="cob-nueva-motivo" valor={motivo} onChange={setMotivo} />
@@ -440,7 +440,7 @@ function CoberturasCosas({ planId, cramo, familia, plan, catalogo, soloLectura, 
             </p>
             {familia === 'auto' && (
               <Alert variant="warning">
-                En automóvil, la cotización de Sis2000 todavía no respeta la baja de una cobertura del plan hasta que se corrija su SP: revisa la cotización después.
+                En automóvil la cotización todavía no respeta la baja: la cobertura se sigue cotizando hasta que se corrija el cálculo en Sis2000. Revisa una cotización después.
               </Alert>
             )}
             {esUltimaObligatoria(filas, baja.ccobertura) && (
@@ -487,19 +487,19 @@ function CamposPrecio({
   );
   return (
     <div className="grid gap-3 sm:grid-cols-4">
-      {campo('msumamin', 'Suma asegurada mínima', 'msumamin de la tarifa del plan (maplantar).')}
-      {campo('msumamax', 'Suma asegurada máxima', 'msumamax de la tarifa del plan (maplantar).')}
+      {campo('msumamin', 'Suma asegurada mínima', 'Lo menos que se puede asegurar con esta cobertura en el plan. Si es igual a la máxima, la suma es fija. Ejemplo: 1000.\nEn Sis2000: maplantar.msumamin')}
+      {campo('msumamax', 'Suma asegurada máxima', 'Lo más que se puede asegurar con esta cobertura en el plan. Con tasa, la prima se calcula sobre la suma que se elija.\nEn Sis2000: maplantar.msumamax')}
       <div>
         <Label htmlFor={`${idBase}-modo`} className="inline-flex items-center gap-1">
           Cómo se cobra
-          <InfoTip text="Prima fija (mprima) o tasa % sobre la suma (pprima). Son excluyentes: al guardar una, la otra queda vacía." />
+          <InfoTip text={'Tasa = % sobre la suma asegurada; prima fija = monto sin importar la suma. Son excluyentes: al guardar una, la otra queda vacía. Ejemplo: tasa 2 sobre 10.000 = prima 200.\nEn Sis2000: maplantar.pprima (tasa) / maplantar.mprima (prima)'} />
         </Label>
         <select id={`${idBase}-modo`} className={selectClase} value={form.modo} onChange={(e) => onChange({ ...form, modo: e.target.value === 'tasa' ? 'tasa' : 'prima' })}>
           <option value="prima">Prima fija</option>
           <option value="tasa">Tasa %</option>
         </select>
       </div>
-      {campo('valor', form.modo === 'tasa' ? 'Tasa %' : 'Prima', form.modo === 'tasa' ? 'Porcentaje sobre la suma asegurada, de 0 a 100 (pprima).' : 'Monto fijo de la prima (mprima).')}
+      {campo('valor', form.modo === 'tasa' ? 'Tasa %' : 'Prima', form.modo === 'tasa' ? 'Porcentaje sobre la suma asegurada, de 0 a 100. Ejemplo: 2 = 2 % de la suma.\nEn Sis2000: maplantar.pprima' : 'Monto fijo de la prima, sin importar la suma asegurada. Ejemplo: 50.\nEn Sis2000: maplantar.mprima')}
     </div>
   );
 }
@@ -529,10 +529,10 @@ function CoberturasPersonas({ planId, cramo, plan, catalogo, soloLectura, onCamb
       clave: 'cparen',
       titulo: 'Parentesco',
       tipo: 'select',
-      ayuda: 'Quién se asegura con esta tasa (cparen de maparent).',
+      ayuda: 'Parentesco que se asegura con esta cobertura (titular, cónyuge, hijos…). Cada parentesco necesita además su edad de entrada en «Edades por parentesco».\nEn Sis2000: mapltarifas_per.cparen',
       opciones: [{ valor: '', etiqueta: 'Elige…' }, ...parentescos.map((p) => ({ valor: String(p.cparen), etiqueta: `${p.cparen} · ${p.xparentesco}` }))],
     },
-    { clave: 'ctablatar', titulo: 'Tabla de tasas por edad', placeholder: 'Código de la tabla', ayuda: 'Código de la tabla de tasas por edad (ctablatar, mapltabedad).' },
+    { clave: 'ctablatar', titulo: 'Tabla de tasas por edad', placeholder: 'Código de la tabla', ayuda: 'Tabla de precios por edad que cobra a este parentesco. Si la edad del asegurado no cae en ningún tramo de la tabla, la prima queda en 0.\nEn Sis2000: mapltarifas_per.ctablatar (tabla en mapltabedad)' },
   ];
 
   const form = edicion ? { ccobertura: edicion.ccobertura, ctarifa: edicion.ctarifa, parentescos: edicion.filas.map((f) => ({ cparen: f.cparen ?? '', ctablatar: f.ctablatar ?? '' })) } : null;
@@ -599,7 +599,7 @@ function CoberturasPersonas({ planId, cramo, plan, catalogo, soloLectura, onCamb
   return (
     <SectionPanel
       title="Coberturas del plan"
-      description="Qué cubre el plan y, para cada parentesco (titular, cónyuge, hijos…), la tabla de tasas por edad que se usa para cobrar."
+      description="Qué cubre el plan y, para cada parentesco (titular, cónyuge, hijos…), la tabla de precios por edad que se usa para cobrar. Una cobertura cuya tarifa no tenga tasa vigente desaparece de la póliza al emitir."
       icon={ShieldCheck}
     >
       <div className="space-y-4 text-xs">

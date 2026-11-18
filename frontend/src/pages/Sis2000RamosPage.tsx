@@ -72,8 +72,9 @@ export function Sis2000RamosPage() {
             Ramos de Sis2000
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Cada ramo pertenece a una familia (automóvil, personas, patrimoniales o fianzas) que define qué se configura en sus
-            planes y con qué emisión de Nexus se venden. Elige un ramo para ver sus planes o crear uno nuevo.
+            Cada ramo pertenece a una familia (automóvil, personas, patrimoniales o fianzas). La familia decide qué se
+            configura en sus planes (por ejemplo, tipo y uso del vehículo en automóvil o tablas por edad en personas) y con
+            qué emisión de Nexus se venden. Elige un ramo para ver sus planes o crear uno nuevo.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={cargar} disabled={ramos === null}>
@@ -117,7 +118,7 @@ export function Sis2000RamosPage() {
                 <th className="px-3 py-2">
                   <span className="inline-flex items-center gap-1">
                     Emisión Nexus
-                    <InfoTip text="Qué emisión de Nexus vende los planes del ramo (SP de emisión de auto, personas o patrimoniales)." />
+                    <InfoTip text={'Con qué emisión de Nexus se venden los planes del ramo: automóvil, personas o patrimoniales. Si dice «Ninguna», Nexus no tiene emisión para ese ramo (por ejemplo, fianzas) y sus planes solo se consultan. Una familia nueva necesita su propio procedimiento de emisión.\nEn Sis2000: maramos.ctiporamo'} />
                   </span>
                 </th>
                 <th className="px-3 py-2 text-right">Planes</th>

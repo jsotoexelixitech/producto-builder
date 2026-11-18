@@ -141,7 +141,7 @@ export function PlanCabeceraForm({
   const monedaFuera = form.cmoneda && !monedas.some((m) => m.codigo.toUpperCase() === form.cmoneda.toUpperCase());
 
   return (
-    <SectionPanel title="Datos del plan" description="Nombre, moneda, producto y estado de la versión vigente del plan." icon={FileText}>
+    <SectionPanel title="Datos del plan" description="Nombre, moneda, producto y estado del plan. Los cambios se aplican a la versión vigente; la emisión solo toma planes activos." icon={FileText}>
       <div className="space-y-4 text-xs">
         <AlertaError error={error} />
         {ok && <Alert variant={hayCambios ? 'info' : 'success'}>{ok}</Alert>}
@@ -160,7 +160,7 @@ export function PlanCabeceraForm({
           <div className="sm:col-span-2">
             <Label htmlFor="cab-xplan" className="inline-flex items-center gap-1">
               Nombre del plan
-              <InfoTip text="xplan." />
+              <InfoTip text={'Nombre del plan como lo ven SysIP y la emisión. Ejemplo: RC GENERAL PLAN BÁSICO.\nEn Sis2000: maplanes.xplan (personas: maplanes_per.xplan)'} />
             </Label>
             <Input
               id="cab-xplan"
@@ -175,7 +175,7 @@ export function PlanCabeceraForm({
           <div>
             <Label htmlFor="cab-moneda" className="inline-flex items-center gap-1">
               Moneda
-              <InfoTip text="cmoneda; se valida contra las monedas de Sis2000 (mamonedas)." />
+              <InfoTip text={'Moneda en la que están las sumas y primas del plan; la emisión la convierte a bolívares con la tasa vigente de esa moneda. Un plan tiene una sola moneda.\nEn Sis2000: maplanes.cmoneda (debe existir en mamonedas)'} />
             </Label>
             <select
               id="cab-moneda"
@@ -198,7 +198,7 @@ export function PlanCabeceraForm({
           <div>
             <Label htmlFor="cab-producto" className="inline-flex items-center gap-1">
               Producto
-              <InfoTip text={`Productos del ramo ${cramo} con código de 6 caracteres o menos (cproducto).`} />
+              <InfoTip text={`Producto al que pertenece el plan; solo salen los del ramo ${cramo} con código de 6 caracteres o menos, que es lo que acepta el plan.\nEn Sis2000: maplanes.cproducto`} />
             </Label>
             <select
               id="cab-producto"
@@ -221,7 +221,7 @@ export function PlanCabeceraForm({
           <div>
             <Label htmlFor="cab-estado" className="inline-flex items-center gap-1">
               Estado
-              <InfoTip text="iestado: V = activo, I = inactivo." />
+              <InfoTip text={'Activo: se puede cotizar y emitir. Inactivo: deja de ofrecerse; las pólizas ya emitidas no cambian.\nEn Sis2000: maplanes.iestado (V = activo, I = inactivo)'} />
             </Label>
             <select
               id="cab-estado"

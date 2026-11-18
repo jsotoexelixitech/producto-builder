@@ -58,7 +58,8 @@ export function Sis2000TarifaDetallePage() {
         <div>
           <h1 className="text-lg font-bold">Historial · tarifa {ctarifa}</h1>
           <p className="text-xs text-muted-foreground">
-            nest-api GET /tarifas/{cramo}/{ccobertura}/{ctarifa}/detalles
+            Tasas y primas que ha tenido esta tarifa. Al cotizar y emitir, Sis2000 usa la fila vigente (no mira las fechas):
+            debe haber una sola.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

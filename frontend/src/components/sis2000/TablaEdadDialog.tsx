@@ -361,8 +361,8 @@ export function TablaEdadDialog({
             <h2 className="text-base font-bold text-slate-800">{titulo}</h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
               {modo === 'crear'
-                ? 'Define cuánto se cobra según la edad del asegurado. Se guarda en Sis2000 (mapltabedad) y queda disponible para este y otros planes de personas.'
-                : 'Solo consulta: así está la tabla en Sis2000.'}
+                ? 'Define cuánto se cobra según la edad de cada asegurado. Queda guardada en Sis2000 y la puede usar este o cualquier otro plan de personas. Si una edad no cae en ningún tramo, esa persona queda sin prima en esa cobertura.'
+                : 'Solo consulta: así está hoy la tabla en Sis2000. Si la cambias, cambia en todos los planes que la usan.'}
             </p>
           </div>
           <button
@@ -430,8 +430,8 @@ export function TablaEdadDialog({
               <FormField
                 label="Código de la tabla"
                 htmlFor="tabla-edad-codigo"
-                hint={`Máx. ${LARGO_CODIGO} caracteres, en mayúsculas. No puede repetirse.`}
-                tooltip="Nombre corto con el que el plan encuentra esta tabla (mapltabedad.ctablaedad). Es lo que queda escrito en el campo «Tabla de tasas»."
+                hint={`Máx. ${LARGO_CODIGO} caracteres, en mayúsculas. Único en todo Sis2000.`}
+                tooltip={'Código con el que cada cobertura del plan apunta a esta tabla; es lo que queda en el campo «Tabla de tasas». Una misma tabla puede servir a varios planes. Ejemplo: SALUD0174.\nEn Sis2000: mapltabedad.ctablaedad'}
               >
                 <Input
                   id="tabla-edad-codigo"
@@ -445,7 +445,7 @@ export function TablaEdadDialog({
                 label="Descripción"
                 htmlFor="tabla-edad-descripcion"
                 hint={`Máx. ${LARGO_DESCRIPCION} caracteres.`}
-                tooltip="Texto para reconocer la tabla (por ejemplo, la cobertura o el plan al que pertenece). No se muestra al asegurado."
+                tooltip={'Texto para reconocer la tabla al buscarla, por ejemplo la cobertura o el plan para el que se hizo. Es interno: no lo ve el asegurado.\nEn Sis2000: mapltabedad.xtablaedad'}
               >
                 <Input
                   id="tabla-edad-descripcion"
@@ -501,7 +501,7 @@ export function TablaEdadDialog({
               <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-indigo-900">
                 <Wand2 className="h-3.5 w-3.5" />
                 Carga rápida de tramos
-                <InfoTip text="Evita escribir tramo por tramo. Cada opción reemplaza los tramos de abajo; después puedes ajustar cualquier valor a mano." />
+                <InfoTip text="Atajos para no escribir tramo por tramo: tramos estándar, cada N años, una sola prima, pegar desde Excel o copiar otra tabla. Cada opción reemplaza los tramos de abajo; después puedes ajustar cualquier valor a mano." />
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {(
@@ -667,25 +667,25 @@ export function TablaEdadDialog({
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
                         Edad desde
-                        <InfoTip text="Edad mínima (años cumplidos) a la que aplica este precio." />
+                        <InfoTip text={'Primera edad, en años cumplidos, a la que aplica el precio de esta fila. El primer tramo suele empezar en 0. Ejemplo: 18.\nEn Sis2000: mapltabedad_d.nedad_min'} />
                       </span>
                     </th>
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
                         Edad hasta
-                        <InfoTip text="Edad máxima a la que aplica este precio, incluida. Los tramos no pueden pisarse entre sí." />
+                        <InfoTip text={'Última edad incluida en este tramo. Los tramos no pueden pisarse ni dejar huecos que importen: una edad que no cae en ningún tramo deja a esa persona sin prima (prima 0). Ejemplo: 18 a 64.\nEn Sis2000: mapltabedad_d.nedad_max'} />
                       </span>
                     </th>
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
                         Tasa (%)
-                        <InfoTip text="Porcentaje de la suma asegurada que se cobra como prima anual. Ejemplo: 0,449 significa 0,449 % (4,49 por mil). Déjala vacía si el precio es un monto fijo." />
+                        <InfoTip text={'Se usa cuando la cobertura lleva suma asegurada: prima anual = suma × tasa / 100. Ejemplo: 0,449 es 0,449 % (4,49 por mil); con 10.000 de suma son 44,90. Déjala vacía si el precio es un monto fijo.\nEn Sis2000: mapltabedad_d.pprima'} />
                       </span>
                     </th>
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
                         Prima fija
-                        <InfoTip text="Monto fijo anual por persona en este tramo, en la moneda del plan. Déjala vacía si el precio se calcula con la tasa." />
+                        <InfoTip text={'Se usa cuando la cobertura no lleva suma asegurada: monto anual por persona en este tramo, en la moneda del plan, que se reparte entre las cuotas. Ejemplo: 120 anual en 12 cuotas = 10 por mes. Déjala vacía si el precio se calcula con la tasa.\nEn Sis2000: mapltabedad_d.mprima'} />
                       </span>
                     </th>
                     <th className="w-8 px-2 py-2" />

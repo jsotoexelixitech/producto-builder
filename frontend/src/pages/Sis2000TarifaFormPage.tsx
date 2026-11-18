@@ -105,7 +105,7 @@ export function Sis2000TarifaFormPage() {
   return (
     <Sis2000NestJsonForm
       title={isEdit ? `Editar tarifa ${ctarifa}` : 'Nueva tarifa'}
-      subtitle={`POST/PATCH nest-api /api/v1/configurador/tarifas → matarifa · ${ccobertura}`}
+      subtitle={`Modo avanzado: tarifa de la cobertura ${ccobertura}, en JSON. Si la cobertura es obligatoria u opcional se marca en la tarifa y vale para todos los planes que la usen.`}
       backHref={backHref}
       backLabel={`Tarifas ${ccobertura}`}
       jsonText={jsonText}

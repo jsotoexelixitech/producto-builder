@@ -728,22 +728,22 @@ export type TablaCondominio = 'antiguedad' | 'reparto' | 'rango';
 
 export const COLUMNAS_CONDOMINIO: Record<TablaCondominio, Array<{ clave: string; titulo: string; tipo: 'texto' | 'numero' | 'entero'; ayuda: string }>> = {
   antiguedad: [
-    { clave: 'iuso', titulo: 'Uso', tipo: 'texto', ayuda: 'Letra del uso del inmueble (iuso).' },
-    { clave: 'itramo', titulo: 'Tramo', tipo: 'entero', ayuda: 'Número del tramo de antigüedad (itramo).' },
-    { clave: 'pprima', titulo: 'Tasa %', tipo: 'numero', ayuda: 'Tasa del tramo (pprima).' },
+    { clave: 'iuso', titulo: 'Uso', tipo: 'texto', ayuda: 'Uso del inmueble: C o R. Cada uso lleva su propia tasa en cada tramo de antigüedad.\nEn Sis2000: MATARIFA_ANTIGUEDAD_NEXUS.iuso' },
+    { clave: 'itramo', titulo: 'Tramo', tipo: 'entero', ayuda: 'Tramo según el año de construcción: 1 = 1967 o antes, 2 = 1968–1993, 3 = 1994–2018, 4 = 2019 en adelante.\nEn Sis2000: MATARIFA_ANTIGUEDAD_NEXUS.itramo' },
+    { clave: 'pprima', titulo: 'Tasa %', tipo: 'numero', ayuda: 'Tasa global (% sobre la suma asegurada) para ese uso y tramo. Luego se reparte entre las coberturas según la tabla de reparto.\nEn Sis2000: MATARIFA_ANTIGUEDAD_NEXUS.pprima' },
   ],
   reparto: [
-    { clave: 'ccober', titulo: 'Cobertura', tipo: 'texto', ayuda: 'Código de la cobertura (ccober).' },
-    { clave: 'ctarifa', titulo: 'Tarifa', tipo: 'texto', ayuda: 'Código de la tarifa (ctarifa).' },
-    { clave: 'itipo', titulo: 'Tipo', tipo: 'texto', ayuda: 'P = porcentaje del total; los P deben sumar 100 (itipo).' },
-    { clave: 'pvalor', titulo: 'Valor', tipo: 'numero', ayuda: 'Porcentaje o valor del reparto (pvalor).' },
-    { clave: 'plimite', titulo: 'Límite %', tipo: 'numero', ayuda: 'Límite opcional (plimite).' },
+    { clave: 'ccober', titulo: 'Cobertura', tipo: 'texto', ayuda: 'Código de la cobertura del ramo que recibe una parte de la tasa global.\nEn Sis2000: MATARIFA_REPARTO_NEXUS.ccober' },
+    { clave: 'ctarifa', titulo: 'Tarifa', tipo: 'texto', ayuda: 'Tarifa de esa cobertura; debe tener una tasa vigente.\nEn Sis2000: MATARIFA_REPARTO_NEXUS.ctarifa' },
+    { clave: 'itipo', titulo: 'Tipo', tipo: 'texto', ayuda: 'Cómo cobra la cobertura: P = % de la tasa global (todas las P deben sumar 100); F = parte fija de la tasa; M = monto fijo.\nEn Sis2000: MATARIFA_REPARTO_NEXUS.itipo' },
+    { clave: 'pvalor', titulo: 'Valor', tipo: 'numero', ayuda: 'Con P, el % de la tasa global; con F, la tasa fija (debe ser menor que la tasa global más baja); con M, el monto. Ejemplo: P con 15 = 15 % de la tasa.\nEn Sis2000: MATARIFA_REPARTO_NEXUS.pvalor' },
+    { clave: 'plimite', titulo: 'Límite %', tipo: 'numero', ayuda: 'Opcional. Suma de la cobertura como % de la suma asegurada de la póliza. Ejemplo: 30 = la cobertura asegura el 30 % de la suma.\nEn Sis2000: MATARIFA_REPARTO_NEXUS.plimite' },
   ],
   rango: [
-    { clave: 'ccober', titulo: 'Cobertura', tipo: 'texto', ayuda: 'Código de la cobertura (ccober).' },
-    { clave: 'ctarifa', titulo: 'Tarifa', tipo: 'texto', ayuda: 'Código de la tarifa (ctarifa).' },
-    { clave: 'ptasa_min', titulo: 'Tasa mínima %', tipo: 'numero', ayuda: 'ptasa_min.' },
-    { clave: 'ptasa_max', titulo: 'Tasa máxima %', tipo: 'numero', ayuda: 'ptasa_max.' },
+    { clave: 'ccober', titulo: 'Cobertura', tipo: 'texto', ayuda: 'Código de la cobertura cuya tasa se puede mover dentro de un rango.\nEn Sis2000: MATARIFA_RANGO_NEXUS.ccober' },
+    { clave: 'ctarifa', titulo: 'Tarifa', tipo: 'texto', ayuda: 'Tarifa de esa cobertura.\nEn Sis2000: MATARIFA_RANGO_NEXUS.ctarifa' },
+    { clave: 'ptasa_min', titulo: 'Tasa mínima %', tipo: 'numero', ayuda: 'Tasa más baja (%) que se acepta al cotizar esta cobertura; si la cotización trae una tasa menor, se rechaza. Debe ser menor que la máxima.\nEn Sis2000: MATARIFA_RANGO_NEXUS.ptasa_min' },
+    { clave: 'ptasa_max', titulo: 'Tasa máxima %', tipo: 'numero', ayuda: 'Tasa más alta (%) que se acepta al cotizar esta cobertura; máximo 100.\nEn Sis2000: MATARIFA_RANGO_NEXUS.ptasa_max' },
   ],
 };
 

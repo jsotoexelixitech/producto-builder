@@ -45,8 +45,9 @@ export function CoberturaSumaConfigFields({
         Suma calculada al emitir
       </label>
       <p className="text-xs text-muted-foreground">
-        La suma asegurada no es fija: al emitir se indican las unidades y el valor por unidad y el sistema
-        la calcula (unidades × valor por unidad). En los planes esta cobertura no pide suma ni tasa/prima.
+        Para coberturas cuya suma depende de lo que se asegura: al emitir se indican las unidades y el valor por
+        unidad, y la suma asegurada = unidades × valor por unidad (ejemplo: 500 kg × 2 = 1.000). Por eso, en los
+        planes esta cobertura no pide suma ni tasa o prima. Este dato lo guarda el configurador, no Sis2000.
       </p>
       {calculada && (
         <FormGrid>
@@ -54,7 +55,7 @@ export function CoberturaSumaConfigFields({
             label="Unidad de cálculo (nombre en el sistema)"
             htmlFor={`${idPrefix}-unidad`}
             hint={`Opcional. Si lo dejas vacío se usa «${UNIDAD_CALCULO_DEFAULT}».`}
-            tooltip="Nombre genérico con el que el sistema trata la unidad. No sale en la póliza."
+            tooltip="Nombre interno de la unidad, para reconocerla en el configurador y en la emisión. No sale en la póliza. Ejemplo: Kilogramos de ganado."
             error={errores.unidadCalculo}
           >
             <Input
@@ -69,7 +70,7 @@ export function CoberturaSumaConfigFields({
           <FormField
             label="Etiqueta en el cuadro póliza *"
             htmlFor={`${idPrefix}-etiqueta`}
-            tooltip="Palabra que ve el asegurado en el cuadro póliza junto a las unidades."
+            tooltip="Palabra que ve el asegurado en el cuadro póliza al lado de la cantidad. Ejemplo: con «Kilo» se lee «500 Kilo»."
             error={errores.etiquetaCuadro}
           >
             <Input

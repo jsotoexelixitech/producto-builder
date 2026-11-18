@@ -120,8 +120,9 @@ export function TablaEdadBuscador({ destino, valorActual = '', permitirTodas = f
           <div>
             <h2 className="text-base font-bold text-slate-800">Elegir tabla de tasas por edad</h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              {destino}. Busca una tabla que ya exista en Sis2000 por código o descripción y revisa sus tramos antes de
-              usarla. Crea una nueva solo si ninguna sirve.
+              {destino}. Busca una tabla que ya exista en Sis2000 por código o descripción y revisa sus tramos (edades y
+              precios) antes de usarla. Crea una nueva solo si ninguna sirve: las tablas se comparten entre planes, así que
+              reutilizar evita duplicados.
             </p>
           </div>
           <button

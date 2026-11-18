@@ -112,7 +112,8 @@ export function CanalesSelector({ value, onChange, idPrefix = 'canal', className
   return (
     <div className={cn('space-y-2', className)}>
       <p className="text-[0.72rem] leading-relaxed text-slate-500">
-        Los canales se agregan al plan y nunca se borran: quitar uno aquí no lo quita de Sis2000.
+        Los canales elegidos (aliados comerciales) quedan habilitados para ofrecer el plan, además de los productores.
+        Desde aquí solo se agregan: desmarcar uno no lo quita de Sis2000; para quitarlo usa «Quién lo vende» en la ficha del plan.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm">

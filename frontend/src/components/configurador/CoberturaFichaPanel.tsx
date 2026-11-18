@@ -175,7 +175,7 @@ export function CoberturaFichaPanel({
           {/* ── Cobertura ── */}
           <Seccion
             titulo="Cobertura"
-            ayuda="Datos de la cobertura en el ramo (Sis2000: macoberturas). Los comparten todos los productos del ramo."
+            ayuda={'Datos de la cobertura en el ramo. Los comparten todos los productos y planes del ramo: un cambio aquí se ve en todos.\nEn Sis2000: macoberturas'}
             acciones={
               <>
                 {!lectura && edicion?.tipo !== 'cobertura' && (
@@ -205,24 +205,24 @@ export function CoberturaFichaPanel({
                 <Dato
                   titulo="Obligatoria"
                   valor={resumen.find((t) => t.vigente) ? (resumen.find((t) => t.vigente)!.obligatoria ? 'Sí' : 'No, es opcional') : c.obligatoria == null ? '' : c.obligatoria ? 'Sí' : 'No'}
-                  ayuda="Sale de su tarifa vigente (matarifa.bobligatoria); la cobertura 1 es la básica y siempre es obligatoria."
+                  ayuda={'Obligatoria u opcional no se decide en el plan: sale de la tarifa vigente de la cobertura en el ramo y vale para todos los planes que la usan. Las obligatorias van siempre en la póliza.\nEn Sis2000: matarifa.bobligatoria'}
                 />
                 <Dato
                   titulo="Suma asegurada"
                   valor={calculada ? textoCalculada || 'Calculada al emitir' : 'Fija (la del plan)'}
-                  ayuda="Configuración del builder: suma fija o calculada al emitir (unidades × valor)."
+                  ayuda="Fija: la suma la pone el plan. Calculada: se obtiene al emitir con las unidades que indique el asegurado (por ejemplo, kilos × precio por kilo). Se guarda en el configurador, no en Sis2000."
                 />
                 <Dato
                   titulo="Reaseguro"
                   valor={c.contratoReaseguro == null ? '' : `Contrato ${c.contratoReaseguro}${c.ramoReaseguro != null ? ` · ramo ${c.ramoReaseguro}` : ''}`}
                   vacio="Sin contrato"
-                  ayuda="Sis2000: ccontrea / cramorea."
+                  ayuda={'Contrato y ramo de reaseguro con los que se cede el riesgo de esta cobertura al emitir. Sin contrato, la revisión del plan lo marca como pendiente.\nEn Sis2000: macoberturas.ccontrea · macoberturas.cramorea'}
                 />
                 <Dato
                   titulo="Equivalencia interna"
                   valor={c.coberturaInterna == null && c.ramoInterno == null ? '' : `Cobertura ${c.coberturaInterna ?? '—'} del ramo ${c.ramoInterno ?? '—'}`}
                   vacio="No tiene"
-                  ayuda="Sis2000: ccoberturaint / cramoint."
+                  ayuda={'Cobertura «modelo» a la que equivale esta en el cálculo. En auto, si el ramo no es el 18, debe apuntar a la equivalente del ramo 18 o se calcula con la fórmula general; las equivalentes a 15 y 17 (RCV) se cobran completas en la 1ª cuota cuando el pago es fraccionado.\nEn Sis2000: macoberturas.ccoberturaint · macoberturas.cramoint'}
                 />
                 <Dato titulo="Código" valor={c.ccobertura} />
               </dl>
@@ -251,7 +251,7 @@ export function CoberturaFichaPanel({
           {/* ── Tarifas ── */}
           <Seccion
             titulo="Tarifas"
-            ayuda="Tarifas de la cobertura (matarifa) con sus tasas por vigencia (matarifa_d)."
+            ayuda={'Tarifas de la cobertura en el ramo y sus tasas o primas. Cada tarifa debe tener una sola tasa vigente: cotización y emisión toman la vigente y no miran sus fechas. Tasa = % sobre la suma asegurada; prima fija = monto; son excluyentes.\nEn Sis2000: matarifa · matarifa_d'}
             acciones={<EnlaceNuevaPestana to={`${base}/tarifas`}>Abrir sus tarifas</EnlaceNuevaPestana>}
           >
             {cargandoTarifas && <p className="text-xs text-muted-foreground">Leyendo sus tarifas…</p>}
@@ -287,7 +287,7 @@ export function CoberturaFichaPanel({
           </Seccion>
 
           {/* ── En este plan ── */}
-          <Seccion titulo="En este plan" ayuda="Lo que el asistente tiene armado para esta cobertura; se cambia en el paso «Tarifas y tasas».">
+          <Seccion titulo="En este plan" ayuda="Lo que el asistente tiene armado para esta cobertura en este plan (tarifa, suma y tasa o prima). Solo aplica a este plan; se cambia en el paso «Tarifas y tasas».">
             {!enPlan?.incluida ? (
               <p className="text-xs text-muted-foreground">No está marcada en este plan.</p>
             ) : (
@@ -435,7 +435,7 @@ function ResumenTasa({ tasa, moneda }: { tasa: TasaVigencia; moneda: string }) {
       <Dato titulo="Vigencia" valor={`Desde ${fechaLegible(tasa.fdesde) || '—'}${tasa.fhasta ? ` hasta ${fechaLegible(tasa.fhasta)}` : ' (sin fecha de fin)'}`} />
       <Dato titulo="Suma mínima" valor={tasa.sumaMin == null ? '' : `${moneda} ${monto(tasa.sumaMin)}`} />
       <Dato titulo="Suma máxima" valor={tasa.sumaMax ? `${moneda} ${monto(tasa.sumaMax)}` : ''} vacio="Vacía" />
-      <Dato titulo="Deducible" valor={textoDeducible(tasa.deducible, moneda)} ayuda="Sis2000: bfraded, mdedu_fran (Bs), mdedu_franext (divisa), pdedu_fran (%)." />
+      <Dato titulo="Deducible" valor={textoDeducible(tasa.deducible, moneda)} ayuda={'Monto o porcentaje que asume el asegurado en cada siniestro (deducible) o tope bajo el cual no se paga (franquicia). Lo lee la emisión desde la tasa vigente.\nEn Sis2000: matarifa_d.bfraded · mdedu_fran · mdedu_franext · pdedu_fran'} />
     </dl>
   );
 }

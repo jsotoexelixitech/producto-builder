@@ -70,7 +70,7 @@ export function Sis2000TarifaDetalleFormPage() {
   return (
     <Sis2000NestJsonForm
       title={`Nuevo detalle tarifa ${ctarifa}`}
-      subtitle="POST nest-api /api/v1/configurador/tarifas/detalles → matarifa_d"
+      subtitle="Modo avanzado: nueva tasa o prima de la tarifa, en JSON. Debe quedar una sola vigente por tarifa: Sis2000 no mira las fechas, solo cuál está vigente."
       backHref={backHref}
       backLabel="Historial detalle"
       jsonText={jsonText}

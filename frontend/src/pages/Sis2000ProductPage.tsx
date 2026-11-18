@@ -80,8 +80,8 @@ export function Sis2000ProductPage() {
       title={isNew ? 'Nuevo producto Sis2000' : `Editar ${code}`}
       subtitle={
         isNew
-          ? 'Alta maproductos vía partner/products/create · campos * obligatorios'
-          : 'Todos los campos de maproductos (list/detail partner)'
+          ? 'Crea el producto en Sis2000 · los campos con * son obligatorios'
+          : 'Todos los datos del producto en Sis2000. El código y el ramo no se cambian después de crearlo.'
       }
       actions={
         <Button type="submit" form="sis2000-form" disabled={saving || loading}>

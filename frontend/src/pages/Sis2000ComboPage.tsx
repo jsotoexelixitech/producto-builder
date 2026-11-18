@@ -2183,7 +2183,7 @@ export function Sis2000ComboPage() {
           <Link
             to={`/sis2000/plans/${encodeURIComponent(editId)}/configurar`}
             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-            title="Deducibles, comisiones, tipo y uso, tasas por antigüedad y revisión del plan"
+            title="Abre la ficha del plan: deducibles, frecuencias, quién lo ofrece, comisiones, tipo y uso, tasas por antigüedad y la revisión «¿se puede emitir?»"
           >
             Ficha del plan
           </Link>
@@ -2224,21 +2224,26 @@ export function Sis2000ComboPage() {
       <ComoSeUsa id="combo-producto">
         <p>
           Todo plan pertenece a un <strong>producto</strong> de Sis2000, y cada producto vive en un <strong>ramo</strong>{' '}
-          (Responsabilidad Civil, Vida, Salud…). Del ramo salen las coberturas que vas a poder usar.
+          (Automóvil, Responsabilidad Civil, Vida, Salud…). Del ramo salen las coberturas y tarifas que vas a poder usar, y
+          lo comparten todos sus productos y planes.
         </p>
         <ol className="list-decimal space-y-0.5 pl-5">
           <li>Elige el ramo para acortar la lista de productos.</li>
-          <li>Elige el producto. Si no existe todavía, créalo con «Crear producto en este ramo».</li>
           <li>
-            Indica qué asegura el plan: <strong>cosas</strong> (vehículos, hogar, ganado, responsabilidad civil) o{' '}
-            <strong>personas</strong> (vida, salud, funerario, viajero).
+            Elige el producto. Si no existe todavía, créalo con «Crear producto en este ramo» (código de 6 caracteres como
+            máximo).
+          </li>
+          <li>
+            Indica qué asegura el plan: <strong>cosas</strong> (hogar, ganado, responsabilidad civil),{' '}
+            <strong>personas</strong> (vida, salud, funerario, viajero) o <strong>automóvil</strong> (casco y RCV). Cambia
+            los datos que se piden y cómo se calcula la prima.
           </li>
         </ol>
         <p className="text-sky-800">Ejemplo: ramo «Responsabilidad Civil», producto «RC General», tipo Cosas.</p>
       </ComoSeUsa>
 
       {modoEdicion ? (
-        <SectionPanel title="Producto del plan" description="El ramo, el producto y el tipo de un plan existente no se cambian." icon={Package}>
+        <SectionPanel title="Producto del plan" description="En un plan que ya existe, el ramo, el producto y el tipo no se cambian desde aquí: las pólizas emitidas dependen de ellos." icon={Package}>
           {cargandoPlan && <div className="h-24 animate-pulse rounded-xl bg-muted/60" />}
           {errorPlan && (
             <>
@@ -2294,13 +2299,13 @@ export function Sis2000ComboPage() {
           )}
         </SectionPanel>
       ) : (
-        <SectionPanel title="¿De qué producto es el plan?" description="El plan se crea dentro del producto; las coberturas salen de su ramo." icon={Package}>
+        <SectionPanel title="¿De qué producto es el plan?" description="El plan se crea dentro del producto; las coberturas y tarifas salen del ramo de ese producto." icon={Package}>
           <FormGrid>
             <FormField
               label="Ramo"
               htmlFor="combo-ramo"
               hint="Escribe el nombre o el número. Ejemplo: «auto» o «18»."
-              tooltip="Lista de ramos de Sis2000. Solo sirve para acortar la lista de productos."
+              tooltip={'Línea de seguro de Sis2000 (Automóvil, Vida, Salud, Responsabilidad Civil…). Aquí solo acorta la lista de productos: el ramo del plan es el del producto que elijas, y de él salen las coberturas. Ejemplo: 18 = Automóvil.\nEn Sis2000: maramos.cramo'}
             >
               <ComboBuscable
                 id="combo-ramo"
@@ -2321,7 +2326,7 @@ export function Sis2000ComboPage() {
                   ? 'Este ramo todavía no tiene productos: créalo abajo.'
                   : 'Escribe el nombre o el código del producto.'
               }
-              tooltip="Productos registrados en Sis2000. Los que también se ofrecen por Nexus lo indican al lado."
+              tooltip={'Producto comercial bajo el que se vende el plan; define si lo ofrecen productores o canales. Los que también se ofrecen por Nexus lo indican al lado.\nEn Sis2000: maproductos.cproducto'}
             >
               <ComboBuscable
                 id="combo-producto"
@@ -2355,12 +2360,13 @@ export function Sis2000ComboPage() {
           {ramoElegido > 0 && mostrarNuevoProducto && (
             <div className="mt-4 rounded-xl border border-border/60 bg-slate-50/60 p-4">
               <p className="mb-1 text-sm font-semibold">Nuevo producto en {nombreRamo || opcionesRamo.find((r) => r.cramo === ramoElegido)?.etiqueta || `el ramo ${ramoElegido}`}</p>
-              <p className="mb-3 text-xs text-muted-foreground">Se crea en Sis2000 cuando lo confirmes; después lo puedes usar en este y en otros planes.</p>
+              <p className="mb-3 text-xs text-muted-foreground">Se crea en Sis2000 cuando lo confirmes, en este ramo; después lo puedes usar en este y en otros planes del mismo ramo.</p>
               <FormGrid>
                 <FormField
                   label="Nombre del producto *"
                   htmlFor="nuevo-prod-nombre"
                   hint="Como lo verá el asegurado. Ejemplo: RC GENERAL PARTICULAR. Máx. 60 caracteres."
+                  tooltip={'Nombre largo del producto; es el que muestran SysIP y la tarjeta del MarketPlace.\nEn Sis2000: maproductos.xdescripcion_l'}
                   error={intentoProducto ? erroresProducto.xdescripcion_l : undefined}
                 >
                   <Input
@@ -2374,7 +2380,7 @@ export function Sis2000ComboPage() {
                   label="Código del producto *"
                   htmlFor="nuevo-prod-codigo"
                   hint="Identificador corto, sin espacios (máx. 6). Ejemplo: RCG01."
-                  tooltip="Clave con la que Sis2000 y la emisión identifican el producto. Pídela a Técnico si hay una convención."
+                  tooltip={'Clave con la que Sis2000 y la emisión identifican el producto; los planes la guardan y no se cambia después. Máximo 6 caracteres, porque el alta de planes no acepta más. Pídela a Técnica si hay una convención. Ejemplo: RCG01.\nEn Sis2000: maproductos.cproducto'}
                   error={intentoProducto ? erroresProducto.cproducto : undefined}
                 >
                   <Input
@@ -2463,7 +2469,7 @@ export function Sis2000ComboPage() {
           <div className="mt-5 border-t border-border/50 pt-4">
             <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
               ¿Qué asegura el plan?
-              <InfoTip text="Cambia los datos que se piden: en cosas, suma asegurada y tasa o prima por cobertura; en personas, quiénes se aseguran, sus edades y una tabla de precios por edad. Automóvil se graba como cosas y después, en la ficha del plan, sigue con la tarifa por tipo y uso y la tasa por antigüedad." />
+              <InfoTip text={'Define cómo se calcula la prima. Cosas: suma asegurada con tasa % o prima fija por cobertura. Personas: quiénes se aseguran (parentescos), edades de entrada y una tabla de precios por edad. Automóvil se graba como cosas y luego, en la ficha del plan, sigue con tipo y uso y tasa por antigüedad.\nEn Sis2000: maplanes (cosas y auto) · maplanes_per (personas)'} />
             </p>
             <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Tipo de plan">
               {(
@@ -2481,7 +2487,7 @@ export function Sis2000ComboPage() {
                   {
                     valor: 'automovil',
                     titulo: 'Automóvil',
-                    texto: 'Vehículos (casco y RCV): coberturas con tasa o prima, tarifa por tipo y uso, y tasa por antigüedad.',
+                    texto: 'Vehículos (casco y RCV): coberturas con tasa o prima, prima base por tipo y uso, y tasa de casco por antigüedad.',
                   },
                 ] as const
               ).map((o) => {
@@ -2595,11 +2601,15 @@ export function Sis2000ComboPage() {
       <ComoSeUsa id="combo-coberturas">
         <p>
           Marca las coberturas que va a tener el plan. Las <strong>obligatorias</strong> entran marcadas solas; las{' '}
-          <strong>opcionales</strong> el asegurado las puede tomar o no.
+          <strong>opcionales</strong> el asegurado las puede tomar o no. Obligatoria u opcional viene de la tarifa del
+          ramo, no del plan.
         </p>
         <ul className="list-disc space-y-0.5 pl-5">
           <li>Si falta una cobertura, créala con «Crear cobertura nueva» (queda en el ramo y marcada en este plan).</li>
-          <li>Una cobertura «sin tarifa vigente» no se puede usar hasta que Técnico le cargue una tarifa.</li>
+          <li>
+            Una cobertura «sin tarifa vigente» no se puede usar hasta que Técnica le cargue una tarifa: sin ella no se cotiza
+            ni se emite.
+          </li>
           <li>En el siguiente paso pones la suma asegurada y el precio de cada una.</li>
         </ul>
         {modoEdicion && (
@@ -2619,7 +2629,7 @@ export function Sis2000ComboPage() {
       ) : (
         <SectionPanel
           title={`Coberturas de ${nombreRamo || `el ramo ${cramo}`}`}
-          description="Todas las coberturas del ramo; las comparten todos sus productos. Marca solo las de este plan."
+          description="Todas las coberturas del ramo; las comparten todos sus productos y planes. Marca solo las de este plan."
           icon={Shield}
         >
           <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -2723,13 +2733,13 @@ export function Sis2000ComboPage() {
                         <InfoTip
                           text={
                             personas
-                              ? 'Marca si el asegurado la lleva siempre. Se guarda en este plan.'
-                              : 'Viene de la tarifa de la cobertura: las obligatorias van siempre en la póliza.'
+                              ? 'Marca la cobertura como obligatoria u opcional dentro de este plan; queda guardada en el plan, no en la tarifa. Hoy los cálculos de cotización y emisión de Nexus no leen esta marca.\nEn Sis2000: maplcober_per.bobligatoria'
+                              : 'Obligatoria u opcional no se decide aquí: viene de la tarifa de la cobertura en el ramo y vale para todos los planes que la usan. Las obligatorias van siempre en la póliza.\nEn Sis2000: matarifa.bobligatoria'
                           }
                         />
                       </span>
                     </th>
-                    <th className="w-28 px-3 py-2">
+                    <th className="w-px whitespace-nowrap px-3 py-2">
                       <span className="sr-only">Ver o editar</span>
                     </th>
                   </tr>
@@ -2751,7 +2761,7 @@ export function Sis2000ComboPage() {
                       >
                         <td className="px-3 py-2 align-top">
                           {bloqueada ? (
-                            <span title="Ya es parte del plan" className="inline-flex text-indigo-600">
+                            <span title="Ya es parte del plan: para quitarla, dala de baja desde la ficha del plan" className="inline-flex text-indigo-600">
                               <Lock className="h-4 w-4" />
                             </span>
                           ) : (
@@ -2820,17 +2830,18 @@ export function Sis2000ComboPage() {
                             <Badge>Opcional</Badge>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right align-top">
+                        <td className="w-px whitespace-nowrap px-3 py-2 text-right align-top">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-7 px-2 text-[11px]"
+                            className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]"
                             onClick={() => setFichaCob(c.ccobertura)}
                             aria-label={`Ver o editar la cobertura ${c.descripcion || c.ccobertura}`}
+                            title="Ver / editar"
                           >
-                            <Eye className="h-3.5 w-3.5" />
-                            Ver / editar
+                            <Eye className="h-3.5 w-3.5 shrink-0" />
+                            <span className="hidden sm:inline">Ver / editar</span>
                           </Button>
                         </td>
                       </tr>
@@ -2923,7 +2934,7 @@ export function Sis2000ComboPage() {
       <FormField
         label="Opción de tarifa"
         hint={vencida ? 'La tarifa que tenía el plan venció: elige una vigente.' : 'Esta cobertura tiene varias tarifas vigentes.'}
-        tooltip="Cada opción trae su propia suma y tasa o prima sugeridas; al cambiarla se vuelven a llenar."
+        tooltip={'Cada tarifa vigente de la cobertura trae su propia suma y tasa o prima sugeridas; al cambiarla se vuelven a llenar. El plan queda amarrado a la tarifa que elijas: de ella sale también si la cobertura es obligatoria u opcional.\nEn Sis2000: maplantar.ctarifa · matarifa_d'}
         error={vencida ? 'Elige una tarifa vigente.' : undefined}
       >
         <Select value={vencida ? undefined : v.fila.ctarifa} onValueChange={(valor) => cambiarTarifa(v, valor)}>
@@ -2951,7 +2962,7 @@ export function Sis2000ComboPage() {
   const pasoPreciosCosas = (
     <SectionPanel
       title="Suma asegurada y precio de cada cobertura"
-      description="Los valores sugeridos vienen de la tarifa vigente de cada cobertura; si los cambias, solo aplican a este plan."
+      description="Los valores sugeridos vienen de la tarifa vigente de cada cobertura; si los cambias, solo aplican a este plan, no a la tarifa del ramo."
       icon={Calculator}
     >
       {!incluidas.length ? (
@@ -2966,7 +2977,7 @@ export function Sis2000ComboPage() {
               variant="outline"
               size="sm"
               onClick={sumaCerradaEnTodas}
-              title="La suma mínima queda igual a la máxima en todas las coberturas: el asegurado no elige suma."
+              title="Iguala la suma mínima a la máxima en todas las coberturas: el asegurado no elige suma y la prima no cambia."
             >
               <Equal className="h-3.5 w-3.5" />
               Suma fija (mínima = máxima) en todas
@@ -3004,7 +3015,7 @@ export function Sis2000ComboPage() {
                       <FormField
                         label="Suma asegurada mínima"
                         hint={`Lo menos que se puede asegurar. Ejemplo: 1000.`}
-                        tooltip="Sugerida por la tarifa vigente. Si es igual a la máxima, la suma es fija."
+                        tooltip={'Lo menos que el asegurado puede asegurar en esta cobertura con este plan. Viene sugerida por la tarifa vigente; si la igualas a la máxima, la suma es fija.\nEn Sis2000: maplantar.msumamin'}
                       >
                         <Input
                           type="number"
@@ -3022,7 +3033,7 @@ export function Sis2000ComboPage() {
                       <FormField
                         label="Suma asegurada máxima *"
                         hint="Lo más que se puede asegurar. Debe ser mayor a 0."
-                        tooltip="Sugerida por la tarifa vigente. Con tasa, la prima se calcula sobre la suma que elija el asegurado."
+                        tooltip={'Lo más que se puede asegurar en esta cobertura con este plan. Con tasa, la prima se calcula sobre la suma que elija el asegurado; con prima fija, la suma no cambia la prima. Ejemplo: 50.000.\nEn Sis2000: maplantar.msumamax'}
                       >
                         <div className="flex items-center gap-1">
                           <Input
@@ -3052,7 +3063,7 @@ export function Sis2000ComboPage() {
                       <div className="flex flex-col gap-1.5">
                         <span className="flex items-center gap-1.5 text-[0.78rem] font-bold tracking-wide text-slate-600">
                           ¿Cómo se cobra? *
-                          <InfoTip text="Elige una sola: tasa % sobre la suma asegurada, o una prima fija sin importar la suma. Solo se guarda la que elijas." />
+                          <InfoTip text={'Tasa y prima son excluyentes: elige una sola. Tasa = % sobre la suma asegurada (0,5 con 50.000 da 250); prima fija = monto igual para cualquier suma. La otra queda en 0.\nEn Sis2000: maplantar.pprima (tasa) · maplantar.mprima (prima fija)'} />
                         </span>
                         <div className="inline-flex rounded-xl border border-border/60 bg-slate-50 p-0.5 text-xs font-semibold" role="radiogroup" aria-label={`Cómo se cobra ${nombreCob(v)}`}>
                           {(['tasa', 'prima'] as const).map((m) => (
@@ -3117,7 +3128,8 @@ export function Sis2000ComboPage() {
             </strong>
           </p>
           <p className="text-right text-[0.72rem] text-slate-500">
-            Solo es una referencia: la prima real la calcula Sis2000 al cotizar o emitir.
+            Solo es una referencia: la prima real la calcula Sis2000 al cotizar o emitir (con la suma elegida y, en auto, el tipo y uso y la
+            antigüedad del vehículo).
           </p>
         </>
       )}
@@ -3128,7 +3140,7 @@ export function Sis2000ComboPage() {
     <>
       <SectionPanel
         title="¿Quiénes se aseguran?"
-        description="Los mismos datos aplican a todas las coberturas del plan."
+        description="Los mismos parentescos y edades aplican a todas las coberturas del plan."
         icon={Users}
       >
         <FormGrid>
@@ -3137,7 +3149,7 @@ export function Sis2000ComboPage() {
             label="Parentescos que puede incluir el plan *"
             htmlFor="combo-cparen-texto"
             hint="Titular es el asegurado principal. Ejemplo: Titular, Cónyuge, Hijos."
-            tooltip="Lista de parentescos de Sis2000. Cada cobertura se guarda para cada parentesco marcado."
+            tooltip={'Quiénes pueden entrar en la póliza (Titular, Cónyuge, Hijos…). Cada cobertura se graba una vez por parentesco marcado, con su tabla de precios; un parentesco sin marcar no se puede asegurar con este plan.\nEn Sis2000: mapltarifas_per.cparen · mapledades_per'}
             error={errorDe('combo-cparen-texto')}
           >
             <ParentescosSelector
@@ -3147,7 +3159,12 @@ export function Sis2000ComboPage() {
               onCatalogo={setParentescosCat}
             />
           </FormField>
-          <FormField label="Sexo" htmlFor="combo-csexo" hint="Normalmente «Ambos».">
+          <FormField
+            label="Sexo"
+            htmlFor="combo-csexo"
+            hint="Normalmente «Ambos»."
+            tooltip={'Se guarda como dato del plan, pero hoy ningún cálculo de cotización ni de emisión lo aplica: no limita quién puede asegurarse.\nEn Sis2000: mapltarifas_per.csexo'}
+          >
             <Select value={csexo} onValueChange={setCsexo}>
               <SelectTrigger id="combo-csexo">
                 <SelectValue />
@@ -3166,6 +3183,7 @@ export function Sis2000ComboPage() {
               label="Edad mínima *"
               htmlFor="combo-edad-min"
               hint="En años. Ejemplo: 0."
+              tooltip={'Edad mínima de entrada para cada parentesco marcado. La valida la cotización; la tabla de precios debe cubrir desde esta edad o esa persona queda con prima 0.\nEn Sis2000: mapledades_per.cemin_ase · mapltarifas_per.nedad_min'}
               error={errorDe('combo-edad-min')}
             >
               <Input
@@ -3182,6 +3200,7 @@ export function Sis2000ComboPage() {
               label="Edad máxima *"
               htmlFor="combo-edad-max"
               hint="En años. Ejemplo: 74."
+              tooltip={'Edad máxima de entrada para cada parentesco marcado. La valida la cotización; la tabla de precios debe llegar hasta esta edad o esa persona queda con prima 0.\nEn Sis2000: mapledades_per.cemax_ase · mapltarifas_per.nedad_max'}
               error={errorDe('combo-edad-max')}
             >
               <Input
@@ -3200,7 +3219,7 @@ export function Sis2000ComboPage() {
 
       <SectionPanel
         title="Precio según la edad"
-        description="Cada cobertura usa una tabla de precios por edad; la suma asegurada se indica por cobertura."
+        description="Cada cobertura usa una tabla de precios por edad (tramos de edad con su prima o tasa); la suma asegurada se indica por cobertura."
         icon={Calculator}
         className="mt-5"
       >
@@ -3214,6 +3233,10 @@ export function Sis2000ComboPage() {
             <li>
               La <strong>prima por persona</strong> de la cobertura es opcional y no reemplaza a la tabla: déjala en 0 si
               la prima sale de la tabla.
+            </li>
+            <li>
+              Si la edad de una persona no cae en ningún tramo de la tabla, esa persona queda con <strong>prima 0</strong>{' '}
+              sin aviso. Revisa que los tramos cubran todas las edades del plan.
             </li>
           </ul>
         </Alert>
@@ -3237,7 +3260,7 @@ export function Sis2000ComboPage() {
             variant="ghost"
             disabled={!tablaPlan.trim() || !Object.values(filasPer).some((x) => x.ctablatar.trim())}
             onClick={usarTablaDelPlanEnTodas}
-            title="Quita la tabla propia de cada cobertura: todas usan la del plan."
+            title="Quita la tabla propia de cada cobertura para que todas cobren con la tabla del plan."
           >
             Usar esta en todas
           </Button>
@@ -3266,6 +3289,7 @@ export function Sis2000ComboPage() {
                     <FormField
                       label="Suma asegurada por persona"
                       hint="Ejemplo: 5000. Sugerida por la tarifa; 0 si la suma sale de la tabla."
+                      tooltip={'Suma asegurada de cada persona en esta cobertura. Si el tramo de la tabla trae tasa %, la prima es suma × tasa / 100; si trae prima fija, la suma no la cambia.\nEn Sis2000: mapltarifas_per.msumamax'}
                     >
                       <Input
                         type="number"
@@ -3279,7 +3303,11 @@ export function Sis2000ComboPage() {
                         onChange={(e) => cambiarFila(cc, { msumamax: e.target.value })}
                       />
                     </FormField>
-                    <FormField label="Prima por persona (opcional)" hint="Déjala en 0 si la prima sale de la tabla por edad.">
+                    <FormField
+                      label="Prima por persona (opcional)"
+                      hint="Déjala en 0 si la prima sale de la tabla por edad."
+                      tooltip={'Monto que se guarda con la cobertura para cada persona. No reemplaza a la tabla por edad: al cotizar y emitir, la prima sale del tramo de edad de la tabla.\nEn Sis2000: mapltarifas_per.mprima'}
+                    >
                       <Input
                         type="number"
                         inputMode="decimal"
@@ -3293,7 +3321,10 @@ export function Sis2000ComboPage() {
                       />
                     </FormField>
                     <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
-                      <span className="text-[0.78rem] font-bold tracking-wide text-slate-600">Tabla de precios por edad *</span>
+                      <span className="flex items-center gap-1.5 text-[0.78rem] font-bold tracking-wide text-slate-600">
+                        Tabla de precios por edad *
+                        <InfoTip text={'Tramos de edad con la prima o la tasa de cada uno. Al cotizar y emitir se busca el tramo de la edad de cada asegurado; si no hay tramo para esa edad, la prima queda en 0. Ejemplo: 0–17, 18–64, 65–74.\nEn Sis2000: mapltarifas_per.ctablatar → mapltabedad_d'} />
+                      </span>
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         {tabla ? (
                           <Badge variant={propia ? 'submitted' : 'default'} className="px-2 py-0.5 text-[11px]">
@@ -3359,10 +3390,16 @@ export function Sis2000ComboPage() {
           <>
             <p>Indica quiénes pueden asegurarse y con qué tabla se calcula el precio de cada cobertura.</p>
             <ol className="list-decimal space-y-0.5 pl-5">
-              <li>Marca los parentescos (Titular, Cónyuge, Hijos…) y el rango de edades del plan.</li>
-              <li>Elige una tabla de precios por edad para todas o una por cobertura. Si no existe, créala.</li>
+              <li>Marca los parentescos (Titular, Cónyuge, Hijos…) y el rango de edades de entrada del plan.</li>
+              <li>
+                Elige una tabla de precios por edad para todas o una por cobertura. Si no existe, créala. Sus tramos deben
+                cubrir todo el rango de edades: una edad sin tramo deja la prima en 0.
+              </li>
               <li>Revisa la suma asegurada por persona de cada cobertura.</li>
             </ol>
+            <p className="text-sky-800">
+              Ejemplo: Titular e Hijos de 0 a 74 años, con una tabla de tramos 0–17, 18–64 y 65–74.
+            </p>
           </>
         ) : (
           <>
@@ -3374,7 +3411,11 @@ export function Sis2000ComboPage() {
               </li>
               <li>
                 <strong>¿Cómo se cobra?</strong> elige <em>Tasa %</em> (porcentaje de la suma) o <em>Prima fija</em> (monto
-                fijo). Solo una de las dos.
+                fijo). Son excluyentes: solo una de las dos.
+              </li>
+              <li>
+                En automóvil, si el plan tiene tasa por antigüedad, esa tasa manda sobre la tasa de casco que pongas aquí;
+                y la prima base de RCV puede salir del tipo y uso. Las dos se cargan después en la ficha del plan.
               </li>
             </ol>
             <p className="text-sky-800">
@@ -3422,12 +3463,19 @@ export function Sis2000ComboPage() {
         <p>Los datos que identifican al plan y cómo se vende.</p>
         <ul className="list-disc space-y-0.5 pl-5">
           <li>
-            El <strong>código</strong> es corto (máx. 6) y no se puede repetir en el ramo; el <strong>nombre</strong> es el
-            que ven SysIP y la emisión.
+            El <strong>código</strong> es corto (máx. 6) y conviene que no se repita en ningún ramo: varios cálculos buscan
+            el plan solo por su código. El <strong>nombre</strong> es el que ven SysIP y la emisión.
           </li>
-          <li>La <strong>vigencia</strong> indica desde y hasta cuándo se puede emitir con el plan.</li>
+          <li>
+            Las fechas de <strong>vigencia</strong> quedan como referencia: hoy cotización y emisión solo miran si el plan
+            está activo, no estas fechas.
+          </li>
+          <li>
+            <strong>Formas de pago:</strong> en cuántas cuotas se puede pagar (anual, semestral, trimestral, mensual…).
+          </li>
           <li>
             <strong>Quién lo ofrece:</strong> los productores (y canales, si está habilitado) que podrán verlo al emitir.
+            Sin nadie asignado, el plan no aparece para emitir.
           </li>
         </ul>
       </ComoSeUsa>
@@ -3437,6 +3485,7 @@ export function Sis2000ComboPage() {
             label="Nombre del plan *"
             htmlFor="combo-xplan"
             hint="Como lo verán SysIP y la emisión. Ejemplo: RC GENERAL PLAN BÁSICO. Máx. 60."
+            tooltip={`Nombre del plan que aparece al cotizar y emitir y en la póliza.\nEn Sis2000: ${personas ? 'maplanes_per' : 'maplanes'}.xplan`}
             error={errorDe('combo-xplan')}
           >
             <Input id="combo-xplan" value={xplan} maxLength={60} onChange={(e) => setXplan(e.target.value)} />
@@ -3444,8 +3493,8 @@ export function Sis2000ComboPage() {
           <FormField
             label="Código del plan *"
             htmlFor="combo-cplan"
-            hint={modoEdicion ? 'El código de un plan existente no cambia.' : 'Corto y único en el ramo (máx. 6, en mayúsculas). Ejemplo: RCG01.'}
-            tooltip="Con el ramo identifica el plan en Sis2000; es el que usa la emisión."
+            hint={modoEdicion ? 'El código de un plan existente no cambia.' : 'Corto y sin repetir (máx. 6, en mayúsculas). Ejemplo: RCG01.'}
+            tooltip={`Con el ramo identifica el plan; es el que usan cotización y emisión. Úsalo único en todo Sis2000, no solo en el ramo: varios cálculos buscan el plan solo por este código y uno repetido en otro ramo puede tomar coberturas o comisiones ajenas.\nEn Sis2000: ${personas ? 'maplanes_per' : 'maplanes'}.cplan`}
             error={errorDe('combo-cplan')}
           >
             <Input
@@ -3457,13 +3506,20 @@ export function Sis2000ComboPage() {
               onChange={(e) => setCplan(e.target.value.toUpperCase().replace(/\s/g, ''))}
             />
           </FormField>
-          <FormField label="Se puede emitir desde *" htmlFor="combo-fdesde" hint="Normalmente hoy." error={errorDe('combo-fdesde')}>
+          <FormField
+            label="Se puede emitir desde *"
+            htmlFor="combo-fdesde"
+            hint="Normalmente hoy."
+            tooltip={`Inicio de la vigencia del plan; también marca la versión del plan. Ojo: hoy cotización y emisión no miran esta fecha, solo que el plan esté activo.\nEn Sis2000: ${personas ? 'maplanes_per' : 'maplanes'}.fdesde_plan`}
+            error={errorDe('combo-fdesde')}
+          >
             <Input id="combo-fdesde" type="date" value={fdesde} onChange={(e) => setFdesde(e.target.value)} />
           </FormField>
           <FormField
             label="Se puede emitir hasta *"
             htmlFor="combo-fhasta"
             hint="Si no tiene fin, deja 31/12/2099."
+            tooltip={`Fin de la vigencia del plan. Es referencia: pasada esta fecha el plan se sigue ofreciendo mientras esté activo; para dejar de venderlo hay que desactivarlo.\nEn Sis2000: ${personas ? 'maplanes_per' : 'maplanes'}.fhasta_plan`}
             error={errorDe('combo-fhasta')}
           >
             <Input id="combo-fhasta" type="date" value={fhasta} onChange={(e) => setFhasta(e.target.value)} />
@@ -3473,7 +3529,7 @@ export function Sis2000ComboPage() {
             htmlFor="combo-cmoneda"
             error={errorDe('combo-cmoneda')}
             hint="Se sugiere la que usan las coberturas del ramo."
-            tooltip="Moneda de las sumas y primas del plan. Por ahora un plan tiene una sola moneda."
+            tooltip={`Moneda en la que se expresan las sumas y primas del plan y en la que se emite. Un plan tiene una sola moneda. Ejemplo: $ (dólares).\nEn Sis2000: ${personas ? 'maplanes_per' : 'maplanes'}.cmoneda`}
           >
             {monedas.length ? (
               <ComboBuscable
@@ -3494,6 +3550,7 @@ export function Sis2000ComboPage() {
           <FormField
             label="Formas de pago *"
             hint="Cómo puede fraccionar el pago el asegurado. Marca al menos una."
+            tooltip={'Fraccionamientos que se ofrecen al emitir. Cada letra fija el número de cuotas: A anual (1), S semestral (2), C cuatrimestral (3), T trimestral (4), M mensual (12), E evento o pago único (1). Sin ninguna, el plan no se puede ofrecer.\nEn Sis2000: maplanes_frec.ifrecuencia'}
             error={errorDe('combo-frecuencias')}
           >
             <div id="combo-frecuencias" className="flex flex-wrap gap-2">
@@ -3514,7 +3571,7 @@ export function Sis2000ComboPage() {
             span={2}
             label="Observaciones del plan"
             htmlFor="combo-xobservacion"
-            hint="Opcional. Nota interna del plan (máx. 255). Ejemplo: Plan aprobado en comité del 04/11."
+            hint="Opcional. Nota interna del plan (máx. 255); no la ve el asegurado. Ejemplo: Plan aprobado en comité del 04/11."
             error={errorDe('combo-xobservacion')}
           >
             <textarea
@@ -3535,7 +3592,7 @@ export function Sis2000ComboPage() {
             label="Productores *"
             error={errorDe('combo-prod-buscar')}
             hint="Busca por nombre o código y elige uno o varios, o «Todos los productores»."
-            tooltip="Solo los productores elegidos verán el plan al emitir."
+            tooltip={'Productores que podrán ver y emitir el plan. «Todos los productores» se graba sin código y vale para cualquiera; si eliges algunos, solo ellos lo verán. Las exclusiones se manejan en la ficha del plan.\nEn Sis2000: mausuplan (centidad P, itipouso A)'}
           >
             <ProductoresSelector idPrefix="combo-prod" value={productoresSel} onChange={setProductoresSel} />
           </FormField>
@@ -3543,6 +3600,7 @@ export function Sis2000ComboPage() {
             span={2}
             label="Canales"
             hint={canalesHabilitados ? 'Opcional. Canales (por ejemplo, aliados comerciales) que también podrán ofrecerlo. Solo se agregan; no se quitan.' : 'Por ahora el servidor no permite asignar canales desde aquí.'}
+            tooltip={'Canales de venta que también podrán ofrecer el plan, además de los productores. Desde aquí solo se agregan; para quitar uno o excluirlo usa «Quién vende» en la ficha del plan.\nEn Sis2000: mausuplan (centidad C, itipouso A)'}
           >
             <CanalesSelector idPrefix="combo-canal" value={canalesSel} onChange={setCanalesSel} deshabilitado={!canalesHabilitados} />
           </FormField>
@@ -3724,7 +3782,7 @@ export function Sis2000ComboPage() {
           <FormField
             label="Motivo del cambio (opcional)"
             htmlFor="combo-motivo"
-            hint="Queda en el historial junto con la copia de lo anterior. Ejemplo: Ajuste de tasas aprobado por Técnico."
+            hint="Queda en el historial del configurador junto con la copia de lo anterior. Ejemplo: Ajuste de tasas aprobado por Técnica."
           >
             <Input id="combo-motivo" value={motivo} maxLength={500} onChange={(e) => setMotivo(e.target.value)} />
           </FormField>

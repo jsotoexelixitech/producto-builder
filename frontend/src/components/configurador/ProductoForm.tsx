@@ -159,8 +159,8 @@ export function ProductoForm({
       title={nuevo ? 'Nuevo producto' : `Producto ${form.cproducto || cproducto || ''}`}
       description={
         nuevo
-          ? 'Crea el producto en un ramo de Sis2000. Los planes se asocian después a este producto.'
-          : 'Datos del producto. No se cambian el código ni el ramo.'
+          ? 'Crea el producto dentro de un ramo. Después se le asocian los planes; para venderlo, cada plan necesita coberturas, tarifas, formas de pago, comisiones y quién lo vende.'
+          : 'Datos del producto. El código y el ramo no se cambian porque los planes y las pólizas ya los usan.'
       }
       icon={Package}
     >
@@ -179,14 +179,14 @@ export function ProductoForm({
         {cargando && <p className="text-slate-500">Leyendo el producto…</p>}
 
         <div className="grid gap-3 sm:grid-cols-3">
-          {campo('cproducto', 'Código', 'Código del producto (cproducto). Para usarlo en planes debe tener 6 caracteres o menos.', {
+          {campo('cproducto', 'Código', 'Código con el que los planes y las pólizas identifican el producto. Para usarlo en planes debe tener 6 caracteres o menos: el alta de planes no acepta más. Ejemplo: RCG01.\nEn Sis2000: maproductos.cproducto', {
             deshabilitado: !nuevo,
             maxLength: 20,
           })}
           <div>
             <Label htmlFor="prod-cramo" className="inline-flex items-center gap-1">
               Ramo
-              <InfoTip text="Ramo de Sis2000 (cramo). No se puede cambiar después de crear el producto." />
+              <InfoTip text={'Ramo del producto: sus planes, coberturas, tarifas y comisiones viven en ese ramo. No se cambia después de crear el producto. Ejemplo: 18 = automóvil.\nEn Sis2000: maproductos.cramo'} />
             </Label>
             {nuevo ? (
               <select
@@ -208,15 +208,15 @@ export function ProductoForm({
             )}
             {errores.cramo && <p className="mt-0.5 text-[11px] text-red-700">{errores.cramo}</p>}
           </div>
-          {campo('xabreviatura', 'Abreviatura', 'Abreviatura del producto (xabreviatura).', { maxLength: 20 })}
-          <div className="sm:col-span-2">{campo('xdescripcion_l', 'Nombre', 'Nombre largo del producto (xdescripcion_l).', { maxLength: 60 })}</div>
-          {campo('xdescripcion_c', 'Nombre corto', 'Nombre corto del producto (xdescripcion_c).', { maxLength: 30 })}
+          {campo('xabreviatura', 'Abreviatura', 'Abreviatura del producto para listados y reportes. Ejemplo: RCG.\nEn Sis2000: maproductos.xabreviatura', { maxLength: 20 })}
+          <div className="sm:col-span-2">{campo('xdescripcion_l', 'Nombre', 'Nombre del producto como lo ven SysIP y la tarjeta del MarketPlace. Ejemplo: RC GENERAL PARTICULAR.\nEn Sis2000: maproductos.xdescripcion_l', { maxLength: 60 })}</div>
+          {campo('xdescripcion_c', 'Nombre corto', 'Nombre corto del producto. Ojo: la tarjeta del MarketPlace de SysIP usa este campo como nombre del archivo de imagen (ejemplo: 4_1.png).\nEn Sis2000: maproductos.xdescripcion_c', { maxLength: 30 })}
         </div>
 
         <div className="space-y-1 rounded-xl border border-slate-200 p-3">
           <p className="flex items-center gap-1 font-semibold text-slate-800">
             Quién lo ve
-            <InfoTip text="Qué tipo de intermediario puede ver el producto (iproductor, icanal, igestor)." />
+            <InfoTip text={'Qué tipo de intermediario ve el producto en SysIP: productores, canales o gestores. Además, cada plan debe incluirlos en «Quién lo vende».\nEn Sis2000: maproductos.iproductor / icanal / igestor'} />
           </p>
           <div className="flex flex-wrap gap-4">
             {casilla('iproductor', 'Productores')}
@@ -227,12 +227,12 @@ export function ProductoForm({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          {campo('xform', 'Pantalla de emisión', 'Formulario de emisión que abre el producto (xform).', { maxLength: 100 })}
-          {campo('norden', 'Orden', 'Posición del producto en las listas (norden), número entero.', { inputMode: 'numeric' })}
-          {campo('mmonto_inicial', 'Monto inicial', 'Monto inicial del producto (mmonto_inicial).', { inputMode: 'decimal' })}
-          {campo('xfraccionamiento', 'Fraccionamiento', 'Cómo se fracciona el pago (xfraccionamiento).', { maxLength: 100 })}
+          {campo('xform', 'Pantalla de emisión', 'Pantalla de emisión que abre SysIP para este producto: personas, automóvil, viajero, riesgos generales…\nEn Sis2000: maproductos.xform', { maxLength: 100 })}
+          {campo('norden', 'Orden', 'Posición del producto en los listados, número entero. Hoy SysIP no lo usa para ordenar.\nEn Sis2000: maproductos.norden', { inputMode: 'numeric' })}
+          {campo('mmonto_inicial', 'Monto inicial', 'Precio «desde» que muestra la tarjeta del MarketPlace. Es solo informativo: no se usa para cotizar ni emitir. Ejemplo: 25,00.\nEn Sis2000: maproductos.mmonto_inicial', { inputMode: 'decimal' })}
+          {campo('xfraccionamiento', 'Fraccionamiento', 'Leyenda de formas de pago en la tarjeta del MarketPlace. Es solo texto: las formas de pago reales se configuran en cada plan.\nEn Sis2000: maproductos.xfraccionamiento', { maxLength: 100 })}
           <div className="sm:col-span-2">
-            {campo('xurl_presentacion', 'Presentación (URL)', 'Dirección del documento de presentación del producto (xurl_presentacion).', {
+            {campo('xurl_presentacion', 'Presentación (URL)', 'Enlace al folleto o presentación del producto; la tarjeta del MarketPlace lo abre en otra pestaña.\nEn Sis2000: maproductos.xurl_presentacion', {
               placeholder: 'https://…',
             })}
           </div>
@@ -240,7 +240,7 @@ export function ProductoForm({
         <div>
           <Label htmlFor="prod-desc" className="inline-flex items-center gap-1">
             Descripción comercial
-            <InfoTip text="Texto que describe el producto al cliente (xdescripcion_prod)." />
+            <InfoTip text={'Texto comercial que ve el cliente bajo el nombre en la tarjeta del MarketPlace.\nEn Sis2000: maproductos.xdescripcion_prod'} />
           </Label>
           <textarea
             id="prod-desc"

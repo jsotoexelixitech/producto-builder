@@ -70,7 +70,7 @@ function NuevaCoberturaPage({ cramo }: { cramo: number }) {
       ) : (
         <SectionPanel
           title="Datos de la cobertura"
-          description="Los campos con * son obligatorios."
+          description="Los campos con * son obligatorios. La cobertura queda en el ramo y cualquier plan del ramo la puede usar."
           icon={Shield}
         >
           <Sis2000NuevaCoberturaForm
@@ -178,7 +178,7 @@ function CoberturaJsonFormPage() {
   return (
     <Sis2000NestJsonForm
       title={isEdit ? `Editar cobertura ${ccobertura}` : 'Nueva cobertura'}
-      subtitle={`POST/PATCH nest-api /api/v1/configurador/coberturas → macoberturas · ramo ${cramo}`}
+      subtitle={`Modo avanzado: datos de la cobertura del ramo ${cramo} en Sis2000, editados en JSON`}
       backHref={backHref}
       backLabel={`Coberturas ramo ${cramo}`}
       jsonText={jsonText}

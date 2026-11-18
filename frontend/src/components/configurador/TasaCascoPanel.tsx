@@ -237,7 +237,7 @@ export function TasaCascoPanel({ cramo, soloLectura, onCambio }: { cramo: number
   return (
     <SectionPanel
       title="Tasa de casco por características"
-      description="Tasas de casco según tipo, uso, suma asegurada y antigüedad del vehículo. Se cambian por versiones de Sis2000 con aprobación."
+      description="Tasas de casco (Amplia, Pérdida total y Pérdida parcial) según tipo, uso, suma asegurada y antigüedad del vehículo. Es una tabla del ramo: un ajuste afecta a TODOS los planes que calculan casco por características. Se usa solo cuando no hay tasa por antigüedad, tasa de la solicitud ni tasa propia del plan. Cada cambio es una versión que aprueba otra persona."
       icon={Gauge}
     >
       <div className="space-y-4 text-xs">
@@ -333,7 +333,7 @@ export function TasaCascoPanel({ cramo, soloLectura, onCambio }: { cramo: number
                           <div>
                             <Label htmlFor="casco-acc-usuario" className="inline-flex items-center gap-1">
                               Tu usuario de Sis2000
-                              <InfoTip text="Número de usuario (cusuario de seusuariosweb) con permiso en TARIFACASCO_ROL. Para aprobar debe ser otra persona que la que propuso." />
+                              <InfoTip text={'Tu número de usuario de Sis2000, con permiso para aprobar tasas de casco. Nadie puede aprobar ni rechazar su propia propuesta: la revisa otra persona.\nEn Sis2000: seusuariosweb.cusuario (rol en macatvalores TARIFACASCO_ROL)'} />
                             </Label>
                             <Input id="casco-acc-usuario" inputMode="numeric" value={accion.cusuario} onChange={(e) => setAccion({ ...accion, cusuario: e.target.value })} />
                           </div>
@@ -389,11 +389,11 @@ export function TasaCascoPanel({ cramo, soloLectura, onCambio }: { cramo: number
                         <option value="DISMINUCION">Bajar</option>
                       </select>
                     </div>
-                    {campo('porcentaje', 'Porcentaje', 'Mayor que 0 y hasta 100, con 2 decimales. Una baja debe ser menor que 100.', { placeholder: '5' })}
+                    {campo('porcentaje', 'Porcentaje', 'Cuánto sube o baja la tasa, en %, mayor que 0 y hasta 100 con 2 decimales. Una baja debe ser menor que 100 para que la tasa no quede en cero. Ejemplo: 5 = la tasa sube un 5 %.', { placeholder: '5' })}
                     <div>
                       <Label htmlFor="casco-alcance" className="inline-flex items-center gap-1">
                         A qué tasas aplica
-                        <InfoTip text="Alcance del ajuste (alcance). Cada uno usa solo sus filtros." />
+                        <InfoTip text={'A qué tasas se aplica el ajuste: todas, o solo por tipo de vehículo, cobertura, antigüedad, rango de suma o rango y antigüedad juntos. Cada alcance pide solo sus filtros.\nEn Sis2000: tarifa_casco_versiones.alcance'} />
                       </Label>
                       <select id="casco-alcance" className="h-10 w-full rounded-md border border-border bg-background px-2 text-sm" value={form.alcance} onChange={(e) => setForm({ ...form, alcance: e.target.value })}>
                         {Object.entries(ALCANCES_CASCO).map(([k, t]) => (
@@ -403,11 +403,11 @@ export function TasaCascoPanel({ cramo, soloLectura, onCambio }: { cramo: number
                         ))}
                       </select>
                     </div>
-                    {usa.tipos && campo('tipos', 'Tipos de vehículo', 'Códigos separados por coma (mayores que 0).', { placeholder: '1, 2' })}
-                    {usa.coberturas && campo('coberturas', 'Coberturas', '1 Amplia, 2 Pérdida total, 28 Pérdida parcial (separadas por coma).', { placeholder: '1, 28' })}
-                    {usa.rangos && campo('rangos', 'Rangos de suma asegurada', 'Números de rango (crango) separados por coma.', { placeholder: '1, 2' })}
-                    {usa.edad && campo('edadDesde', 'Antigüedad desde (años)', 'De -1 (vehículo del año siguiente) a 20.', { placeholder: '0' })}
-                    {usa.edad && campo('edadHasta', 'Antigüedad hasta (años)', 'De -1 a 20; no menor que «desde».', { placeholder: '5' })}
+                    {usa.tipos && campo('tipos', 'Tipos de vehículo', 'Códigos de tipo de vehículo, separados por coma. Ejemplo: 1, 2.\nEn Sis2000: macobtipo.ctipo', { placeholder: '1, 2' })}
+                    {usa.coberturas && campo('coberturas', 'Coberturas', 'Coberturas de casco separadas por coma: 1 Amplia, 2 Pérdida total, 28 Pérdida parcial. Ejemplo: 1, 28.', { placeholder: '1, 28' })}
+                    {usa.rangos && campo('rangos', 'Rangos de suma asegurada', 'Números de rango de suma asegurada, separados por coma. Ejemplo: 1, 2.\nEn Sis2000: marangosum.crango', { placeholder: '1, 2' })}
+                    {usa.edad && campo('edadDesde', 'Antigüedad desde (años)', 'Años de antigüedad, de -1 a 20. -1 = vehículo del año siguiente; 0 = del año en curso.', { placeholder: '0' })}
+                    {usa.edad && campo('edadHasta', 'Antigüedad hasta (años)', 'Años de antigüedad, de -1 a 20; no menor que «desde».', { placeholder: '5' })}
                   </div>
                 ) : (
                   <div className="max-w-md">
@@ -429,12 +429,12 @@ export function TasaCascoPanel({ cramo, soloLectura, onCambio }: { cramo: number
                     <input type="checkbox" checked={form.rigeAlAprobar} onChange={(e) => setForm({ ...form, rigeAlAprobar: e.target.checked })} />
                     Rige el día en que se aprueba
                   </label>
-                  {!form.rigeAlAprobar && campo('vigenteDesde', 'Rige desde', 'Primer día en que se aplica.', { type: 'date' })}
-                  {campo('vigenteHasta', 'Rige hasta (opcional)', 'Último día en que se aplica; vacío = sin fin.', { type: 'date' })}
+                  {!form.rigeAlAprobar && campo('vigenteDesde', 'Rige desde', 'Primer día en que rige la nueva tasa, una vez aprobada.', { type: 'date' })}
+                  {campo('vigenteHasta', 'Rige hasta (opcional)', 'Último día en que rige; vacío = sin fecha de fin.', { type: 'date' })}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {campo('cusuario', 'Tu usuario de Sis2000', 'Número de usuario (cusuario) con permiso para proponer (TARIFACASCO_ROL). Otra persona deberá aprobarla.', { placeholder: '28002498' })}
-                  <div className="sm:col-span-2">{campo('motivo', 'Motivo', 'Mínimo 10 caracteres; queda en Sis2000 y en el historial.')}</div>
+                  {campo('cusuario', 'Tu usuario de Sis2000', 'Tu número de usuario de Sis2000, con permiso para proponer tasas de casco. La propuesta la aprueba otra persona.\nEn Sis2000: seusuariosweb.cusuario (rol en macatvalores TARIFACASCO_ROL)', { placeholder: '28002498' })}
+                  <div className="sm:col-span-2">{campo('motivo', 'Motivo', 'Por qué se cambia la tasa, mínimo 10 caracteres. Queda en Sis2000 y en el historial. Ejemplo: Ajuste aprobado por Técnica en comité.')}</div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">

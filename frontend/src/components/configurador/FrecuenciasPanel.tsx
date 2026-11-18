@@ -193,7 +193,7 @@ export function FrecuenciasPanel({ planId, soloLectura, onCambio }: { planId: st
   return (
     <SectionPanel
       title="Formas de pago"
-      description="Cómo se puede pagar el plan: anual, semestral, trimestral, mensual o por días. Sin al menos una activa, el plan no se puede ofrecer."
+      description="Cómo puede fraccionar el pago el asegurado. Cada letra fija las cuotas: A anual (1), S semestral (2), C cuatrimestral (3), T trimestral (4), M mensual (12), E evento o pago único (1), K postpago en 4 cuotas (solo auto), D por días. Sin al menos una activa, la emisión no encuentra formas de pago y el plan no se puede ofrecer."
       icon={CalendarClock}
     >
       <div className="space-y-4 text-xs">
@@ -222,7 +222,7 @@ export function FrecuenciasPanel({ planId, soloLectura, onCambio }: { planId: st
                   <tr>
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
-                        Forma <InfoTip text="Letra de la frecuencia en Sis2000 (ifrecuencia)." />
+                        Forma <InfoTip text={'Letra de la forma de pago; de ella salen las cuotas. A anual, S semestral, C cuatrimestral, T trimestral, M mensual, E evento o única, K postpago 4 cuotas (auto), D por días. Una letra distinta se cobra en 1 cuota.\nEn Sis2000: maplanes_frec.ifrecuencia'} />
                       </span>
                     </th>
                     <th className="px-3 py-2">Nombre que se muestra</th>
@@ -342,7 +342,7 @@ export function FrecuenciasPanel({ planId, soloLectura, onCambio }: { planId: st
               <div>
                 <Label htmlFor="frec-nombre" className="inline-flex items-center gap-1">
                   Nombre que se muestra
-                  <InfoTip text="Texto que ve el cliente (xfrecuencia). Vacío = el nombre de la forma de pago." />
+                  <InfoTip text={'Nombre de la forma de pago que se muestra al emitir. Vacío = el nombre estándar. Ejemplo: «Mensual».\nEn Sis2000: maplanes_frec.xfrecuencia'} />
                 </Label>
                 <Input id="frec-nombre" value={form.xfrecuencia} maxLength={150} onChange={(e) => setForm({ ...form, xfrecuencia: e.target.value })} />
                 {errores.xfrecuencia && <p className="mt-0.5 text-[11px] text-red-700">{errores.xfrecuencia}</p>}
@@ -350,7 +350,7 @@ export function FrecuenciasPanel({ planId, soloLectura, onCambio }: { planId: st
               <div>
                 <Label htmlFor="frec-dias" className="inline-flex items-center gap-1">
                   Días {form.ifrecuencia === 'D' ? '(obligatorio)' : '(opcional)'}
-                  <InfoTip text="Cantidad de días de la cuota (ndias). Obligatorio en «Por días»." />
+                  <InfoTip text={'Cantidad de días de esa opción. Obligatorio en «Por días» (D); en las demás letras es opcional.\nEn Sis2000: maplanes_frec.ndias'} />
                 </Label>
                 <Input
                   id="frec-dias"
@@ -378,7 +378,7 @@ export function FrecuenciasPanel({ planId, soloLectura, onCambio }: { planId: st
         <div className="space-y-3 border-t border-slate-100 pt-4">
           <p className="flex items-center gap-1 font-semibold text-slate-800">
             Formas de pago propias de un productor
-            <InfoTip text="Formas de pago que solo ve un productor para este plan (maplanes_frec_produc). Se borran de verdad: antes se guarda copia en el historial." />
+            <InfoTip text={'Formas de pago extra que solo se le ofrecen a un productor en este plan, además de las generales. Ejemplo: mensual solo para un productor puntual. Al quitarlas se borran (no tienen estado); antes se guarda copia en el historial.\nEn Sis2000: maplanes_frec_produc'} />
           </p>
           {propias === null ? (
             <p className="text-slate-500">Leyendo…</p>

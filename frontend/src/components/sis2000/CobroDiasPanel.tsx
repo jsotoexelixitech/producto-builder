@@ -253,7 +253,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
   return (
     <SectionPanel
       title="Tipo de emisión"
-      description="Estándar: la prima se cobra según la frecuencia del plan. Cobro por días: prima diaria por cobertura × días; al emitir se eligen las fechas en un calendario."
+      description="Estándar: la prima es anual y se fracciona según las frecuencias del plan (anual, semestral, mensual…). Cobro por días: cada cobertura tiene una prima diaria y la póliza cobra prima diaria × días; al emitir se eligen las fechas en un calendario. Ejemplo: 1,53 por día × 10 días = 15,30."
       icon={CalendarDays}
       className={cn('mt-6', className)}
     >
@@ -309,7 +309,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
               <div>
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="cd-min">Días mínimos</Label>
-                  <InfoTip text="Menor cantidad de días que se puede emitir (contando el primero y el último)." />
+                  <InfoTip text="Lo mínimo que se puede contratar. Se cuentan el primer y el último día: del 1 al 10 de un mes son 10 días." />
                 </div>
                 <Input
                   id="cd-min"
@@ -324,7 +324,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
               <div>
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="cd-max">Días máximos</Label>
-                  <InfoTip text="Mayor cantidad de días que se puede emitir de una vez." />
+                  <InfoTip text="Lo máximo que se puede contratar en una sola póliza. Ejemplo: 90." />
                 </div>
                 <Input
                   id="cd-max"
@@ -435,7 +435,7 @@ export function CobroDiasPanel({ planId, coberturas, cmonedaDefault = '$', class
           <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
             <div className="flex items-center gap-1.5">
               <p className="font-semibold">Simular</p>
-              <InfoTip text="Calcula con lo guardado, sin emitir. Los días cuentan el primero y el último." />
+              <InfoTip text="Calcula la prima con lo que ya está guardado, sin emitir ni grabar nada. Cuenta el primer y el último día, igual que al emitir." />
             </div>
             <div className="flex flex-wrap gap-2">
               <label className={OPCION}>

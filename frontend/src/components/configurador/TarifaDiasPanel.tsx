@@ -22,13 +22,13 @@ type FilaLeida = ReturnType<typeof normalizarTarifaDias>;
 const clave = (cc: string, ct: string) => `${cc.trim().toUpperCase()}|${ct.trim().toUpperCase()}`;
 
 const COLUMNAS: ColumnaEditable[] = [
-  { clave: 'ctarifabi', titulo: 'Tarifa binacional', tipo: 'entero', ayuda: 'Código de la tarifa binacional (ctarifabi).', ancho: 'w-24' },
-  { clave: 'qdias', titulo: 'Tramo', tipo: 'entero', ayuda: 'Número de tramo de la fila (qdias, parte de la llave).', ancho: 'w-16' },
+  { clave: 'ctarifabi', titulo: 'Tarifa binacional', tipo: 'entero', ayuda: 'Grupo de tarifa binacional. La cotización elige el grupo según los parámetros del Binacional (tarifa normal o de riesgo por actividad) o, si no hay parámetros, según el modelo del vehículo.\nEn Sis2000: maplantar_dias.ctarifabi', ancho: 'w-24' },
+  { clave: 'qdias', titulo: 'Tramo', tipo: 'entero', ayuda: 'Número de la fila dentro de la tarifa; forma parte de la llave. La cotización no busca por este dato.\nEn Sis2000: maplantar_dias.qdias', ancho: 'w-16' },
   {
     clave: 'bnacional',
     titulo: 'Ámbito',
     tipo: 'select',
-    ayuda: 'Nacional o internacional (bnacional).',
+    ayuda: 'Nacional o internacional. Hoy la cotización de Nexus no filtra por este dato.\nEn Sis2000: maplantar_dias.bnacional',
     opciones: [
       { valor: '', etiqueta: 'Elige…' },
       { valor: '1', etiqueta: 'Nacional' },
@@ -36,13 +36,13 @@ const COLUMNAS: ColumnaEditable[] = [
     ],
     ancho: 'w-32',
   },
-  { clave: 'cmoneda', titulo: 'Moneda', ayuda: 'Código de moneda (cmoneda), p. ej. $.', ancho: 'w-16' },
-  { clave: 'ndias_min', titulo: 'Días mín.', tipo: 'entero', ayuda: 'Desde cuántos días aplica (ndias_min).', ancho: 'w-20' },
-  { clave: 'ndias_max', titulo: 'Días máx.', tipo: 'entero', ayuda: 'Hasta cuántos días aplica (ndias_max). 30 con prima anual = fila anual. Un borde compartido (0–3 y 3–7) es válido.', ancho: 'w-20' },
-  { clave: 'msuma', titulo: 'Suma', tipo: 'numero', ayuda: 'Suma asegurada (msuma).' },
-  { clave: 'mprima', titulo: 'Prima', tipo: 'numero', ayuda: 'Prima del rango (mprima).' },
-  { clave: 'mprima_anual', titulo: 'Prima anual', tipo: 'numero', ayuda: 'Prima anual (mprima_anual); obligatoria en la fila de 30 días de los planes Binacional.' },
-  { clave: 'mprima_dia', titulo: 'Prima por día', tipo: 'numero', ayuda: 'Prima diaria (mprima_dia).' },
+  { clave: 'cmoneda', titulo: 'Moneda', ayuda: 'Moneda de los montos de la fila. Ejemplo: $. La cotización toma la moneda de la cobertura.\nEn Sis2000: maplantar_dias.cmoneda', ancho: 'w-16' },
+  { clave: 'ndias_min', titulo: 'Días mín.', tipo: 'entero', ayuda: 'Desde cuántos días aplica la fila. Es referencial: la cotización busca por los días máximos.\nEn Sis2000: maplantar_dias.ndias_min', ancho: 'w-20' },
+  { clave: 'ndias_max', titulo: 'Días máx.', tipo: 'entero', ayuda: 'La cotización toma la fila cuyo valor es igual a los días de vigencia. 30 = fila anual: se usa con vigencia de 12 meses y cobra la prima anual. Un borde compartido (0–3 y 3–7) es válido.\nEn Sis2000: maplantar_dias.ndias_max', ancho: 'w-20' },
+  { clave: 'msuma', titulo: 'Suma', tipo: 'numero', ayuda: 'Suma asegurada de la cobertura para esta fila; la cotización la toma de aquí.\nEn Sis2000: maplantar_dias.msuma' },
+  { clave: 'mprima', titulo: 'Prima', tipo: 'numero', ayuda: 'Prima por los días de esta fila (vigencias menores a un año).\nEn Sis2000: maplantar_dias.mprima' },
+  { clave: 'mprima_anual', titulo: 'Prima anual', tipo: 'numero', ayuda: 'Prima cuando la vigencia es de 12 meses. Obligatoria en la fila de 30 días de los planes Binacional: con los parámetros del Binacional activos solo se emite anual.\nEn Sis2000: maplantar_dias.mprima_anual' },
+  { clave: 'mprima_dia', titulo: 'Prima por día', tipo: 'numero', ayuda: 'Prima por cada día que pase del máximo de días de la tabla; se suma a la prima de la fila de 30.\nEn Sis2000: maplantar_dias.mprima_dia' },
 ];
 
 const filaVacia = (anterior?: FilaTexto): FilaTexto => {
@@ -160,7 +160,7 @@ export function TarifaDiasPanel({
   }
 
   return (
-    <SectionPanel title="Tarifa por días" description="Prima según los días de viaje, por cobertura (planes Binacional)." icon={CalendarDays}>
+    <SectionPanel title="Tarifa por días" description="Prima según los días de vigencia, por cobertura (planes Binacional, placa B). Ojo: la cotización no mira si la fila está activa, así que una fila inactiva con los mismos días y grupo de tarifa todavía puede tomarse." icon={CalendarDays}>
       <div className="space-y-4 text-xs">
         <AlertaError error={errorCarga} onReintentar={cargar} />
         <EstadoEscritura esc={esc} />

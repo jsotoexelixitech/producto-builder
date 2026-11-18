@@ -47,7 +47,7 @@ export function DeducibleCampos({
       <div>
         <Label htmlFor={`${idBase}-bfraded`} className="inline-flex items-center gap-1">
           Deducible
-          <InfoTip text="Deducible: el asegurado paga ese monto o porcentaje de cada siniestro. Franquicia: si el daño no supera el monto no se paga; si lo supera, se paga completo. (Sis2000: bfraded D / F)" />
+          <InfoTip text={'Deducible: el asegurado asume ese monto o porcentaje en cada siniestro. Franquicia: si el daño no supera el monto no se paga; si lo supera, se paga completo. Ejemplo: deducible de 100 $ en un daño de 1.000 $ → se indemnizan 900 $.\nEn Sis2000: bfraded (D = deducible, F = franquicia)'} />
         </Label>
         <select
           id={`${idBase}-bfraded`}
@@ -61,9 +61,9 @@ export function DeducibleCampos({
           <option value="F">Franquicia</option>
         </select>
       </div>
-      {campo('mdedu_fran', 'Monto (Bs)', 'Monto fijo del deducible en bolívares (Sis2000: mdedu_fran).')}
-      {campo('mdedu_franext', `Monto (${moneda})`, 'Monto fijo del deducible en divisa (Sis2000: mdedu_franext).')}
-      {campo('pdedu_fran', 'Porcentaje %', 'Porcentaje del siniestro o de la suma asegurada, entre 0 y 100 (Sis2000: pdedu_fran).')}
+      {campo('mdedu_fran', 'Monto (Bs)', 'Monto fijo del deducible o franquicia en bolívares.\nEn Sis2000: mdedu_fran')}
+      {campo('mdedu_franext', `Monto (${moneda})`, 'Monto fijo del deducible o franquicia en la moneda del plan. Ejemplo: 100.\nEn Sis2000: mdedu_franext')}
+      {campo('pdedu_fran', 'Porcentaje %', 'Deducible como porcentaje, entre 0 y 100. Ejemplo: 10 = el asegurado asume el 10 %.\nEn Sis2000: pdedu_fran')}
     </div>
   );
 }

@@ -89,14 +89,14 @@ export function Sis2000CatalogPage() {
             <div>
               <h2 className="text-sm font-bold text-foreground">Core / Sis2000 QA</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pulsa <strong>Ver detalle</strong> y la ficha se despliega{' '}
-                <strong>debajo de esa fila</strong> (27 campos + planes y coberturas del
-                producto). Vuelve a pulsar para cerrarla o usa <strong>Editar</strong>.
+                Pulsa <strong>Ver detalle</strong> y la ficha del producto se despliega{' '}
+                <strong>debajo de esa fila</strong>, con sus datos, planes y coberturas. Vuelve a pulsar
+                para cerrarla o usa <strong>Editar</strong> para cambiarlo.
               </p>
               <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                Solo consulta y mantenimiento de catálogo Sis2000 (productos, planes,
-                coberturas, tarifas). <strong>No emite pólizas</strong> ni usa
-                patrimonial/emit.
+                Solo consulta y mantenimiento del catálogo de Sis2000 (productos, planes,
+                coberturas y tarifas). <strong>No emite pólizas</strong>: lo que cambies aquí se
+                nota en la próxima cotización o emisión.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <Link

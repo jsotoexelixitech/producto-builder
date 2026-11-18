@@ -60,7 +60,7 @@ export function RevisionPlanPanel({
   const items = revision ? ordenarRevision(revision.items).filter((i) => verOk || i.nivel !== 'ok') : [];
 
   return (
-    <SectionPanel title="Revisión del plan" description="¿El plan se puede emitir? Pulsa un punto para ir a corregirlo." icon={ClipboardCheck}>
+    <SectionPanel title="Revisión del plan" description="Revisa, sin cambiar nada, si el plan tiene todo para emitirse: producto, tarifas con una sola tasa vigente, reaseguro, comisiones, formas de pago y quién lo vende. En rojo lo que impide emitir; en ámbar, avisos. Pulsa un punto para ir a corregirlo." icon={ClipboardCheck}>
       <div className="space-y-4 text-xs">
         <AlertaError error={error} onReintentar={cargar} />
         {revision && cuenta && (

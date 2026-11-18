@@ -74,7 +74,7 @@ export function RepartoPrimaDiaria({ coberturas, obligatorias = [], primas, dias
       <p className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
         <Divide className="h-3.5 w-3.5" />
         Repartir una prima diaria entre las coberturas
-        <InfoTip text="Ej.: si el plan cobra 1,53 por día, escribe 1,53 y se reparte entre las coberturas. Cada parte se redondea a 2 decimales y el centavo que sobre o falte se suma a la última, así el total da exacto." />
+        <InfoTip text={'Atajo para llenar la prima diaria de cada cobertura a partir del total por día del plan, en partes iguales o por porcentaje. Las coberturas que queden fuera del reparto pasan a 0.\nEjemplo: 1,53 por día entre 3 coberturas = 0,51 cada una. Se redondea a 2 decimales y el centavo que sobre o falte va a la última, para que el total cuadre.'} />
       </p>
       <div className="flex flex-wrap items-end gap-3 text-xs">
         <label className="grid gap-1">

@@ -86,7 +86,8 @@ export function Sis2000ProductPlansPanel({ cproducto, cramo }: Sis2000ProductPla
               Planes del producto {cproducto}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              valrep/planes/producto + detalle · consulta catálogo (sin emisión de pólizas)
+              Consulta los planes del producto tal como los ve la emisión para el productor o canal indicado. Solo
+              lectura: no emite ni cambia nada.
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Entidad aplicada: <strong>{appliedEntity}</strong> / ítem{' '}
@@ -357,7 +358,8 @@ function PlanDetailBlock({
           <span className="font-mono">
             {valrepCentidad} / {valrepCitem}
           </span>
-          · sumas/primas del plan en 0 = riesgo dinámico; % en matarifa_d.
+          · si las sumas y primas del plan están en 0, el monto se define al cotizar (riesgo variable) y la tasa sale de la
+          tarifa de la cobertura.
         </p>
       )}
 

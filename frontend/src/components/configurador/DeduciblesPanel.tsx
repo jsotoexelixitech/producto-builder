@@ -46,8 +46,8 @@ export function DeduciblesPanel({ planId, cramo, coberturas, filasPlan = [], mon
       title="Deducibles"
       description={
         conCopiaEnPlan
-          ? 'Lo que paga el asegurado en cada siniestro. El de la tarifa es el que se usa al emitir; el del plan es su copia.'
-          : 'Lo que paga el asegurado en cada siniestro. Se guarda en la tarifa de cada cobertura.'
+          ? 'Lo que asume el asegurado en cada siniestro. La emisión usa el de la tarifa de la cobertura; el del plan es una copia. Si otros planes usan la misma tarifa, el cambio también les aplica.'
+          : 'Lo que asume el asegurado en cada siniestro. Se guarda en la tarifa de cada cobertura y lo usa la emisión; si otros planes usan la misma tarifa, también les aplica.'
       }
       icon={ShieldMinus}
     >

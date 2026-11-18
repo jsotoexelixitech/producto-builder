@@ -65,10 +65,11 @@ export function Sis2000MasterPlansPage() {
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Busca un plan y pulsa «Editar» para cambiar sus datos, sus montos o agregarle coberturas con el formulario
-            guiado. Para crear uno nuevo usa «Nuevo plan». Aquí no se emiten pólizas.
+            guiado, o «Ficha» para deducibles, comisiones, quién lo vende y la revisión «¿se puede emitir?». Para crear uno
+            nuevo usa «Nuevo plan». Aquí no se emiten pólizas.
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Lectura: nest-api GET /api/v1/partner/starter/plan · escritura: v1/configurador/planes (spMantPlanes)
+            Los cambios se graban directo en Sis2000 y antes se guarda una copia de cómo estaba el plan.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -79,7 +80,7 @@ export function Sis2000MasterPlansPage() {
           <Link
             to="/sis2000/plans/new"
             className="self-center text-xs text-muted-foreground underline-offset-2 hover:underline"
-            title="Editor en JSON para casos que el formulario no cubre"
+            title="Crear un plan escribiendo el JSON; para lo normal usa Combos de coberturas"
           >
             Nuevo plan (modo avanzado, JSON)
           </Link>
@@ -138,21 +139,21 @@ export function Sis2000MasterPlansPage() {
                           <Link
                             to={`/sis2000/plans/${encodeURIComponent(id)}/configurar`}
                             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                            title="Deducibles, comisiones, tipo y uso, tasas por antigüedad y revisión «¿se puede emitir?»"
+                            title="Ficha completa del plan: coberturas, tarifas, deducibles, formas de pago, quién lo vende, comisiones y la revisión «¿se puede emitir?»"
                           >
                             Ficha
                           </Link>
                           <Link
                             to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
                             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                            title="Cambiar datos, montos o agregar coberturas con el formulario guiado"
+                            title="Cambiar nombre, montos o coberturas con el formulario guiado"
                           >
                             Editar
                           </Link>
                           <Link
                             to={`/sis2000/plans/${encodeURIComponent(id)}/json`}
                             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                            title="Editor en JSON para casos que el formulario no cubre"
+                            title="Editor en JSON, solo para casos que el formulario no cubre"
                           >
                             Modo avanzado
                           </Link>

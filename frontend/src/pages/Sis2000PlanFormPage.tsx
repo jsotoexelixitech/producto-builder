@@ -344,13 +344,13 @@ export function Sis2000PlanFormPage() {
         )}
       </Alert>
       <p className="mb-1 text-xs text-muted-foreground">
-        POST/PUT nest-api /api/v1/configurador/planes → spMantPlanes + mausuplan (productores)
+        Graba el plan en Sis2000 junto con la lista de productores y canales que pueden ofrecerlo.
       </p>
       <p className="mb-4 text-xs text-amber-800 dark:text-amber-200">
-        Indica los productores que pueden vender el plan (o all_productor: true). En planes de cosas
-        cada cobertura lleva prima fija (mprima) o tasa (pprima, en %); si su suma se calcula al
-        emitir, agrega <code>&quot;suma_calculada&quot;: true</code> a la cobertura y deja suma, prima y
-        tasa en 0. Solo catálogo — no emite pólizas.
+        Indica los productores que pueden ofrecer el plan (o <code>all_productor: true</code> para todos). En planes de
+        cosas cada cobertura lleva prima fija (<code>mprima</code>, monto) o tasa (<code>pprima</code>, % sobre la suma
+        asegurada), nunca las dos; si su suma se calcula al emitir, agrega <code>&quot;suma_calculada&quot;: true</code> a
+        la cobertura y deja suma, prima y tasa en 0. Solo cambia el catálogo: no emite pólizas.
       </p>
 
       {error && <Alert variant="error" className="mb-3">{error}</Alert>}
@@ -360,7 +360,7 @@ export function Sis2000PlanFormPage() {
         <div>
           <div className="flex items-center gap-1.5">
             <Label>Tipo de plan</Label>
-            <InfoTip text="Personas (vida, salud, funerario…): tarifa por edad y parentesco. Cosas (vehículos, patrimoniales…): suma asegurada con prima fija o tasa por cobertura. Cambia qué tablas de Sis2000 se llenan." />
+            <InfoTip text={'Personas (vida, salud, funerario…): el precio sale de una tabla por edad para cada parentesco asegurado. Cosas (automóvil, patrimoniales…): cada cobertura lleva suma asegurada y una prima fija o una tasa. Según el tipo se llenan tablas distintas de Sis2000.\nEn Sis2000: maplanes_per (personas) · maplanes (cosas)'} />
           </div>
           <Select value={planType} onValueChange={(v) => setPlanType(v as Sis2000PlanType)}>
             <SelectTrigger>
@@ -375,7 +375,7 @@ export function Sis2000PlanFormPage() {
         <div>
           <div className="flex items-center gap-1.5">
             <Label htmlFor="cproducto-q">Producto (cproducto)</Label>
-            <InfoTip text="Código del producto de Sis2000 al que pertenece el plan." />
+            <InfoTip text={'Producto de Sis2000 al que pertenece el plan; de él salen el ramo y qué intermediarios lo usan. Debe tener 6 caracteres o menos para que el plan se pueda grabar. Ejemplo: RCG01.\nEn Sis2000: maplanes.cproducto'} />
           </div>
           <Input
             id="cproducto-q"
@@ -386,14 +386,14 @@ export function Sis2000PlanFormPage() {
         <div>
           <div className="flex items-center gap-1.5">
             <Label htmlFor="cramo-q">Ramo (cramo)</Label>
-            <InfoTip text="Ramo del plan. Las coberturas y tarifas que uses deben existir en este ramo." />
+            <InfoTip text={'Ramo del plan. Las coberturas, tarifas y comisiones que uses deben existir en este ramo. Ejemplo: 18 (automóvil).\nEn Sis2000: maplanes.cramo'} />
           </div>
           <Input id="cramo-q" value={cramoQuick} onChange={(e) => setCramoQuick(e.target.value)} />
         </div>
         <div>
           <div className="flex items-center gap-1.5">
             <Label htmlFor="cplan-q">Código de plan (cplan)</Label>
-            <InfoTip text="Clave del plan dentro del ramo. Junto con el ramo identifica el plan; también se usa para cotizar y cargar frecuencias." />
+            <InfoTip text={'Código del plan (máx. 6). Úsalo único en todo Sis2000, no solo en el ramo: varios cálculos buscan el plan solo por este código y un código repetido en otro ramo puede tomar datos ajenos. Se usa para cotizar, emitir y cargar frecuencias.\nEn Sis2000: maplanes.cplan'} />
           </div>
           <Input
             id="cplan-q"
@@ -405,14 +405,14 @@ export function Sis2000PlanFormPage() {
         <div className="sm:col-span-2 lg:col-span-3">
           <div className="flex items-center gap-1.5">
             <Label>Productores que pueden vender el plan</Label>
-            <InfoTip text="Busca por nombre o código y selecciona uno o varios productores (mausuplan); por defecto 80080. «Todos» lo habilita para todos (all_productor: true). Se aplica con «Aplicar campos al JSON» o «Plantilla completa»." />
+            <InfoTip text={'Productores que podrán ofrecer el plan al emitir; por defecto 80080. «Todos» lo habilita para cualquier productor, sin listar códigos. Se pasa al JSON con «Aplicar campos al JSON» o «Plantilla completa».\nEn Sis2000: mausuplan (entidad P)'} />
           </div>
           <ProductoresSelector idPrefix="plan-prod" value={productoresSel} onChange={setProductoresSel} />
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
           <div className="flex items-center gap-1.5">
             <Label>Canales alternos que pueden vender el plan</Label>
-            <InfoTip text="Busca por nombre o código y selecciona uno o varios canales alternos (mausuplan, entidad C); «Todos» lo habilita para todos los canales (all_canal: true). Sin canales, el plan solo se vende por productores. Se aplica con «Aplicar campos al JSON» o «Plantilla completa». Los canales solo se agregan al plan: nunca se borran." />
+            <InfoTip text={'Canales alternos (aliados comerciales) que también podrán ofrecer el plan. «Todos» lo habilita para cualquier canal, sin listar códigos. Sin canales, solo lo ofrecen los productores. Desde aquí solo se agregan; para quitar uno usa «Quién lo vende» en la ficha del plan.\nEn Sis2000: mausuplan (entidad C)'} />
           </div>
           <CanalesSelector
             idPrefix="plan-canal"
@@ -438,7 +438,7 @@ export function Sis2000PlanFormPage() {
           >
             Cargar frecuencias valrep
           </Button>
-          <InfoTip className="self-center" text="Plantilla completa: rehace el JSON con los campos rápidos (pierdes lo editado). Aplicar campos: copia los campos rápidos al JSON actual. Cargar frecuencias: trae de Sis2000 las frecuencias de pago del plan." />
+          <InfoTip className="self-center" text="Plantilla completa: rehace el JSON desde cero con los campos de arriba (pierdes lo que hayas editado a mano). Aplicar campos: copia los campos de arriba al JSON actual sin borrar lo demás. Cargar frecuencias: trae de Sis2000 las formas de pago del plan (A anual, S semestral, T trimestral, M mensual…)." />
         </div>
       </div>
 

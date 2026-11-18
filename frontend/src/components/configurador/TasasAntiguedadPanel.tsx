@@ -129,7 +129,7 @@ export function TasasAntiguedadPanel({
   return (
     <SectionPanel
       title="Tasa por antigüedad del vehículo"
-      description="Tasa de casco según los años del vehículo. Si hay tramos, se usan antes que la tasa del plan al emitir."
+      description="Tasa de casco según los años del vehículo (año actual menos año del modelo). Si el plan tiene tramos, mandan sobre la tasa del plan y la de la solicitud. Ojo: un vehículo cuya antigüedad no cae en ningún tramo no se puede cotizar."
       icon={CalendarClock}
     >
       <div className="space-y-4 text-xs">
@@ -163,7 +163,7 @@ export function TasasAntiguedadPanel({
               ))}
             </select>
             <p className="mt-1 text-[11px] text-slate-500">
-              Solo las coberturas de casco usan esta tabla al emitir; si eliges otra, Sis2000 te avisará.
+              Solo las coberturas de casco (Amplia, Pérdida total y Pérdida parcial) usan esta tabla; si eliges otra, se te avisará que no tiene efecto.
             </p>
           </div>
         )}
@@ -171,7 +171,7 @@ export function TasasAntiguedadPanel({
         {cobertura && filas && (
           <div className="space-y-3">
             {tramos.length === 0 && (
-              <Alert variant="info">Esta cobertura no tiene tramos por antigüedad: al emitir se usa la tasa del plan.</Alert>
+              <Alert variant="info">Esta cobertura no tiene tramos por antigüedad: se usa la tasa del plan o la tasa de casco por características.</Alert>
             )}
             <TramosEditor
               idBase="tasas-ant"
@@ -180,8 +180,8 @@ export function TasasAntiguedadPanel({
               etiquetaDesde="Desde (años)"
               etiquetaHasta="Hasta (años)"
               etiquetaValor="Tasa %"
-              ayudaDesde="-1 = vehículo del año siguiente (modelo del próximo año). 0 = vehículo del año en curso."
-              ayudaValor="Tasa de casco en % para vehículos con esa antigüedad (Sis2000: maplantar_ano.pprima)."
+              ayudaDesde={'Años de antigüedad desde los que aplica el tramo. -1 = vehículo del año siguiente; 0 = del año en curso. Ejemplo: tramos -1 a 2, 3 a 6 y 7 a 11, sin huecos.\nEn Sis2000: maplantar_ano.nantiguedad_desde'}
+              ayudaValor={'Tasa de casco en % sobre la suma asegurada para vehículos con esa antigüedad. Ejemplo: 3 = 3 % de la suma.\nEn Sis2000: maplantar_ano.pprima'}
               mostrarErrores={intento}
               deshabilitado={guardando}
               {...OPCIONES}

@@ -18,21 +18,21 @@ const txt = (v: unknown) => (v == null ? '' : String(v).trim());
 
 /** Campos de macattip que se editan, con su nombre en pantalla. Los porcentajes van de 0 a 100; los montos ≥ 0. */
 const CAMPOS: Array<{ clave: string; titulo: string; ayuda: string; pct?: boolean; entero?: boolean; grupo: 'principal' | 'mas' }> = [
-  { clave: 'mprimbas', titulo: 'Prima base RCV (Bs)', ayuda: 'Prima base de responsabilidad civil para este tipo y uso (mprimbas).', grupo: 'principal' },
-  { clave: 'mprimext', titulo: 'Prima base RCV (divisa)', ayuda: 'Prima base de RCV en divisa (mprimext).', grupo: 'principal' },
-  { clave: 'msumacosas', titulo: 'Suma daños a cosas (Bs)', ayuda: 'Suma asegurada de RCV por daños a cosas (msumacosas).', grupo: 'principal' },
-  { clave: 'msumapers', titulo: 'Suma daños a personas (Bs)', ayuda: 'Suma asegurada de RCV por daños a personas (msumapers).', grupo: 'principal' },
-  { clave: 'msumacosasext', titulo: 'Suma daños a cosas (divisa)', ayuda: 'msumacosasext.', grupo: 'principal' },
-  { clave: 'msumapersext', titulo: 'Suma daños a personas (divisa)', ayuda: 'msumapersext.', grupo: 'principal' },
-  { clave: 'ptasaexc', titulo: 'Tasa de exceso %', ayuda: 'Tasa para el exceso de límite de RCV (ptasaexc), entre 0 y 100.', pct: true, grupo: 'principal' },
-  { clave: 'pdescuento', titulo: 'Descuento %', ayuda: 'pdescuento, entre 0 y 100.', pct: true, grupo: 'mas' },
-  { clave: 'precarofic', titulo: 'Recargo «ofic» %', ayuda: 'precarofic, entre 0 y 100. La emisión de Nexus no lo usa hoy.', pct: true, grupo: 'mas' },
-  { clave: 'precarinfl', titulo: 'Recargo «infl» %', ayuda: 'precarinfl, entre 0 y 100. La emisión de Nexus no lo usa hoy.', pct: true, grupo: 'mas' },
-  { clave: 'precarremo', titulo: 'Recargo «remo» %', ayuda: 'precarremo, entre 0 y 100. La emisión de Nexus no lo usa hoy.', pct: true, grupo: 'mas' },
-  { clave: 'mtoneladas', titulo: 'Monto por tonelada', ayuda: 'mtoneladas.', grupo: 'mas' },
-  { clave: 'mpuestos', titulo: 'Monto por puesto', ayuda: 'mpuestos.', grupo: 'mas' },
-  { clave: 'qmaxptos', titulo: 'Puestos máximos', ayuda: 'qmaxptos (número entero).', entero: true, grupo: 'mas' },
-  { clave: 'qmaxton', titulo: 'Toneladas máximas', ayuda: 'qmaxton (número entero).', entero: true, grupo: 'mas' },
+  { clave: 'mprimbas', titulo: 'Prima base RCV (Bs)', ayuda: 'Prima base de RCV (daños a cosas) para vehículos de placa nacional con este tipo y uso. Se usa cuando el plan no fija una prima propia para esa cobertura. Afecta a todos los planes del ramo.\nEn Sis2000: macattip.mprimbas', grupo: 'principal' },
+  { clave: 'mprimext', titulo: 'Prima base RCV (divisa)', ayuda: 'Igual que la prima base, pero para vehículos de placa extranjera. Afecta a todos los planes del ramo.\nEn Sis2000: macattip.mprimext', grupo: 'principal' },
+  { clave: 'msumacosas', titulo: 'Suma daños a cosas (Bs)', ayuda: 'Suma asegurada de RCV por daños a cosas para placa nacional. La cotización la toma de aquí, no del plan.\nEn Sis2000: macattip.msumacosas', grupo: 'principal' },
+  { clave: 'msumapers', titulo: 'Suma daños a personas (Bs)', ayuda: 'Suma asegurada de RCV por daños a personas para placa nacional. La cotización la toma de aquí, no del plan.\nEn Sis2000: macattip.msumapers', grupo: 'principal' },
+  { clave: 'msumacosasext', titulo: 'Suma daños a cosas (divisa)', ayuda: 'Suma de RCV por daños a cosas para vehículos de placa extranjera.\nEn Sis2000: macattip.msumacosasext', grupo: 'principal' },
+  { clave: 'msumapersext', titulo: 'Suma daños a personas (divisa)', ayuda: 'Suma de RCV por daños a personas para vehículos de placa extranjera.\nEn Sis2000: macattip.msumapersext', grupo: 'principal' },
+  { clave: 'ptasaexc', titulo: 'Tasa de exceso %', ayuda: 'Tasa % para el exceso de límite de RCV, entre 0 y 100. Se aplica sobre la suma máxima de esa cobertura cuando el plan no le fija prima ni tasa. Ejemplo: 1 = 1 % de la suma.\nEn Sis2000: macattip.ptasaexc', pct: true, grupo: 'principal' },
+  { clave: 'pdescuento', titulo: 'Descuento %', ayuda: 'Descuento %, entre 0 y 100. La cotización de Nexus no lo usa hoy.\nEn Sis2000: macattip.pdescuento', pct: true, grupo: 'mas' },
+  { clave: 'precarofic', titulo: 'Recargo «ofic» %', ayuda: 'Recargo %, entre 0 y 100. La cotización y la emisión de Nexus no lo usan hoy.\nEn Sis2000: macattip.precarofic', pct: true, grupo: 'mas' },
+  { clave: 'precarinfl', titulo: 'Recargo «infl» %', ayuda: 'Recargo %, entre 0 y 100. La cotización y la emisión de Nexus no lo usan hoy.\nEn Sis2000: macattip.precarinfl', pct: true, grupo: 'mas' },
+  { clave: 'precarremo', titulo: 'Recargo «remo» %', ayuda: 'Recargo %, entre 0 y 100. La cotización y la emisión de Nexus no lo usan hoy.\nEn Sis2000: macattip.precarremo', pct: true, grupo: 'mas' },
+  { clave: 'mtoneladas', titulo: 'Monto por tonelada', ayuda: 'Monto por tonelada. La cotización de Nexus no lo usa: el recargo por tonelada de carga está fijo en el cálculo.\nEn Sis2000: macattip.mtoneladas', grupo: 'mas' },
+  { clave: 'mpuestos', titulo: 'Monto por puesto', ayuda: 'Monto por puesto. La cotización de Nexus no lo usa hoy.\nEn Sis2000: macattip.mpuestos', grupo: 'mas' },
+  { clave: 'qmaxptos', titulo: 'Puestos máximos', ayuda: 'Puestos máximos, número entero. La cotización de Nexus no lo usa hoy.\nEn Sis2000: macattip.qmaxptos', entero: true, grupo: 'mas' },
+  { clave: 'qmaxton', titulo: 'Toneladas máximas', ayuda: 'Toneladas máximas, número entero. La cotización de Nexus no lo usa hoy.\nEn Sis2000: macattip.qmaxton', entero: true, grupo: 'mas' },
 ];
 
 type Edicion = { ctipo: string; ccategotr: string; nuevo: boolean; valores: Record<string, string> };
@@ -178,7 +178,7 @@ export function TiposUsoPanel({ cramo, onCambio }: { cramo: number; onCambio?: (
   return (
     <SectionPanel
       title="Tipo y uso del vehículo"
-      description="Prima base de RCV y sumas aseguradas según el tipo de vehículo y su uso. Sin al menos un par, el plan no emite."
+      description="Prima base de RCV y sumas aseguradas según el tipo de vehículo y su uso. Ojo: esta tabla es del ramo y afecta a TODOS sus planes. Si el tipo y uso del vehículo no está aquí, no se puede cotizar ni emitir."
       icon={Car}
     >
       <div className="space-y-4 text-xs">
@@ -236,7 +236,7 @@ export function TiposUsoPanel({ cramo, onCambio }: { cramo: number; onCambio?: (
                         {Array.isArray(f.otrosRamos) && f.otrosRamos.length ? (
                           <span
                             className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900"
-                            title="El mismo tipo y uso existe en otros ramos; la emisión los busca sin ramo y puede tomar el de otro."
+                            title="Este tipo y uso también existe en otro ramo: la cotización lo busca sin mirar el ramo y puede tomar la fila del otro."
                           >
                             Ramo{' '}
                             {(f.otrosRamos as unknown[])
@@ -322,7 +322,7 @@ export function TiposUsoPanel({ cramo, onCambio }: { cramo: number; onCambio?: (
                   <div key={k}>
                     <Label htmlFor={`tu-${k}`} className="inline-flex items-center gap-1">
                       {k === 'ccober' ? 'Cobertura' : 'Tarifa'}
-                      <InfoTip text={`${k} de macattip (opcional).`} />
+                      <InfoTip text={`Opcional. ${k === 'ccober' ? 'Cobertura' : 'Tarifa'} asociada a este tipo y uso; la cotización de Nexus no la usa hoy.\nEn Sis2000: macattip.${k}`} />
                     </Label>
                     <Input
                       id={`tu-${k}`}

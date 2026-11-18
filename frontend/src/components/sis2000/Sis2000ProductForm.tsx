@@ -184,10 +184,10 @@ export function Sis2000ProductForm({ form, isNew, onPatch }: Sis2000ProductFormP
           description={
             section === 'auditoria'
               ? isNew
-                ? 'Solo ifuente/cprog en alta; el resto lo asigna Sis2000.'
-                : 'Campos devueltos por list/detail partner — editables en QA.'
+                ? 'Datos de control del registro. Al crear solo se indican el origen y el programa; fechas y usuario los pone Sis2000.'
+                : 'Datos de control del registro (origen, programa, fechas y usuario) tal como están en Sis2000. Solo se editan en QA.'
               : section === 'clasificacion' && isNew
-                ? 'xform define el tipo de emisión; cramo y ctiporamo se pueden sugerir al cambiar xform.'
+                ? 'El formulario de emisión decide qué pantalla abre SysIP para emitir este producto; al elegirlo se sugieren el ramo y su tipo.'
                 : undefined
           }
         >
@@ -199,8 +199,8 @@ export function Sis2000ProductForm({ form, isNew, onPatch }: Sis2000ProductFormP
         </SectionPanel>
       ))}
       <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        Canales, productores y proveedores no se eligen en el producto: Sis2000 los guarda por plan. Elígelos al crear o
-        editar cada plan (Planes maestro o Combos de coberturas).
+        Productores, canales, gestores y proveedores no se eligen en el producto: Sis2000 los guarda por plan. Elígelos al
+        crear o editar cada plan (Planes maestro o Combos de coberturas), en «Quién lo vende» y «Proveedores».
       </p>
     </>
   );

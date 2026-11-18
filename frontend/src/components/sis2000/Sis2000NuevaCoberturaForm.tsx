@@ -18,6 +18,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FormField, FormGrid } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { InfoTip } from '@/components/ui/info-tip';
 import { ComboBuscable } from '@/components/ui/combo-buscable';
 import { AlertaError, ResumenErrores, type ErrorDeCampo } from '@/components/ui/errores';
 import { entenderError, type ErrorEntendible } from '@/lib/errores';
@@ -266,8 +267,9 @@ export function Sis2000NuevaCoberturaForm({
       onBlurCapture={(e) => marcarTocado((e.target as HTMLElement).id)}
     >
       <p className="text-xs text-muted-foreground">
-        Se crea en Sis2000 la cobertura en este ramo junto con su tarifa: suma asegurada y tasa o prima vigentes. Sin
-        tarifa vigente una cobertura no se puede usar en un plan. Los códigos se sugieren solos.
+        Crea en Sis2000 la cobertura de este ramo junto con su tarifa (suma asegurada y tasa o prima). Una cobertura sin
+        tarifa vigente no se puede usar en un plan; en personas, incluso desaparece de la póliza al emitir. Los códigos
+        se sugieren solos.
       </p>
 
       {intento && <ResumenErrores errores={resumen} />}
@@ -292,7 +294,7 @@ export function Sis2000NuevaCoberturaForm({
             label="Nombre de la cobertura *"
             htmlFor="nc-xl"
             span={2}
-            hint="Es lo que se ve en la póliza. Ejemplo: RESPONSABILIDAD CIVIL CONTRACTUAL. Máx. 60."
+            hint="Es lo que ve el asegurado en la póliza y lo que se ve al armar planes. Ejemplo: RESPONSABILIDAD CIVIL CONTRACTUAL. Máx. 60."
             error={err('xdescripcion_l')}
           >
             <Input
@@ -307,7 +309,7 @@ export function Sis2000NuevaCoberturaForm({
           <FormField
             label="Nombre corto"
             htmlFor="nc-xc"
-            hint="Opcional, para reportes (máx. 15). Vacío = primeros 15 caracteres del nombre."
+            hint="Opcional, para reportes y listados (máx. 15). Si lo dejas vacío se usan los primeros 15 caracteres del nombre."
             error={err('xdescripcion_c')}
           >
             <Input
@@ -318,7 +320,7 @@ export function Sis2000NuevaCoberturaForm({
               onChange={(e) => cambiar('xdescripcion_c', e.target.value)}
             />
           </FormField>
-          <FormField label="Moneda *" hint="Moneda de la suma asegurada y la prima." error={err('cmoneda')}>
+          <FormField label="Moneda *" hint="Moneda en que se expresan la suma asegurada y la prima de esta cobertura. Ejemplo: USD." error={err('cmoneda')}>
             {monedas.length ? (
               <ComboBuscable
                 id="nc-cmoneda"
@@ -345,7 +347,7 @@ export function Sis2000NuevaCoberturaForm({
               />
             )}
           </FormField>
-          <FormField label="Abreviatura" htmlFor="nc-xab" hint="Opcional (máx. 5). Ejemplo: RCC." error={err('xabreviatura')}>
+          <FormField label="Abreviatura" htmlFor="nc-xab" hint="Opcional (máx. 5), para listados. Ejemplo: RCC." error={err('xabreviatura')}>
             <Input
               id="nc-xab"
               value={form.xabreviatura}
@@ -363,6 +365,9 @@ export function Sis2000NuevaCoberturaForm({
             onChange={(e) => cambiar('obligatoria', e.target.checked)}
           />
           Obligatoria (va siempre en los planes que la incluyan)
+          <InfoTip
+            text={'Obligatoria: el asegurado no puede quitarla; va siempre en la póliza. Opcional: puede contratarla o no. Se marca en la tarifa del ramo, no en el plan, así que vale para todos los planes que usen esta cobertura con esta tarifa.\nEn Sis2000: matarifa.bobligatoria'}
+          />
         </label>
         <div className="mt-4">
           <CoberturaSumaConfigFields
@@ -379,18 +384,18 @@ export function Sis2000NuevaCoberturaForm({
         <h5 className={SUBTITULO}>Tarifa: suma asegurada y precio</h5>
         {form.tipoSuma === 'CALCULADA' && (
           <p className="mb-3 text-xs text-muted-foreground">
-            Con suma calculada al emitir, la suma máxima y la tasa o prima son opcionales (quedan en 0 si las dejas
-            vacías).
+            Con suma calculada al emitir, la suma máxima y la tasa o prima son opcionales: si las dejas vacías quedan en 0,
+            porque la suma llega al emitir.
           </p>
         )}
         <FormGrid>
-          <FormField label="Vigente desde *" htmlFor="nc-fdesde" hint="Desde cuándo vale este precio." error={err('fdesde')}>
+          <FormField label="Vigente desde *" htmlFor="nc-fdesde" hint="Fecha de referencia de este precio. Ojo: al cotizar y emitir, Sis2000 usa el precio marcado vigente, no mira esta fecha." error={err('fdesde')}>
             <Input id="nc-fdesde" type="date" value={form.fdesde} onChange={(e) => cambiar('fdesde', e.target.value)} />
           </FormField>
-          <FormField label="Vigente hasta" htmlFor="nc-fhasta" hint="Vacío o 31/12/2099 si no tiene fin." error={err('fhasta')}>
+          <FormField label="Vigente hasta" htmlFor="nc-fhasta" hint="Vacío o 31/12/2099 si no tiene fin. Es referencia: para dejar de usar el precio hay que inactivarlo." error={err('fhasta')}>
             <Input id="nc-fhasta" type="date" value={form.fhasta} onChange={(e) => cambiar('fhasta', e.target.value)} />
           </FormField>
-          <FormField label="Suma asegurada mínima" htmlFor="nc-msumamin" hint="Vacío = 0. Ejemplo: 1000." error={err('msumamin')}>
+          <FormField label="Suma asegurada mínima" htmlFor="nc-msumamin" hint="Lo menos que se puede asegurar con esta cobertura. Vacío = 0. Ejemplo: 1000." error={err('msumamin')}>
             <Input
               id="nc-msumamin"
               type="number"
@@ -403,7 +408,7 @@ export function Sis2000NuevaCoberturaForm({
           <FormField
             label={form.tipoSuma === 'CALCULADA' ? 'Suma asegurada máxima' : 'Suma asegurada máxima *'}
             htmlFor="nc-msumamax"
-            hint="Mayor a 0, salvo con suma calculada al emitir. Ejemplo: 50000."
+            hint="Lo más que se puede asegurar. Mayor a 0, salvo con suma calculada al emitir. Ejemplo: 50000."
             error={err('msumamax')}
           >
             <Input
@@ -444,7 +449,7 @@ export function Sis2000NuevaCoberturaForm({
             <FormField
               label={form.tipoSuma === 'CALCULADA' ? 'Tasa %' : 'Tasa % *'}
               htmlFor="nc-pprima"
-              hint="0.5 = 0,5 % de la suma asegurada (hasta 6 decimales)."
+              hint="Porcentaje de la suma asegurada que se cobra como prima anual: 0.5 = 0,5 % (con 10.000 de suma, 50 de prima). Hasta 6 decimales."
               error={err('pprima')}
             >
               <Input
@@ -460,7 +465,7 @@ export function Sis2000NuevaCoberturaForm({
             <FormField
               label={form.tipoSuma === 'CALCULADA' ? 'Prima fija' : 'Prima fija *'}
               htmlFor="nc-mprima"
-              hint="Monto fijo, sin importar la suma asegurada. Ejemplo: 25."
+              hint="Monto anual fijo que se cobra sin importar la suma asegurada. Ejemplo: 25."
               error={err('mprima')}
             >
               <Input
@@ -484,18 +489,18 @@ export function Sis2000NuevaCoberturaForm({
         />
         {err('deducible') && <p className="mt-1 text-xs text-red-700">{err('deducible')}</p>}
         <p className="mt-1 text-[11px] text-slate-500">
-          Va en la tasa de la tarifa y es el que se usa al emitir. Si el servidor no tiene habilitados los deducibles, déjalo en «Sin
-          deducible» y agrégalo después desde la ficha del plan.
+          Parte del siniestro que asume el asegurado. Se guarda en la tarifa y es el que toma la emisión. Si el servidor no
+          tiene habilitados los deducibles, déjalo en «Sin deducible» y agrégalo después desde la ficha del plan.
         </p>
       </div>
 
       <DetallesTecnicos titulo="Códigos y datos internos (opcional)" abierto={errorEnCodigos}>
-        <p>Se sugieren solos. Cámbialos solo si Técnico o Reaseguro te lo piden.</p>
+        <p>Se sugieren solos. Cámbialos solo si Técnica o Reaseguro te lo piden.</p>
         <FormGrid>
           <FormField
             label="Código de la cobertura *"
             htmlFor="nc-ccobertura"
-            hint="Hasta 4 letras o números; se sugiere el siguiente libre del ramo."
+            hint="Hasta 4 letras o números, único en el ramo. Se sugiere el siguiente libre."
             error={err('ccobertura')}
           >
             <Input
@@ -506,7 +511,7 @@ export function Sis2000NuevaCoberturaForm({
               onChange={(e) => cambiar('ccobertura', e.target.value)}
             />
           </FormField>
-          <FormField label="Código de la tarifa *" htmlFor="nc-ctarifa" hint="Lo normal es 1." error={err('ctarifa')}>
+          <FormField label="Código de la tarifa *" htmlFor="nc-ctarifa" hint="Lo normal es 1. Una misma cobertura puede tener más de una tarifa; el plan elige cuál usa." error={err('ctarifa')}>
             <Input id="nc-ctarifa" value={form.ctarifa} maxLength={4} onChange={(e) => cambiar('ctarifa', e.target.value)} />
           </FormField>
           <FormField
@@ -525,7 +530,7 @@ export function Sis2000NuevaCoberturaForm({
           <FormField
             label="Copiar datos internos de"
             htmlFor="nc-basada"
-            hint="Escribe el nombre o código de una cobertura parecida del ramo para tomar su ramo y cobertura internos."
+            hint="Elige una cobertura parecida del ramo para copiar su ramo y cobertura internos (la equivalencia que usan los cálculos)."
           >
             <ComboBuscable
               id="nc-basada"
@@ -543,7 +548,12 @@ export function Sis2000NuevaCoberturaForm({
               ]}
             />
           </FormField>
-          <FormField label="Ramo interno" htmlFor="nc-cramoint" error={err('cramoint')}>
+          <FormField
+            label="Ramo interno"
+            htmlFor="nc-cramoint"
+            tooltip={'Ramo de referencia al que pertenece la cobertura interna (ver «Cobertura interna»). Normalmente se copia de una cobertura parecida.\nEn Sis2000: macoberturas.cramoint'}
+            error={err('cramoint')}
+          >
             <Input
               id="nc-cramoint"
               inputMode="numeric"
@@ -552,7 +562,12 @@ export function Sis2000NuevaCoberturaForm({
               onChange={(e) => cambiar('cramoint', e.target.value)}
             />
           </FormField>
-          <FormField label="Cobertura interna" htmlFor="nc-ccobint" error={err('ccoberturaint')}>
+          <FormField
+            label="Cobertura interna"
+            htmlFor="nc-ccobint"
+            tooltip={'Dice a qué cobertura «estándar» equivale esta. En auto es clave: si no apunta a la equivalente del ramo 18, el cálculo usa la fórmula general. Ejemplo: 15 = Daños a personas y 17 = Daños a cosas (RCV), que se cobran completas en la 1ª cuota.\nEn Sis2000: macoberturas.ccoberturaint'}
+            error={err('ccoberturaint')}
+          >
             <Input
               id="nc-ccobint"
               inputMode="numeric"
@@ -564,7 +579,7 @@ export function Sis2000NuevaCoberturaForm({
           <FormField
             label="Contrato de reaseguro"
             htmlFor="nc-ccontrea"
-            hint="Opcional. Pídelo a Reaseguro si la cobertura se cede."
+            hint="Pídelo a Reaseguro si la cobertura se cede. La revisión del plan avisa si queda vacío."
             error={err('ccontrea')}
           >
             <Input
@@ -575,7 +590,7 @@ export function Sis2000NuevaCoberturaForm({
               onChange={(e) => cambiar('ccontrea', e.target.value)}
             />
           </FormField>
-          <FormField label="Ramo de reaseguro" htmlFor="nc-cramorea" hint="Opcional." error={err('cramorea')}>
+          <FormField label="Ramo de reaseguro" htmlFor="nc-cramorea" hint="Va junto con el contrato de reaseguro; lo indica Reaseguro." error={err('cramorea')}>
             <Input
               id="nc-cramorea"
               inputMode="numeric"

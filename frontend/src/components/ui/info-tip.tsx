@@ -3,11 +3,13 @@ import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const ANCHO = 280;
+const ANCHO = 300;
+const PREFIJO_TABLA = 'En Sis2000:';
 
 /**
  * Ícono (i) junto al título de un campo: explica qué hace al pasar el mouse o enfocarlo con teclado.
  * Se pinta en document.body para que no lo recorten las tarjetas con overflow-hidden.
+ * Cada salto de línea es un párrafo; la línea que empieza con «En Sis2000:» (tabla.campo) sale aparte y discreta.
  */
 export function InfoTip({ text, className }: { text: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -47,7 +49,21 @@ export function InfoTip({ text, className }: { text: string; className?: string 
             style={{ top: pos.top, left: pos.left, width: ANCHO }}
             className="pointer-events-none fixed z-[100] rounded-lg bg-slate-900 px-3 py-2 text-[0.72rem] font-normal leading-relaxed text-white shadow-lg"
           >
-            {text}
+            {text
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .map((linea, i) =>
+                linea.startsWith(PREFIJO_TABLA) ? (
+                  <span key={i} className="mt-1.5 block border-t border-white/15 pt-1 text-[0.66rem] text-slate-400">
+                    {linea}
+                  </span>
+                ) : (
+                  <span key={i} className={cn('block', i > 0 && 'mt-1')}>
+                    {linea}
+                  </span>
+                ),
+              )}
           </span>,
           document.body,
         )}

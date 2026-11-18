@@ -19,9 +19,9 @@ import { TablaEditable, type ColumnaEditable, type FilaTexto } from './TablaEdit
 import { CampoMotivo, DialogoConfirmarEscritura, EstadoEscritura, useEscritura } from './EscrituraConfirmada';
 
 const TABLAS: Array<{ id: TablaCondominio; titulo: string; resumen: string; tabla: string }> = [
-  { id: 'antiguedad', titulo: 'Antigüedad', resumen: 'Tasa según la antigüedad del inmueble y su uso.', tabla: 'MATARIFA_ANTIGUEDAD_NEXUS' },
-  { id: 'reparto', titulo: 'Reparto', resumen: 'Cómo se reparte la prima entre coberturas; los de tipo P suman 100.', tabla: 'MATARIFA_REPARTO_NEXUS' },
-  { id: 'rango', titulo: 'Rango de tasas', resumen: 'Tasa mínima y máxima permitida por cobertura y tarifa.', tabla: 'MATARIFA_RANGO_NEXUS' },
+  { id: 'antiguedad', titulo: 'Antigüedad', resumen: 'Tasa global según el año de construcción del inmueble y su uso (C o R). Un cambio afecta a todos los planes de condominio del ramo.', tabla: 'MATARIFA_ANTIGUEDAD_NEXUS' },
+  { id: 'reparto', titulo: 'Reparto', resumen: 'Cómo se reparte la tasa global entre las coberturas: las de tipo P deben sumar 100; F es una parte fija y M un monto fijo.', tabla: 'MATARIFA_REPARTO_NEXUS' },
+  { id: 'rango', titulo: 'Rango de tasas', resumen: 'Tasa mínima y máxima que se acepta al cotizar cada cobertura; fuera de ese rango la cotización se rechaza.', tabla: 'MATARIFA_RANGO_NEXUS' },
 ];
 
 const filaVacia = (tabla: TablaCondominio): FilaTexto => Object.fromEntries(COLUMNAS_CONDOMINIO[tabla].map((c) => [c.clave, '']));
@@ -33,7 +33,7 @@ const filaVacia = (tabla: TablaCondominio): FilaTexto => Object.fromEntries(COLU
 export function CondominioPanel({ cramo, soloLectura, onCambio }: { cramo: number; soloLectura?: boolean; onCambio?: () => void }) {
   const [tabla, setTabla] = useState<TablaCondominio>('antiguedad');
   return (
-    <SectionPanel title="Tarifa de condominio" description="Tasas por antigüedad, reparto entre coberturas y rangos de tasa del ramo." icon={Building2}>
+    <SectionPanel title="Tarifa de condominio" description="Tarifa de condominio del ramo: tasa por antigüedad del inmueble, reparto de esa tasa entre coberturas y rango permitido de tasa. Son valores del ramo: afectan a todos sus planes de condominio." icon={Building2}>
       <div className="space-y-4 text-xs">
         <div role="note" className="alert-banner border-amber-300 bg-amber-50 text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -115,7 +115,7 @@ function TablaCondominioEditor({
   const columnas: ColumnaEditable[] = COLUMNAS_CONDOMINIO[tabla].map((c) => ({
     clave: c.clave,
     titulo: c.titulo,
-    ayuda: `${c.ayuda} Tabla ${info.tabla}.`,
+    ayuda: c.ayuda,
     tipo: c.tipo,
   }));
   const validacion = filas && intento ? validarCondominio(tabla, filas) : { filas: [], tabla: null };

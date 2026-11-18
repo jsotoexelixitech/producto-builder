@@ -86,32 +86,32 @@ export function CoberturaEditor({
       <p className="font-semibold text-slate-800">Editar la cobertura</p>
       <AlertaError error={error} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <FormField label="Nombre *" htmlFor={id('xl')} error={errores.xdescripcion_l} span={2} tooltip="Sis2000: macoberturas.xdescripcion_l">
+        <FormField label="Nombre *" htmlFor={id('xl')} error={errores.xdescripcion_l} span={2} tooltip={'Nombre de la cobertura como sale en la cotización, la póliza y SysIP. Máximo 60 caracteres. Ejemplo: DAÑOS A COSAS.\nEn Sis2000: macoberturas.xdescripcion_l'}>
           <Input id={id('xl')} value={form.xdescripcion_l} onChange={(e) => cambiar('xdescripcion_l', e.target.value)} />
         </FormField>
-        <FormField label="Nombre corto" htmlFor={id('xc')} error={errores.xdescripcion_c} tooltip="Sis2000: macoberturas.xdescripcion_c">
+        <FormField label="Nombre corto" htmlFor={id('xc')} error={errores.xdescripcion_c} tooltip={'Nombre corto para listados y reportes (hasta 15 caracteres).\nEn Sis2000: macoberturas.xdescripcion_c'}>
           <Input id={id('xc')} value={form.xdescripcion_c} onChange={(e) => cambiar('xdescripcion_c', e.target.value)} />
         </FormField>
-        <FormField label="Abreviatura" htmlFor={id('xab')} error={errores.xabreviatura} tooltip="Sis2000: macoberturas.xabreviatura">
+        <FormField label="Abreviatura" htmlFor={id('xab')} error={errores.xabreviatura} tooltip={'Abreviatura de la cobertura para listados y reportes.\nEn Sis2000: macoberturas.xabreviatura'}>
           <Input id={id('xab')} value={form.xabreviatura} onChange={(e) => cambiar('xabreviatura', e.target.value)} />
         </FormField>
         <FormField
           label="Contrato de reaseguro"
           htmlFor={id('ccontrea')}
           error={errores.ccontrea}
-          hint="Vacío = sin contrato."
-          tooltip="Sis2000: macoberturas.ccontrea"
+          hint="Vacío = sin contrato; la revisión del plan lo marca como pendiente."
+          tooltip={'Contrato de reaseguro al que se cede esta cobertura al emitir. Lo debe indicar Reaseguro; sin contrato la revisión del plan avisa que falta.\nEn Sis2000: macoberturas.ccontrea'}
         >
           <Input id={id('ccontrea')} inputMode="numeric" value={form.ccontrea} onChange={(e) => cambiar('ccontrea', e.target.value)} />
         </FormField>
-        <FormField label="Ramo de reaseguro" htmlFor={id('cramorea')} error={errores.cramorea} tooltip="Sis2000: macoberturas.cramorea">
+        <FormField label="Ramo de reaseguro" htmlFor={id('cramorea')} error={errores.cramorea} tooltip={'Ramo de reaseguro del contrato; va junto con el contrato.\nEn Sis2000: macoberturas.cramorea'}>
           <Input id={id('cramorea')} inputMode="numeric" value={form.cramorea} onChange={(e) => cambiar('cramorea', e.target.value)} />
         </FormField>
         <FormField
           label="Estado"
           htmlFor={id('estado')}
-          hint={!form.activa ? 'Inactiva: deja de aparecer para planes nuevos; los planes que ya la tienen no cambian.' : undefined}
-          tooltip="Sis2000: macoberturas.iestado (V / I)"
+          hint={!form.activa ? 'Inactiva: ya no se puede agregar a planes; los planes que ya la tienen no cambian.' : undefined}
+          tooltip={'Activa: se puede agregar a planes. Inactiva: deja de ofrecerse para planes nuevos; los que ya la tienen no cambian. Es del ramo: vale para todos sus planes.\nEn Sis2000: macoberturas.iestado (V = activa, I = inactiva)'}
         >
           <select
             id={id('estado')}

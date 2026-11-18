@@ -53,13 +53,13 @@ function tablasPorParentesco(plan: Fila | null): Map<string, string[]> {
 }
 
 const CAMPOS: Array<{ clave: keyof EdadParentesco; titulo: string; ayuda: string; mas?: boolean }> = [
-  { clave: 'cemin_ase', titulo: 'Edad mínima', ayuda: 'Edad mínima para asegurarse con este parentesco (cemin_ase).' },
-  { clave: 'cemax_ase', titulo: 'Edad máxima', ayuda: 'Edad máxima para asegurarse con este parentesco (cemax_ase).' },
-  { clave: 'cemin_gi', titulo: 'Edad mínima de grupo', ayuda: 'cemin_gi (opcional).', mas: true },
-  { clave: 'cemax_gi', titulo: 'Edad máxima de grupo', ayuda: 'cemax_gi (opcional).', mas: true },
-  { clave: 'msvitalicia', titulo: 'Suma vitalicia', ayuda: 'msvitalicia (opcional).', mas: true },
-  { clave: 'cereduccion', titulo: 'Edad de reducción', ayuda: 'Edad desde la que se reduce la suma (cereduccion, opcional).', mas: true },
-  { clave: 'msreducida', titulo: 'Suma reducida', ayuda: 'msreducida (opcional).', mas: true },
+  { clave: 'cemin_ase', titulo: 'Edad mínima', ayuda: 'Edad mínima para entrar al plan con este parentesco. La cotización rechaza a quien tenga menos. Ejemplo: 0 para hijos.\nEn Sis2000: mapledades_per.cemin_ase' },
+  { clave: 'cemax_ase', titulo: 'Edad máxima', ayuda: 'Edad máxima para entrar al plan con este parentesco. La cotización rechaza a quien tenga más. Ejemplo: 74 para titular. Las tablas de edad deben cubrir hasta aquí: fuera de tramo la prima queda en 0.\nEn Sis2000: mapledades_per.cemax_ase' },
+  { clave: 'cemin_gi', titulo: 'Edad mínima de grupo', ayuda: 'Opcional. Edad mínima de grupo; hoy la cotización y la emisión de Nexus no la usan.\nEn Sis2000: mapledades_per.cemin_gi', mas: true },
+  { clave: 'cemax_gi', titulo: 'Edad máxima de grupo', ayuda: 'Opcional. Edad máxima de grupo; hoy la cotización y la emisión de Nexus no la usan.\nEn Sis2000: mapledades_per.cemax_gi', mas: true },
+  { clave: 'msvitalicia', titulo: 'Suma vitalicia', ayuda: 'Opcional. Suma vitalicia del parentesco; hoy la cotización y la emisión de Nexus no la usan.\nEn Sis2000: mapledades_per.msvitalicia', mas: true },
+  { clave: 'cereduccion', titulo: 'Edad de reducción', ayuda: 'Opcional. Edad desde la que se reduce la suma asegurada; hoy la cotización y la emisión de Nexus no la usan.\nEn Sis2000: mapledades_per.cereduccion', mas: true },
+  { clave: 'msreducida', titulo: 'Suma reducida', ayuda: 'Opcional. Suma asegurada reducida desde la edad de reducción; hoy la cotización y la emisión de Nexus no la usan.\nEn Sis2000: mapledades_per.msreducida', mas: true },
 ];
 
 /**
@@ -168,7 +168,7 @@ export function EdadesParentescoPanel({
   return (
     <SectionPanel
       title="Edades por parentesco"
-      description="Desde qué edad y hasta qué edad se puede asegurar cada parentesco (titular, cónyuge, hijos…)."
+      description="Edad de entrada de cada parentesco (titular, cónyuge, hijos…). Solo la valida la cotización: un parentesco sin fila aquí no se puede cotizar en este plan."
       icon={Users}
     >
       <div className="space-y-4 text-xs">

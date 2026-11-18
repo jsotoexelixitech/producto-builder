@@ -189,7 +189,7 @@ export function QuienVendePanel({ planId, soloLectura, onCambio }: { planId: str
   return (
     <SectionPanel
       title="Quién lo vende"
-      description="Productores, canales y gestores que pueden ofrecer el plan («incluye») o que no pueden («excluye»)."
+      description="Qué productores, canales y gestores pueden emitir el plan («incluye») y cuáles no («excluye»). «Todos» = una fila sin código que abre el plan a toda esa entidad. Sin al menos un «incluye», nadie puede ofrecer el plan."
       icon={Users}
     >
       <div className="space-y-4 text-xs">
@@ -308,13 +308,13 @@ export function QuienVendePanel({ planId, soloLectura, onCambio }: { planId: str
                     <th className="px-3 py-2">Entidad</th>
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
-                        Código <InfoTip text="Código del productor, canal o gestor (citem). «Todos» = sin código." />
+                        Código <InfoTip text={'Código del productor, canal o gestor. «Todos» = fila sin código: aplica a todos los de esa entidad.\nEn Sis2000: mausuplan.citem (vacío = todos)'} />
                       </span>
                     </th>
                     <th className="px-3 py-2">Nombre</th>
                     <th className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
-                        Incluye / excluye <InfoTip text="itipouso: A = incluye, E = excluye." />
+                        Incluye / excluye <InfoTip text={'Incluye: puede ofrecer el plan. Excluye: queda fuera aunque esté incluido por «Todos». Ejemplo: todos los productores menos uno.\nEn Sis2000: mausuplan.itipouso (A = incluye, E = excluye)'} />
                       </span>
                     </th>
                   </tr>
@@ -436,7 +436,7 @@ export function QuienVendePanel({ planId, soloLectura, onCambio }: { planId: str
                 <div>
                   <Label htmlFor="qv-a-cod" className="inline-flex items-center gap-1">
                     Códigos
-                    <InfoTip text="Pega los códigos separados por coma, espacio o salto de línea. Los repetidos que ya estén se ignoran." />
+                    <InfoTip text={'Pega los códigos separados por coma, espacio o salto de línea. Los que ya estén cargados se ignoran. Ejemplo: 1234, 5678.\nEn Sis2000: mausuplan.citem'} />
                   </Label>
                   <textarea
                     id="qv-a-cod"
@@ -457,7 +457,7 @@ export function QuienVendePanel({ planId, soloLectura, onCambio }: { planId: str
 
             <div className="space-y-3 rounded-xl border border-dashed border-slate-200 p-3">
               <p className="font-semibold text-slate-800">Quitar por códigos</p>
-              <p className="text-slate-500">También puedes marcar filas en la lista de arriba. Se borran las filas; antes queda copia en el historial.</p>
+              <p className="text-slate-500">También puedes marcar filas en la lista de arriba. Las filas se borran (esta tabla no tiene estado); antes queda copia en el historial.</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="qv-b-ent">Entidad</Label>

@@ -156,7 +156,7 @@ export function ComisionesPanel({
   return (
     <SectionPanel
       title="Comisiones"
-      description="Porcentaje que se paga al intermediario. «Todas» o «Todos» = aplica a cualquier cobertura, tarifa o productor."
+      description="Porcentaje de la prima que se paga al productor por cada póliza del plan. Si no hay comisión vigente que aplique, se emite con 0 %. «Todas» o «Todos» = cualquier cobertura, tarifa o productor."
       icon={Percent}
     >
       <div className="space-y-4 text-xs">
@@ -261,12 +261,12 @@ export function ComisionesPanel({
         <div className="space-y-3 rounded-xl border border-dashed border-slate-200 p-3">
           <p className="font-semibold text-slate-800">Agregar comisión a este plan</p>
           <div className="grid gap-3 sm:grid-cols-3">
-            {campo('ctipoprod', 'Tipo de intermediario', 'Código del tipo de intermediario en Sis2000 (ctipoprod), p. ej. 1.', { placeholder: '1' })}
-            {campo('cproductor', 'Productor', 'Código del productor. Vacío o 0 = todos los productores (cproductor).', { placeholder: 'Todos' })}
+            {campo('ctipoprod', 'Tipo de intermediario', 'Tipo de intermediario al que aplica la comisión. Ejemplo: 1. Las comisiones generales del ramo usan 0 (cualquier tipo).\nEn Sis2000: maarancel.ctipoprod', { placeholder: '1' })}
+            {campo('cproductor', 'Productor', 'Productor puntual que cobra este porcentaje. Vacío o 0 = todos los productores. Ejemplo: una comisión especial para un solo productor.\nEn Sis2000: maarancel.cproductor', { placeholder: 'Todos' })}
             <div>
               <Label htmlFor="com-ccober" className="inline-flex items-center gap-1">
                 Cobertura
-                <InfoTip text="«Todas» guarda 0 (ccober = '0'): aplica a cualquier cobertura del plan." />
+                <InfoTip text={'Cobertura a la que aplica el porcentaje. «Todas» = cualquier cobertura del plan. Evita dos comisiones vigentes para la misma cobertura: la emisión tomaría una sola y no se sabe cuál.\nEn Sis2000: maarancel.ccober (0 = todas)'} />
               </Label>
               <select
                 id="com-ccober"
@@ -285,9 +285,9 @@ export function ComisionesPanel({
                 ))}
               </select>
             </div>
-            {campo('ctarifa', 'Tarifa', 'Código de la tarifa. Vacío = todas las tarifas (ctarifa = \'0\').', { placeholder: 'Todas' })}
-            {campo('fdesde', 'Desde', 'Primer día en que aplica la comisión.', { type: 'date' })}
-            {campo('pcomision', 'Comisión %', 'Porcentaje entre 0 y 100, hasta 2 decimales (pcomision).', { placeholder: '10' })}
+            {campo('ctarifa', 'Tarifa', 'Tarifa a la que aplica el porcentaje. Vacío = todas las tarifas.\nEn Sis2000: maarancel.ctarifa (0 = todas)', { placeholder: 'Todas' })}
+            {campo('fdesde', 'Desde', 'Fecha desde la que rige la comisión. La emisión no mira fechas, solo que esté vigente: para cambiar un porcentaje, da de baja la actual y agrega la nueva.\nEn Sis2000: maarancel.fdesde', { type: 'date' })}
+            {campo('pcomision', 'Comisión %', 'Porcentaje de la prima para el productor, entre 0 y 100 con hasta 2 decimales. Ejemplo: 10 = 10 % de la prima.\nEn Sis2000: maarancel.pcomision', { placeholder: '10' })}
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px] flex-1">

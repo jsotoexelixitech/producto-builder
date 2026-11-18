@@ -130,7 +130,7 @@ export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, tit
   return (
     <SectionPanel
       title={titulo}
-      description="Antes de cada cambio en Sis2000 se guarda una copia de lo que había. La copia original no se sobreescribe."
+      description="Antes de cada cambio que el configurador hace en Sis2000 se guarda una copia de cómo estaba, con quién lo hizo y el motivo. La primera copia (la original) nunca se reemplaza, así siempre se puede volver al punto de partida. Las copias viven en el configurador; en Sis2000 el cambio queda firmado como NEXUS-CONFIG."
       icon={History}
       className={cn('mt-6', className)}
     >

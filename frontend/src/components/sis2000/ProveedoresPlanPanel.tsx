@@ -298,7 +298,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   return (
     <SectionPanel
       title="Proveedores"
-      description="El proveedor aplica a todo el plan; al emitir pólizas de personas se registra en cada póliza. Dar de baja cierra la vigencia, no borra."
+      description="Clínicas y proveedores de servicio del plan de personas. Valen para todo el plan: al emitir, cada proveedor vigente a la fecha de inicio de la póliza queda registrado en esa póliza. Dar de baja cierra la vigencia (fecha hasta), no borra."
       icon={Truck}
       className={cn('mt-6', className)}
     >
@@ -506,7 +506,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
               {elegido && clavesDelProveedor(elegido).length === 1 ? (
                 <div>
                   <Label htmlFor="prov-clave">Clave del proveedor</Label>
-                  <Input id="prov-clave" value={form.cclave_num} readOnly disabled title="El proveedor tiene una sola clave" />
+                  <Input id="prov-clave" value={form.cclave_num} readOnly disabled title="Este proveedor tiene una sola clave registrada; se usa esa" />
                 </div>
               ) : elegido && clavesDelProveedor(elegido).length > 1 ? (
                 <div>

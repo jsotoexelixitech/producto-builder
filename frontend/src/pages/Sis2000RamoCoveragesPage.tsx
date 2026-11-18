@@ -58,7 +58,8 @@ export function Sis2000RamoCoveragesPage() {
             Coberturas ramo {cramo}
           </h1>
           <p className="text-xs text-muted-foreground">
-            nest-api GET /api/v1/coberturas/{cramo} → macoberturas
+            Coberturas que existen en este ramo de Sis2000. Cualquier plan del ramo puede usarlas, siempre que tengan una
+            tarifa vigente.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

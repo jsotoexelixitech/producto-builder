@@ -111,7 +111,7 @@ function ProductFieldDisplay({
       )}
       {iconName && iconFailed && (
         <p className="mt-2 text-[10px] text-muted-foreground">
-          Icono Sis2000 ({iconName}): copia el archivo en{' '}
+          No se encontró la imagen del ícono ({iconName}). Para verla aquí, copia el archivo en{' '}
           <span className="font-mono">frontend/public/sis2000-icons/</span> y vuelve a cargar.
         </p>
       )}

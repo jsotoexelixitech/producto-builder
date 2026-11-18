@@ -155,7 +155,7 @@ export function Sis2000PlanFichaPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {!soloLectura && (
-            <Link to={editarPlan} title="El asistente de planes (Combos) con este plan cargado">
+            <Link to={editarPlan} title="Abre el asistente de planes con este plan cargado: coberturas, sumas, tasas o primas, formas de pago y quién lo ofrece">
               <Button type="button" variant="outline" size="sm">
                 <Pencil className="h-3.5 w-3.5" />
                 Asistente de planes
@@ -166,7 +166,7 @@ export function Sis2000PlanFichaPage() {
             <Link
               to={modoAvanzado}
               className="self-center text-xs text-muted-foreground underline-offset-2 hover:underline"
-              title="Editor del plan completo en JSON, para casos que las pestañas no cubren"
+              title="Editor del plan completo en formato técnico (JSON), solo para casos que las pestañas no cubren"
             >
               Modo avanzado (JSON)
             </Link>
@@ -370,7 +370,7 @@ function Seccion({
       return <RevisionPlanPanel planId={id} onIrSeccion={onIrSeccion} recargar={cambios} />;
     case 'tarifas':
       return (
-        <SectionPanel title="Tarifas y tasas" description="Cada cobertura cobra según su tarifa; la tasa vigente es la que se usa al emitir.">
+        <SectionPanel title="Tarifas y tasas" description="Cada cobertura cobra según su tarifa del ramo. Debe haber una sola tasa vigente por tarifa: cotización y emisión toman la vigente y no miran sus fechas. Dos tasas vigentes duplican la prima y ninguna la pierde.">
           <ul className="space-y-2 text-xs">
             {coberturas.map((c) => (
               <li key={`${c.ccobertura}|${c.ctarifa}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3">
@@ -414,7 +414,7 @@ function TablasEdadDelPlan({ plan, editarPlan, soloLectura }: { plan: Fila | nul
   );
   const tablas = [...new Set(usos.map((u) => u.ctablatar).filter(Boolean))];
   return (
-    <SectionPanel title="Tablas de edad" description="Tasas por edad que usan las coberturas del plan. Se asignan por parentesco en «Coberturas».">
+    <SectionPanel title="Tablas de edad" description="Tablas de prima o tasa por tramo de edad que usan las coberturas del plan; se asignan por parentesco en «Coberturas». Si una edad no cae en ningún tramo, esa persona queda con prima 0.">
       {tablas.length ? (
         <ul className="space-y-2 text-xs">
           {tablas.map((t) => (
