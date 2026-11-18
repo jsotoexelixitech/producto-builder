@@ -120,8 +120,16 @@ export interface ErrorTramo {
 }
 
 export interface OpcionesTramos {
-  /** El primer tramo debe empezar aquí (antigüedad: 0). Sin valor, puede empezar donde sea. */
+  /** Inicio por defecto del primer tramo (tramo nuevo y carga rápida). Si no hay `inicios`, el primero debe empezar aquí. */
   inicio?: number;
+  /** Inicios permitidos del primer tramo (antigüedad: -1 o 0). Sin valor se usa `inicio`; sin ninguno, empieza donde sea. */
+  inicios?: number[];
+  /** Menor valor de desde/hasta (por defecto 0; antigüedad: -1 = vehículo del año siguiente). */
+  minimo?: number;
+  /** Aviso (no error) si el último tramo termina antes de este valor. */
+  avisoSiTerminaAntesDe?: number;
+  /** Texto del aviso; `{hasta}` se reemplaza por el último «hasta». */
+  textoAviso?: string;
   /** Nombre del valor para los mensajes («la tasa», «la prima»). */
   nombreValor?: string;
   /** Unidad de desde/hasta para los mensajes («años»). */
@@ -133,32 +141,35 @@ export interface OpcionesTramos {
 }
 
 const esEntero = (v: string) => /^\d+$/.test(v.trim());
+const esEnteroDesde = (v: string, minimo: number) => /^-?\d+$/.test(v.trim()) && Number(v) >= minimo;
 
 /**
  * Valida tramos sin huecos ni solapes: enteros, hasta ≥ desde, el siguiente empieza en hasta + 1 y el valor es un
  * número mayor que 0. Los tramos se revisan en el orden en que están (el editor los ordena al agregar).
  */
 export function validarTramos(tramos: TramoEditable[], opciones: OpcionesTramos = {}): ErrorTramo[] {
-  const { inicio, nombreValor = 'el valor', unidad = '', valorPositivo = true, valorMaximo } = opciones;
+  const { inicio, inicios, minimo = 0, nombreValor = 'el valor', unidad = '', valorPositivo = true, valorMaximo } = opciones;
+  const permitidos = inicios ?? (inicio !== undefined ? [inicio] : undefined);
   const u = unidad ? ` ${unidad}` : '';
   const errores: ErrorTramo[] = [];
   if (!tramos.length) return [{ indice: -1, campo: 'tabla', mensaje: 'Agrega al menos un tramo.' }];
+  const entero = (v: string) => esEnteroDesde(v, minimo);
   tramos.forEach((t, i) => {
     const n = i + 1;
-    let desdeOk = esEntero(t.desde);
-    const hastaOk = esEntero(t.hasta);
-    if (!desdeOk) errores.push({ indice: i, campo: 'desde', mensaje: `Tramo ${n}: «desde» debe ser un número entero de 0 o más.` });
-    if (!hastaOk) errores.push({ indice: i, campo: 'hasta', mensaje: `Tramo ${n}: «hasta» debe ser un número entero de 0 o más.` });
+    let desdeOk = entero(t.desde);
+    const hastaOk = entero(t.hasta);
+    if (!desdeOk) errores.push({ indice: i, campo: 'desde', mensaje: `Tramo ${n}: «desde» debe ser un número entero de ${minimo} o más.` });
+    if (!hastaOk) errores.push({ indice: i, campo: 'hasta', mensaje: `Tramo ${n}: «hasta» debe ser un número entero de ${minimo} o más.` });
     const desde = Number(t.desde);
     const hasta = Number(t.hasta);
     if (desdeOk && hastaOk && hasta < desde) {
       errores.push({ indice: i, campo: 'hasta', mensaje: `Tramo ${n}: «hasta» (${hasta}${u}) no puede ser menor que «desde» (${desde}${u}).` });
     }
-    if (i === 0 && desdeOk && inicio !== undefined && desde !== inicio) {
-      errores.push({ indice: 0, campo: 'desde', mensaje: `El primer tramo debe empezar en ${inicio}${u}.` });
+    if (i === 0 && desdeOk && permitidos && !permitidos.includes(desde)) {
+      errores.push({ indice: 0, campo: 'desde', mensaje: `El primer tramo debe empezar en ${permitidos.join(' o ')}${u}.` });
       desdeOk = false;
     }
-    if (i > 0 && desdeOk && esEntero(tramos[i - 1].hasta)) {
+    if (i > 0 && desdeOk && entero(tramos[i - 1].hasta)) {
       const esperado = Number(tramos[i - 1].hasta) + 1;
       if (desde > esperado) {
         errores.push({
@@ -186,18 +197,34 @@ export function validarTramos(tramos: TramoEditable[], opciones: OpcionesTramos 
   return errores;
 }
 
+/**
+ * Avisos que no impiden guardar: si el último tramo termina antes de `avisoSiTerminaAntesDe` (antigüedad: los
+ * vehículos más viejos no podrán cotizar el plan).
+ */
+export function avisosTramos(tramos: TramoEditable[], opciones: OpcionesTramos = {}): string[] {
+  const { avisoSiTerminaAntesDe: tope, minimo = 0, unidad = '' } = opciones;
+  if (tope === undefined || !tramos.length) return [];
+  const hastas = tramos.map((t) => t.hasta).filter((h) => esEnteroDesde(h, minimo)).map(Number);
+  if (!hastas.length) return [];
+  const ultimo = Math.max(...hastas);
+  if (ultimo >= tope) return [];
+  const u = unidad ? ` ${unidad}` : '';
+  return [(opciones.textoAviso ?? `El último tramo llega hasta {hasta}${u}.`).replace(/\{hasta\}/g, String(ultimo))];
+}
+
 /** Tramo siguiente al último (empieza en hasta + 1, mismo ancho). */
 export function siguienteTramo(tramos: TramoEditable[], inicio = 0): TramoEditable {
   const ultimo = tramos[tramos.length - 1];
-  if (!ultimo || !esEntero(ultimo.hasta)) return { desde: String(inicio), hasta: '', valor: '' };
+  const entero = (v: string) => /^-?\d+$/.test(v.trim());
+  if (!ultimo || !entero(ultimo.hasta)) return { desde: String(inicio), hasta: '', valor: '' };
   const desde = Number(ultimo.hasta) + 1;
-  const ancho = esEntero(ultimo.desde) ? Math.max(0, Number(ultimo.hasta) - Number(ultimo.desde)) : 0;
+  const ancho = entero(ultimo.desde) ? Math.max(0, Number(ultimo.hasta) - Number(ultimo.desde)) : 0;
   return { desde: String(desde), hasta: String(desde + ancho), valor: '' };
 }
 
 /** Tramos de `ancho` en `ancho` entre desde y hasta, con el mismo valor (vacío si no se da). */
-export function generarTramosPorAncho(desde: number, hasta: number, ancho: number, valor = ''): TramoEditable[] {
-  if (![desde, hasta, ancho].every(Number.isInteger) || desde < 0 || hasta < desde || ancho < 1) return [];
+export function generarTramosPorAncho(desde: number, hasta: number, ancho: number, valor = '', minimo = 0): TramoEditable[] {
+  if (![desde, hasta, ancho].every(Number.isInteger) || desde < minimo || hasta < desde || ancho < 1) return [];
   const out: TramoEditable[] = [];
   for (let d = desde; d <= hasta && out.length < 100; d += ancho) {
     out.push({ desde: String(d), hasta: String(Math.min(d + ancho - 1, hasta)), valor });

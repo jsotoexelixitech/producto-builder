@@ -3,8 +3,10 @@ import { Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert } from '@/components/ui/alert';
 import { ResumenErrores } from '@/components/ui/errores';
 import {
+  avisosTramos,
   generarTramosPorAncho,
   siguienteTramo,
   validarTramos,
@@ -23,6 +25,8 @@ export interface TramosEditorProps extends OpcionesTramos {
   etiquetaDesde?: string;
   etiquetaHasta?: string;
   etiquetaValor?: string;
+  /** Ayuda de la columna «desde» (p. ej. «-1 = vehículo del año siguiente»). */
+  ayudaDesde?: string;
   ayudaValor?: string;
   /** Muestra los errores (después del primer intento de guardar, para no regañar mientras se escribe). */
   mostrarErrores?: boolean;
@@ -41,6 +45,7 @@ export function TramosEditor({
   etiquetaDesde = 'Desde',
   etiquetaHasta = 'Hasta',
   etiquetaValor = 'Valor',
+  ayudaDesde,
   ayudaValor,
   mostrarErrores = true,
   deshabilitado,
@@ -48,6 +53,7 @@ export function TramosEditor({
 }: TramosEditorProps) {
   const inicio = opciones.inicio ?? 0;
   const errores = useMemo(() => validarTramos(tramos, opciones), [tramos, opciones]);
+  const avisos = useMemo(() => (errores.length ? [] : avisosTramos(tramos, opciones)), [errores, tramos, opciones]);
   const porFila = useMemo(() => {
     const out: Array<Record<string, string>> = tramos.map(() => ({}));
     for (const e of errores) {
@@ -64,7 +70,7 @@ export function TramosEditor({
   const filas: FilaTexto[] = tramos.map((t) => ({ desde: t.desde, hasta: t.hasta, valor: t.valor }));
   const aTramos = (f: FilaTexto[]): TramoEditable[] => f.map((x) => ({ desde: x.desde ?? '', hasta: x.hasta ?? '', valor: x.valor ?? '' }));
 
-  const generados = generarTramosPorAncho(inicio, Number(generar.hasta), Number(generar.ancho), generar.valor.trim());
+  const generados = generarTramosPorAncho(inicio, Number(generar.hasta), Number(generar.ancho), generar.valor.trim(), opciones.minimo ?? 0);
 
   return (
     <div className="space-y-3">
@@ -77,10 +83,19 @@ export function TramosEditor({
           }))}
         />
       )}
+      {avisos.length > 0 && (
+        <Alert variant="warning">
+          <ul className="list-disc space-y-0.5 pl-4">
+            {avisos.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
       <TablaEditable
         idBase={idBase}
         columnas={[
-          { clave: 'desde', titulo: etiquetaDesde, tipo: 'entero', ancho: 'w-28' },
+          { clave: 'desde', titulo: etiquetaDesde, tipo: 'entero', ancho: 'w-28', ayuda: ayudaDesde },
           { clave: 'hasta', titulo: etiquetaHasta, tipo: 'entero', ancho: 'w-28' },
           { clave: 'valor', titulo: etiquetaValor, tipo: 'numero', ayuda: ayudaValor },
         ]}

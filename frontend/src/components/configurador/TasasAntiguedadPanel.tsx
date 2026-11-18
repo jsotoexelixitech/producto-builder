@@ -22,8 +22,21 @@ import { SectionPanel } from '@/components/ui/section-panel';
 import { ConfirmarDialog } from '@/components/sis2000/AsistentePasos';
 import { TramosEditor } from './TramosEditor';
 
-/** Reglas del contrato §5: empieza en 0, sin huecos ni solapes y tasa mayor que 0 (nest-api vuelve a validar). */
-const OPCIONES: OpcionesTramos = { inicio: 0, unidad: 'años', nombreValor: 'la tasa', valorPositivo: true };
+/**
+ * Reglas del contrato §5 ajustadas a los datos reales de Sis2000_QA (18/RIES1: -1..2, 3..6, 7..11): el primer tramo
+ * empieza en -1 (vehículo del año siguiente) o en 0, sin huecos ni solapes y tasa mayor que 0. Si el último tramo no
+ * llega a 20 años es solo un aviso. nest-api vuelve a validar.
+ */
+const OPCIONES: OpcionesTramos = {
+  inicio: 0,
+  inicios: [-1, 0],
+  minimo: -1,
+  unidad: 'años',
+  nombreValor: 'la tasa',
+  valorPositivo: true,
+  avisoSiTerminaAntesDe: 20,
+  textoAviso: 'El último tramo llega hasta {hasta} años: los vehículos con más de {hasta} años no podrán cotizar este plan (Sis2000 lo rechaza al cotizar).',
+};
 
 /**
  * Tasa de casco por antigüedad del vehículo (auto), por cobertura y tarifa del plan. Tiene prioridad sobre la tasa del
@@ -167,6 +180,7 @@ export function TasasAntiguedadPanel({
               etiquetaDesde="Desde (años)"
               etiquetaHasta="Hasta (años)"
               etiquetaValor="Tasa %"
+              ayudaDesde="-1 = vehículo del año siguiente (modelo del próximo año). 0 = vehículo del año en curso."
               ayudaValor="Tasa de casco en % para vehículos con esa antigüedad (Sis2000: maplantar_ano.pprima)."
               mostrarErrores={intento}
               deshabilitado={guardando}

@@ -2,6 +2,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  avisosTramos,
   advertenciasPorConfirmar,
   contarRevision,
   cuerpoComision,
@@ -44,9 +45,32 @@ describe('validarTramos', () => {
   it('tabla vacía', () => {
     assert.equal(validarTramos([])[0].campo, 'tabla');
   });
+  // Opciones de TasasAntiguedadPanel ajustadas a los datos reales de Sis2000_QA (18/RIES1 y RIES2).
+  const antiguedad = { inicio: 0, inicios: [-1, 0], minimo: -1, unidad: 'años', nombreValor: 'la tasa', avisoSiTerminaAntesDe: 20 };
+  it('datos reales: -1..2, 3..6, 7..11 es válido (-1 = vehículo del año siguiente)', () => {
+    assert.deepEqual(validarTramos([t('-1', '2', '4'), t('3', '6', '4.2'), t('7', '11', '5')], antiguedad), []);
+    assert.deepEqual(validarTramos([t('0', '5'), t('6', '99')], antiguedad), []);
+  });
+  it('antigüedad: el primer tramo empieza en -1 o 0 y no admite menos de -1', () => {
+    const textos = validarTramos([t('1', '5')], antiguedad).map((x) => x.mensaje).join(' | ');
+    assert.match(textos, /primer tramo debe empezar en -1 o 0 años/);
+    assert.match(validarTramos([t('-2', '5')], antiguedad)[0].mensaje, /entero de -1 o más/);
+    // Sin minimo, -1 sigue sin valer (tabla de edad).
+    assert.match(validarTramos([t('-1', '5')])[0].mensaje, /entero de 0 o más/);
+  });
+  it('último tramo bajo es aviso, no error', () => {
+    const tramos = [t('-1', '2'), t('3', '11')];
+    assert.deepEqual(validarTramos(tramos, antiguedad), []);
+    assert.match(avisosTramos(tramos, antiguedad).join(' '), /llega hasta 11 años/);
+    assert.deepEqual(avisosTramos([t('0', '30')], antiguedad), []);
+    assert.deepEqual(avisosTramos(tramos), []);
+  });
   it('siguiente tramo y generar por ancho', () => {
     assert.deepEqual(siguienteTramo([t('0', '4')]), { desde: '5', hasta: '9', valor: '' });
     assert.deepEqual(siguienteTramo([]), { desde: '0', hasta: '', valor: '' });
+    assert.deepEqual(siguienteTramo([t('-1', '2')]), { desde: '3', hasta: '6', valor: '' });
+    assert.deepEqual(generarTramosPorAncho(-1, 5, 3, '', -1).map((x) => `${x.desde}-${x.hasta}`), ['-1-1', '2-4', '5-5']);
+    assert.deepEqual(generarTramosPorAncho(-1, 5, 3), []);
     assert.deepEqual(
       generarTramosPorAncho(0, 11, 5, '2').map((x) => `${x.desde}-${x.hasta}`),
       ['0-4', '5-9', '10-11'],
