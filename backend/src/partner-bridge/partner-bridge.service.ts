@@ -67,6 +67,7 @@ export function canalesAAgregar(payload: Record<string, unknown>): { all_canal?:
   if (all_canal === true) return { all_canal: true };
   return canales?.length ? { canales } : null;
 }
+import { leerSobre, respuestaEscritura } from './configurador-fase2.mapper';
 import {
   inferBranchFromPartnerRow,
   PartnerProductPayload,
@@ -829,6 +830,25 @@ export class PartnerBridgeService {
       throw new BadGatewayException('nest-api no devolvió la revisión del plan.');
     }
     return body.data;
+  }
+
+  // ── Configurador fase 2 «editar todo» (.antigravity/CONTRATO-CONFIGURADOR-FASE2.md): proxies 1:1 genéricos ──
+
+  /** GET a v1/configurador/<ruta>: `data` tal cual (lista + total/paginación si el sobre los trae). */
+  async leerConfigurador(ruta: string, timeoutMs = 60_000): Promise<unknown> {
+    const body = await this.request<Record<string, unknown>>('GET', `/api/v1/configurador/${ruta.replace(/^\/+/, '')}`, undefined, timeoutMs);
+    return leerSobre(body);
+  }
+
+  /** POST/PUT/PATCH/DELETE a v1/configurador/<ruta>: objeto con `advertencias` siempre presente (filas si es lista). */
+  async escribirConfigurador(
+    metodo: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    ruta: string,
+    cuerpo?: unknown,
+    timeoutMs = 60_000,
+  ): Promise<Record<string, unknown>> {
+    const body = await this.request<Record<string, unknown>>(metodo, `/api/v1/configurador/${ruta.replace(/^\/+/, '')}`, cuerpo, timeoutMs);
+    return respuestaEscritura(body);
   }
 
   // ── Cobro por días (prima diaria × días) ──

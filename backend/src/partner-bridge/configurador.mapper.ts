@@ -36,6 +36,14 @@ export function aCrearProducto(p: Obj) {
     icanal: aBooleano(p.icanal),
     xdescripcion_prod: texto(p.xdescripcion_prod),
     ctiporamo: num(p.ctiporamo),
+    // Fase 2: nest-api los completa con un UPDATE en la misma transacción (sp_CrearProducto no los recibe).
+    igestor: aBooleano(p.igestor),
+    xform: texto(p.xform),
+    cprog: texto(p.cprog),
+    mmonto_inicial: num(p.mmonto_inicial),
+    norden: num(p.norden),
+    xfraccionamiento: texto(p.xfraccionamiento),
+    xurl_presentacion: texto(p.xurl_presentacion),
   });
 }
 

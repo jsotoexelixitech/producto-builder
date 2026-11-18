@@ -54,9 +54,30 @@ export const claveRespaldo = {
   seccionPlan: (cramo: unknown, cplan: unknown, seccion: SeccionRespaldo) => `${Number(cramo)}-${up(cplan)}:${seccion}`,
   /** macattip es del ramo (afecta a todos sus planes): «18-*:TIPOS-USO». */
   tiposUsoRamo: (cramo: unknown) => `${Number(cramo)}-*:TIPOS-USO`,
+  /** Secciones del ramo (fase 2: dispositivos, sustancias, condominio, tasa de casco): «28-*:DISPOSITIVOS». */
+  seccionRamo: (cramo: unknown, seccion: SeccionRamoRespaldo) => `${Number(cramo)}-*:${seccion}`,
 };
 
-export type SeccionRespaldo = 'COMISIONES' | 'DEDUCIBLES' | 'TASAS-ANTIGUEDAD';
+export type SeccionRespaldo =
+  | 'COMISIONES'
+  | 'DEDUCIBLES'
+  | 'TASAS-ANTIGUEDAD'
+  // Fase 2 («editar todo»)
+  | 'CABECERA'
+  | 'COBERTURAS'
+  | 'FRECUENCIAS'
+  | 'FRECUENCIAS-PRODUCTOR'
+  | 'QUIEN-VENDE'
+  | 'EDADES'
+  | 'TARIFA-DIAS';
+
+export type SeccionRamoRespaldo =
+  | 'DISPOSITIVOS'
+  | 'SUSTANCIAS'
+  | 'CONDOMINIO-ANTIGUEDAD'
+  | 'CONDOMINIO-REPARTO'
+  | 'CONDOMINIO-RANGO'
+  | 'TASA-CASCO';
 
 /** Claves de sección (tienen «:»): se respaldan, pero restaurarlas aún no está disponible. */
 export const esClaveSeccion = (clave: string) => clave.includes(':');
@@ -484,7 +505,7 @@ export class Sis2000HistorialService {
   private async objetivo(entidad: EntidadRespaldo, clave: string, destino: string, momento: MomentoVersion) {
     if (esClaveSeccion(clave)) {
       throw new BadRequestException(
-        'Restaurar comisiones, deducibles del plan, tipo y uso o tasas por antigüedad todavía no está disponible desde el configurador. La copia de lo que había está en el historial: corrígelo desde su sección.',
+        'Restaurar una sección del plan o del ramo (comisiones, deducibles, formas de pago, quién lo vende, coberturas, edades, tarifas por días o por antigüedad, tipo y uso, descuentos y recargos, condominio, tasa de casco) todavía no está disponible desde el configurador. La copia de lo que había está en el historial: corrígelo desde su sección.',
       );
     }
     const nombre = `${NOMBRE_ENTIDAD[entidad]} ${clave}`;

@@ -72,6 +72,11 @@ export interface OperacionRespaldada<T> {
   exigirExistente?: boolean;
   /** Qué parte del estado se compara para «qué cambió» (por defecto, todo). */
   comparable?: (estado: unknown) => unknown;
+  /**
+   * Bajas físicas (tablas sin iestado): lo que nest-api devuelve como borrado se guarda en la versión junto a lo leído
+   * después ({ despues, devuelto }), además de la copia previa en `anterior`.
+   */
+  guardarDelResultado?: (resultado: T) => unknown;
   motivo?: string;
   usuario?: UsuarioCambio;
   restauradaDesde?: string;
@@ -147,7 +152,17 @@ export class Sis2000RespaldoService {
     }
     const comparar = op.comparable ?? ((x: unknown) => x);
     const cambios = aviso ? [] : diferencias(comparar(anterior), comparar(estado));
-    version = await this.cerrar(version, { resultado: 'APLICADA', estado, cambios, error: aviso });
+    let guardado: unknown = estado;
+    if (op.guardarDelResultado) {
+      let devuelto: unknown = null;
+      try {
+        devuelto = op.guardarDelResultado(resultado) ?? null;
+      } catch (err) {
+        this.logger.warn(`${etiqueta}: no se pudo tomar lo devuelto por nest-api: ${mensaje(err)}`);
+      }
+      guardado = { despues: estado, devuelto };
+    }
+    version = await this.cerrar(version, { resultado: 'APLICADA', estado: guardado, cambios, error: aviso });
     return { resultado, version };
   }
 

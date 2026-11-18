@@ -517,11 +517,13 @@ export class CoreService implements OnModuleInit {
       payload,
       ctx,
     );
+    const advertencias: string[] = Array.isArray(data.advertencias) ? (data.advertencias as unknown[]).map(String) : [];
     return {
       ok: true,
       cproducto: String(data.cproducto ?? cproducto).trim(),
       cramo: Number(payload.cramo),
       message: String(data.message ?? '').trim() || 'Producto creado.',
+      advertencias,
     };
   }
 
