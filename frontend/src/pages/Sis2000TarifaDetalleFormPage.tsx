@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { defaultTarifaDetallePayload, normalizeTarifaDetallePayloadForApi } from '@/lib/sis2000-nest-api';
 import { Sis2000NestJsonForm } from '@/components/sis2000/Sis2000NestJsonForm';
+import { mensajeDeError } from '@/lib/errores';
 
 export function Sis2000TarifaDetalleFormPage() {
   const { cramo: cramoParam, ccobertura = '', ctarifa = '' } = useParams<{
@@ -54,7 +55,11 @@ export function Sis2000TarifaDetalleFormPage() {
         `/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccobertura)}/tarifas/${encodeURIComponent(ctarifa)}/detalles`,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al guardar detalle');
+      setError(
+        e instanceof SyntaxError ? `El JSON no es válido: ${e.message}` : mensajeDeError(e, {
+          duplicado: 'Esta tarifa ya tiene una tasa vigente. Ciérrala (fecha hasta) o inactívala desde «Editar» antes de agregar otra.',
+        }),
+      );
     } finally {
       setSaving(false);
     }

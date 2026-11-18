@@ -135,6 +135,13 @@ export function Sis2000MasterPlansPage() {
                       {cplan && cramo && (
                         <div className="flex flex-wrap justify-end gap-2">
                           <Link
+                            to={`/sis2000/plans/${encodeURIComponent(id)}/configurar`}
+                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                            title="Deducibles, comisiones, tipo y uso, tasas por antigüedad y revisión «¿se puede emitir?»"
+                          >
+                            Ficha
+                          </Link>
+                          <Link
                             to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
                             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
                             title="Cambiar datos, montos o agregar coberturas con el formulario guiado"

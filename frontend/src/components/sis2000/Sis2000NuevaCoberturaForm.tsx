@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input';
 import { ComboBuscable } from '@/components/ui/combo-buscable';
 import { AlertaError, ResumenErrores, type ErrorDeCampo } from '@/components/ui/errores';
 import { entenderError, type ErrorEntendible } from '@/lib/errores';
+import { textoDeducible } from '@/lib/configurador';
+import { DeducibleCampos } from '@/components/configurador/DeducibleCampos';
 
 const ETIQUETA_OPCION =
   'inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs font-medium';
@@ -42,6 +44,7 @@ const CAMPOS: Partial<Record<keyof NuevaCoberturaForm, { id: string; etiqueta: s
   msumamax: { id: 'nc-msumamax', etiqueta: 'Suma asegurada máxima' },
   pprima: { id: 'nc-pprima', etiqueta: 'Tasa %' },
   mprima: { id: 'nc-mprima', etiqueta: 'Prima fija' },
+  deducible: { id: 'nc-ded-bfraded', etiqueta: 'Deducible' },
   ccobertura: { id: 'nc-ccobertura', etiqueta: 'Código de la cobertura', seccion: SECCION_CODIGOS },
   ctarifa: { id: 'nc-ctarifa', etiqueta: 'Código de la tarifa', seccion: SECCION_CODIGOS },
   xtarifam: { id: 'nc-xtarifam', etiqueta: 'Nombre interno de la tarifa', seccion: SECCION_CODIGOS },
@@ -471,6 +474,19 @@ export function Sis2000NuevaCoberturaForm({
             </FormField>
           )}
         </FormGrid>
+        <p className="mb-2 mt-4 text-[0.78rem] font-bold tracking-wide text-slate-600">Deducible (opcional)</p>
+        <DeducibleCampos
+          idBase="nc-ded"
+          valor={form.deducible}
+          onChange={(v) => cambiar('deducible', v)}
+          moneda={form.cmoneda || '$'}
+          deshabilitado={bloqueada}
+        />
+        {err('deducible') && <p className="mt-1 text-xs text-red-700">{err('deducible')}</p>}
+        <p className="mt-1 text-[11px] text-slate-500">
+          Va en la tasa de la tarifa y es el que se usa al emitir. Si el servidor no tiene habilitados los deducibles, déjalo en «Sin
+          deducible» y agrégalo después desde la ficha del plan.
+        </p>
       </div>
 
       <DetallesTecnicos titulo="Códigos y datos internos (opcional)" abierto={errorEnCodigos}>
@@ -615,6 +631,7 @@ export function Sis2000NuevaCoberturaForm({
                 ? `Tasa ${form.pprima.trim() || '0'} % sobre la suma asegurada.`
                 : `Prima fija ${form.cmoneda} ${form.mprima.trim() || '0'}.`}
             </li>
+            {form.deducible.bfraded && <li>{textoDeducible(form.deducible, form.cmoneda)}.</li>}
           </ul>
           <p className="text-xs text-muted-foreground">Las coberturas no se borran desde el configurador (se pueden inactivar).</p>
         </ConfirmarDialog>

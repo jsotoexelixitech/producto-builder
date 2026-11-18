@@ -2077,8 +2077,23 @@ export function Sis2000ComboPage() {
             ? 'Cambia los datos del plan, sus montos o agrégale coberturas. Antes de guardar verás qué cambia y lo anterior queda en el historial.'
             : 'Arma un plan nuevo en Sis2000 juntando las coberturas de un ramo, con su suma asegurada y su precio. Te guiamos paso a paso y nada se guarda hasta que lo confirmes al final.'}
         </p>
+        {!modoEdicion && (
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+            Después de guardar el plan sigues en su ficha con lo que le falta según el ramo: deducibles, comisiones y, en
+            automóvil, tipo y uso del vehículo y tasa por antigüedad; al final, la revisión «¿se puede emitir?».
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {modoEdicion && editId && (
+          <Link
+            to={`/sis2000/plans/${encodeURIComponent(editId)}/configurar`}
+            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+            title="Deducibles, comisiones, tipo y uso, tasas por antigüedad y revisión del plan"
+          >
+            Ficha del plan
+          </Link>
+        )}
         {!modoEdicion && ultimoGuardado && (
           <span
             className="text-[11px] text-muted-foreground"
@@ -3597,6 +3612,13 @@ export function Sis2000ComboPage() {
                 : 'Ya se puede usar en la emisión. Si elegiste proveedores o cobro por días, se agregaron al plan.'}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
+              <Link
+                to={`/sis2000/plans/${encodeURIComponent(sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan))}/configurar${planGuardado.editado ? '' : '?asistente=1'}`}
+              >
+                <Button type="button" size="sm">
+                  {planGuardado.editado ? 'Ir a la ficha del plan' : 'Seguir: deducibles, comisiones y revisión'}
+                </Button>
+              </Link>
               {planGuardado.tipo === 'cosas' && (
                 <Button type="button" variant="outline" size="sm" onClick={cotizar} disabled={cotizando}>
                   <Calculator className="h-3.5 w-3.5" />

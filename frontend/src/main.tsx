@@ -18,6 +18,7 @@ import { Sis2000TarifaFormPage } from './pages/Sis2000TarifaFormPage';
 import { Sis2000TarifaDetallePage } from './pages/Sis2000TarifaDetallePage';
 import { Sis2000TarifaDetalleFormPage } from './pages/Sis2000TarifaDetalleFormPage';
 import { Sis2000ComboPage, Sis2000PlanEditarPage } from './pages/Sis2000ComboPage';
+import { Sis2000PlanFichaPage } from './pages/Sis2000PlanFichaPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
 import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
@@ -119,6 +120,14 @@ function Root() {
             element={
               <AuthGate>
                 <Sis2000PlanEditarPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sis2000/plans/:id/configurar"
+            element={
+              <AuthGate>
+                <Sis2000PlanFichaPage />
               </AuthGate>
             }
           />

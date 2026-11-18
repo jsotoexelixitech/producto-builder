@@ -439,6 +439,11 @@ export function defaultTarifaDetallePayload(
     msumamax: 0,
     mprima: 0,
     pprima: 0,
+    // Deducible opcional: bfraded 'D' (deducible) o 'F' (franquicia); en null no se envía.
+    bfraded: null,
+    mdedu_fran: null,
+    mdedu_franext: null,
+    pdedu_fran: null,
     iestado: 'V',
   };
 }

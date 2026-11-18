@@ -77,6 +77,19 @@ describe('entenderError', () => {
     assert.equal(e.tipo, 'permiso');
     assert.match(e.mensaje, /no está permitido/);
   });
+  it('403 por bandera apagada = no disponible en el ambiente (no es falta de permiso)', () => {
+    const e = entenderError(
+      apiError(403, 'La escritura de deducibles está desactivada en este ambiente (CONFIGURADOR_DEDUCIBLES_ESCRITURA=1 para habilitarla).'),
+    );
+    assert.equal(e.tipo, 'no-disponible');
+    assert.equal(e.mensaje, 'La escritura de deducibles está desactivada en este ambiente. Por ahora solo se puede consultar; pide a soporte que lo active en este ambiente.');
+    assert.match(e.detalle.crudo, /CONFIGURADOR_DEDUCIBLES_ESCRITURA/);
+  });
+  it('409 con mensaje propio de duplicado', () => {
+    const e = entenderError(apiError(409, 'x'), { duplicado: 'Ya hay una comisión vigente igual.' });
+    assert.equal(e.tipo, 'duplicado');
+    assert.equal(e.mensaje, 'Ya hay una comisión vigente igual.');
+  });
   it('404 de ruta = función no disponible en el ambiente', () => {
     assert.equal(entenderError(apiError(404, 'Cannot POST /api/v1/configurador/planes/28/X/canales')).tipo, 'no-disponible');
   });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -7,6 +7,8 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
+import { deducibleDeFila, textoDeducible } from '@/lib/configurador';
+import { DetalleTarifaEditor } from '@/components/configurador/DetalleTarifaEditor';
 
 export function Sis2000TarifaDetallePage() {
   const { cramo: cramoParam, ccobertura = '', ctarifa = '' } = useParams<{
@@ -18,6 +20,8 @@ export function Sis2000TarifaDetallePage() {
   const [rows, setRows] = useState<Sis2000NestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editando, setEditando] = useState<number | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -72,6 +76,11 @@ export function Sis2000TarifaDetallePage() {
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
+      {ok && (
+        <Alert variant="success" className="mb-3">
+          {ok}
+        </Alert>
+      )}
 
       {!loading && !error && (
         <div className="overflow-x-auto rounded-xl border border-border/60">
@@ -82,18 +91,53 @@ export function Sis2000TarifaDetallePage() {
                 <th className="px-3 py-2">fhasta</th>
                 <th className="px-3 py-2">mprima</th>
                 <th className="px-3 py-2">pprima</th>
+                <th className="px-3 py-2">Deducible</th>
                 <th className="px-3 py-2">Estado</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i} className="border-b border-border/30">
+                <Fragment key={i}>
+                <tr className="border-b border-border/30">
                   <td className="px-3 py-2 text-xs">{formatNestRowValue(r.fdesde)}</td>
                   <td className="px-3 py-2 text-xs">{formatNestRowValue(r.fhasta)}</td>
                   <td className="px-3 py-2 text-xs">{formatNestRowValue(r.mprima)}</td>
                   <td className="px-3 py-2 text-xs">{formatNestRowValue(r.pprima)}</td>
+                  <td className="px-3 py-2 text-xs">{textoDeducible(deducibleDeFila(r))}</td>
                   <td className="px-3 py-2 text-xs">{formatNestRowValue(r.iestado)}</td>
+                  <td className="px-3 py-2 text-right text-xs">
+                    <button
+                      type="button"
+                      className="font-medium text-primary underline-offset-2 hover:underline"
+                      onClick={() => {
+                        setOk(null);
+                        setEditando(editando === i ? null : i);
+                      }}
+                    >
+                      {editando === i ? 'Cerrar' : 'Editar'}
+                    </button>
+                  </td>
                 </tr>
+                {editando === i && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-2">
+                      <DetalleTarifaEditor
+                        cramo={cramo}
+                        ccober={ccobertura}
+                        ctarifa={ctarifa}
+                        detalle={r}
+                        onCancelar={() => setEditando(null)}
+                        onGuardado={() => {
+                          setEditando(null);
+                          setOk('Tasa guardada (lo anterior quedó en el historial de la tarifa).');
+                          void load();
+                        }}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

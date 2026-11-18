@@ -1,6 +1,7 @@
 // Formulario "Nueva cobertura" (macoberturas + matarifa + matarifa_d) para nest-api v1/configurador.
 // Una cobertura sin tarifa vigente no se puede usar en un plan, por eso se crean juntas.
 import { miles } from '@/lib/errores';
+import { cuerpoDeducible, DEDUCIBLE_VACIO, validarDeducible, type DeducibleForm } from '@/lib/configurador';
 import {
   validarSumaConfig,
   type Sis2000NestRow,
@@ -38,6 +39,8 @@ export interface NuevaCoberturaForm {
   unidadCalculo: string;
   /** Palabra que sale en el cuadro póliza (obligatoria si CALCULADA). */
   etiquetaCuadro: string;
+  /** Deducible de la tasa (opcional; «Sin deducible» no envía nada). */
+  deducible: DeducibleForm;
 }
 
 export type ErroresNuevaCobertura = Partial<Record<keyof NuevaCoberturaForm, string>>;
@@ -90,6 +93,7 @@ export function formNuevaCobertura(
     tipoSuma: 'FIJA',
     unidadCalculo: '',
     etiquetaCuadro: '',
+    deducible: { ...DEDUCIBLE_VACIO },
   };
 }
 
@@ -167,6 +171,8 @@ export function validarNuevaCobertura(
   } else if (decimales(f.mprima) > 2) {
     e.mprima = 'La prima fija admite hasta 2 decimales.';
   }
+  const deducible = Object.values(validarDeducible(f.deducible ?? DEDUCIBLE_VACIO))[0];
+  if (deducible) e.deducible = deducible;
   return e;
 }
 
@@ -203,6 +209,7 @@ export function payloadTarifa(cramo: number, f: NuevaCoberturaForm): Record<stri
     msumamax: f.msumamax.trim() ? Number(f.msumamax) : 0,
     pprima: f.modo === 'tasa' && f.pprima.trim() ? Number(f.pprima) : 0,
     mprima: f.modo === 'prima' && f.mprima.trim() ? Number(f.mprima) : 0,
+    ...cuerpoDeducible(f.deducible ?? DEDUCIBLE_VACIO),
   };
   return {
     cramo,

@@ -8,6 +8,7 @@ import {
 import { Sis2000NestJsonForm } from '@/components/sis2000/Sis2000NestJsonForm';
 import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
 import { claveHistorial } from '@/lib/sis2000-historial';
+import { mensajeDeError } from '@/lib/errores';
 
 export function Sis2000TarifaFormPage() {
   const { cramo: cramoParam, ccobertura = '', ctarifa: routeTarifa } = useParams<{
@@ -83,6 +84,9 @@ export function Sis2000TarifaFormPage() {
       } else {
         const payload = normalizeTarifaPayloadForApi(raw, ccobertura);
         payload.cramo = payload.cramo ?? cramo;
+        if (Array.isArray(payload.detalles) && payload.detalles.length > 1) {
+          throw new Error('Al crear la tarifa va una sola tasa (un detalle). Las siguientes se agregan después con «Nuevo detalle».');
+        }
         await api.createSis2000Tarifa(payload);
         setSuccess('Tarifa creada en Sis2000');
         navigate(
@@ -90,7 +94,7 @@ export function Sis2000TarifaFormPage() {
         );
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al guardar tarifa');
+      setError(e instanceof SyntaxError ? `El JSON no es válido: ${e.message}` : mensajeDeError(e, { que: 'una tarifa' }));
     } finally {
       setSaving(false);
     }

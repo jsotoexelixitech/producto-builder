@@ -33,14 +33,21 @@ export class ApiError extends Error {
   readonly metodo?: string;
   /** Mensajes de validación sin traducir (class-validator), uno por campo. */
   readonly mensajes?: string[];
+  /** Cuerpo de la respuesta de error (p. ej. `advertencias` que hay que confirmar). */
+  readonly cuerpo?: Record<string, unknown>;
 
-  constructor(message: string, status: number, extra: { ruta?: string; metodo?: string; mensajes?: string[] } = {}) {
+  constructor(
+    message: string,
+    status: number,
+    extra: { ruta?: string; metodo?: string; mensajes?: string[]; cuerpo?: Record<string, unknown> } = {},
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.ruta = extra.ruta;
     this.metodo = extra.metodo;
     this.mensajes = extra.mensajes;
+    this.cuerpo = extra.cuerpo;
   }
 }
 
@@ -102,11 +109,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     const msg = err.message;
+    const cuerpo = err && typeof err === 'object' ? (err as Record<string, unknown>) : undefined;
     if (Array.isArray(msg)) {
-      throw new ApiError(formatApiErrors(msg), res.status, { ...donde, mensajes: msg.map(String) });
+      throw new ApiError(formatApiErrors(msg), res.status, { ...donde, mensajes: msg.map(String), cuerpo });
     }
     if (typeof msg === 'string') {
-      throw new ApiError(msg, res.status, donde);
+      throw new ApiError(msg, res.status, { ...donde, cuerpo });
     }
     if (err.violations) {
       throw new ApiError(
@@ -323,7 +331,7 @@ export const api = {
     request<{ canalesEnPlan: boolean; cobroDias?: boolean; crearProducto?: boolean }>('/core/sis2000/funciones'),
   /** Ramos de Sis2000 (maramos). */
   listSis2000Ramos: () =>
-    request<{ cramo: number; xdescripcion: string }[]>('/core/sis2000/ramos'),
+    request<{ cramo: number; xdescripcion: string; familia?: string }[]>('/core/sis2000/ramos'),
   /** Alta de producto en un ramo (sp_CrearProducto); requiere SIS2000_PRODUCTO_ESCRITURA en el builder. */
   crearSis2000Producto: (body: {
     cproducto: string;
@@ -541,6 +549,60 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  // ── Configurador fase 1 (contrato CONTRATO-CONFIGURADOR-AUTO): ramo, deducibles, comisiones, auto, revisión ──
+  /** { cramo, xdescripcion_l, familia, secciones }: las secciones de la ficha del plan. */
+  leerSis2000Ramo: (cramo: number) =>
+    request<Record<string, unknown>>(`/core/sis2000/ramos/${encodeURIComponent(String(cramo))}`),
+  /** PATCH de una tasa con vigencia: montos, deducible, cerrar vigencia (fhasta) o inactivar (iestado 'I'). */
+  editarSis2000DetalleTarifa: (cramo: number, ccober: string, ctarifa: string, fdesde: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(
+      `/core/sis2000/tarifas/${encodeURIComponent(String(cramo))}/${encodeURIComponent(ccober.trim())}/${encodeURIComponent(ctarifa.trim())}/detalles/${encodeURIComponent(fdesde.slice(0, 10))}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  /** Deducible de una cobertura del plan (copia en el plan). */
+  editarSis2000DeducibleCoberturaPlan: (planId: string, ccobertura: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/coberturas/${encodeURIComponent(ccobertura.trim())}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  listarSis2000Comisiones: (planId: string) =>
+    request<Record<string, unknown>[]>(`/core/sis2000/plans/${encodeURIComponent(planId)}/comisiones`),
+  agregarSis2000Comision: (planId: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/comisiones`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  bajaSis2000Comision: (planId: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/comisiones/baja`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  listarSis2000AutoTipos: (cramo: number) =>
+    request<Record<string, unknown>[]>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tipos`),
+  listarSis2000AutoUsos: (cramo: number) =>
+    request<Record<string, unknown>[]>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/usos`),
+  leerSis2000TiposUso: (cramo: number) =>
+    request<{ filas: Record<string, unknown>[]; planesAfectados: string[] }>(
+      `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tipos-uso`,
+    ),
+  /** Sin `confirmar`, si el par existe en otro ramo responde grabado false con advertencias. Solo escribe lo enviado. */
+  guardarSis2000TipoUso: (cramo: number, ctipo: string, ccategotr: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown> & { advertencias?: string[]; grabado?: boolean; accion?: string | null; planesAfectados?: string[] }>(
+      `/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tipos-uso/${encodeURIComponent(ctipo)}/${encodeURIComponent(ccategotr)}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  listarSis2000TasasAntiguedad: (planId: string) =>
+    request<Record<string, unknown>[]>(`/core/sis2000/plans/${encodeURIComponent(planId)}/tasas-antiguedad`),
+  /** tramos [] inactiva todos; si la cobertura no es de casco responde grabado false y pide confirmar. */
+  guardarSis2000TasasAntiguedad: (planId: string, ccober: string, ctarifa: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown> & { advertencias?: string[]; grabado?: boolean }>(
+      `/core/sis2000/plans/${encodeURIComponent(planId)}/tasas-antiguedad/${encodeURIComponent(ccober.trim())}/${encodeURIComponent(ctarifa.trim())}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  /** Revisión «¿se puede emitir?» (solo lectura). */
+  revisarSis2000Plan: (planId: string) =>
+    request<Record<string, unknown>>(`/core/sis2000/plans/${encodeURIComponent(planId)}/revision`),
 
   // Planes maestro (spMantPlanes)
   listSis2000MasterPlans: () =>

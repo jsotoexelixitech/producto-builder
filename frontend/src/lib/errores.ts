@@ -52,6 +52,8 @@ export interface OpcionesError {
   titulo?: string;
   /** Nombres propios de propiedades para esta pantalla (se suman a los generales). */
   etiquetas?: Record<string, string>;
+  /** Mensaje propio para «ya existe» (409) cuando no es un código repetido (p. ej. una comisión vigente igual). */
+  duplicado?: string;
 }
 
 /** Nombres en lenguaje simple de las propiedades de los DTO de v1/configurador. */
@@ -99,6 +101,27 @@ export const ETIQUETAS_PROPIEDAD: Record<string, string> = {
   cramorea: 'Ramo de reaseguro',
   cramoint: 'Ramo interno',
   ccoberturaint: 'Cobertura interna',
+  bfraded: 'Tipo de deducible',
+  mdedu_fran: 'Deducible (monto)',
+  mdedu_franext: 'Deducible (monto en divisa)',
+  pdedu_fran: 'Deducible (%)',
+  mmax_desem: 'Desembolso máximo',
+  mmax_desemext: 'Desembolso máximo en divisa',
+  ctipoprod: 'Tipo de intermediario',
+  cproductor: 'Productor',
+  pcomision: 'Comisión %',
+  ctipo: 'Tipo de vehículo',
+  ccategotr: 'Uso del vehículo',
+  mprimbas: 'Prima base RCV',
+  mprimext: 'Prima base RCV en divisa',
+  msumacosas: 'Suma daños a cosas',
+  msumapers: 'Suma daños a personas',
+  msumacosasext: 'Suma daños a cosas en divisa',
+  msumapersext: 'Suma daños a personas en divisa',
+  ptasaexc: 'Tasa de exceso %',
+  pdescuento: 'Descuento %',
+  desde: 'Desde',
+  hasta: 'Hasta',
 };
 
 /** Montos con separador de miles: 10000 → «10.000», 2500.5 → «2.500,5». */
@@ -220,6 +243,12 @@ export function entenderError(e: unknown, opciones: OpcionesError = {}): ErrorEn
     return salida('sesion', 'Tu sesión venció. Vuelve a iniciar sesión; lo llenado en Combos queda guardado en este navegador.');
   }
   if (status === 403) {
+    // Bandera de escritura apagada en el servidor (CONFIGURADOR_*_ESCRITURA): no es falta de permiso del usuario.
+    if (legible && /desactivad|apagad|bandera|no est[aá] habilitad|_ESCRITURA/i.test(crudo)) {
+      // «(CONFIGURADOR_X_ESCRITURA=1 para habilitarla)» queda solo en el detalle técnico.
+      const sinVariable = legible.replace(/\s*\([A-Z0-9_]+=\d[^)]*\)/g, '').replace(/\s+\./g, '.').trim();
+      return salida('no-disponible', `${sinVariable} Por ahora solo se puede consultar; pide a soporte que lo active en este ambiente.`);
+    }
     return salida('permiso', legible ? `No tienes permiso: ${legible}` : 'No tienes permiso para esta operación. Pide acceso al administrador del configurador.');
   }
   if (status === 404) {
@@ -229,7 +258,10 @@ export function entenderError(e: unknown, opciones: OpcionesError = {}): ErrorEn
     return salida('no-encontrado', legible);
   }
   if (status === 409 || /PRIMARY KEY|UNIQUE KEY|duplicate key|clave duplicada|ya existe/i.test(crudo)) {
-    return salida('duplicado', `Ya existe ${opciones.que ?? 'un registro'} con ese código. Usa otro código o elige el que ya existe.`);
+    return salida(
+      'duplicado',
+      opciones.duplicado ?? `Ya existe ${opciones.que ?? 'un registro'} con ese código. Usa otro código o elige el que ya existe.`,
+    );
   }
 
   // Validación del DTO (class-validator): se traduce cada mensaje y se asocia al campo.
