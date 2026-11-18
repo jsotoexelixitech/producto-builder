@@ -74,6 +74,7 @@ import {
   type EstadoPaso,
 } from '@/components/sis2000/AsistentePasos';
 import { formatoMonto2 } from '@/lib/sis2000-tramos';
+import { normalizarRamo, type FamiliaRamo } from '@/lib/configurador';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { AlertaError, irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
@@ -150,6 +151,8 @@ interface BorradorCombo {
   ramoFiltro: string;
   claveProducto: string;
   tipoPlan: Sis2000PlanType;
+  /** Eligió «Automóvil» (el plan se graba como cosas). */
+  automovil?: boolean;
   parentescosTxt: string;
   csexo: string;
   edadMin: string;
@@ -317,6 +320,8 @@ interface PlanGuardado {
   cramo: number;
   cplan: string;
   tipo: Sis2000PlanType;
+  /** Se eligió «Automóvil» (grabado como cosas): la ficha sigue con tipo y uso y tasas por antigüedad. */
+  automovil: boolean;
   /** Frecuencia con la que se cotiza: Anual si el plan la tiene, si no la primera del plan. */
   ifrecuencia: string;
   editado: boolean;
@@ -726,6 +731,13 @@ export function Sis2000ComboPage() {
   /** Cosas (maplanes + maplantar) o personas (maplanes_per + maplcober_per, mapltarifas_per, mapledades_per). */
   const [tipoPlan, setTipoPlan] = useState<Sis2000PlanType>(inicio?.tipoPlan === 'personas' ? 'personas' : 'cosas');
   const personas = tipoPlan === 'personas';
+  /**
+   * Solo UI: eligió «Automóvil». spMantPlanes no tiene tipo auto, así que el plan se graba como cosas (tipoPlan 'cosas')
+   * y lo propio de vehículos (tipo y uso, tasas por antigüedad) sigue en la ficha del plan según GET ramos/:cramo.
+   */
+  const [automovil, setAutomovil] = useState(inicio?.automovil === true && inicio?.tipoPlan !== 'personas');
+  /** Familia del ramo del producto (GET core/sis2000/ramos/:cramo); null mientras no se conoce. */
+  const [familiaRamo, setFamiliaRamo] = useState<FamiliaRamo | null>(null);
   /** Personas: tabla de tasas y obligatoriedad por cobertura. */
   const [filasPer, setFilasPer] = useState<Record<string, FilaPersonas>>({});
   /** Personas: parentescos (cparen, varios separados por coma), sexo, edades y tabla de tasas por defecto. */
@@ -849,6 +861,7 @@ export function Sis2000ComboPage() {
         }
         borradorFilas.current = { cramo: f.cramo, filas: f.filas, filasPer: f.filasPer, conservar: true };
         setTipoPlan(f.tipo);
+        setAutomovil(false);
         setRamoFiltro(String(f.cramo));
         setProductoPlan({ cproducto: f.cproducto, cramo: f.cramo });
         setCplan(texto(plan.cplan));
@@ -979,6 +992,25 @@ export function Sis2000ComboPage() {
   const cramo = producto && Number(producto.cramo) > 0 ? Number(producto.cramo) : 0;
   const nombreRamo = cramo ? (opcionesRamo.find((r) => r.cramo === cramo)?.etiqueta ?? `Ramo ${cramo}`) : '';
   const esPersonas = texto(producto?.xform).toLowerCase().startsWith('person');
+  const esAuto = familiaRamo === 'auto';
+
+  // Familia del ramo (auto, personas o cosas) para sugerir «Automóvil» y avisar si no corresponde.
+  useEffect(() => {
+    setFamiliaRamo(null);
+    if (!cramo) return;
+    let vigente = true;
+    api
+      .leerSis2000Ramo(cramo)
+      .then((r) => {
+        if (vigente) setFamiliaRamo(normalizarRamo(r ?? {}).familia);
+      })
+      .catch(() => {
+        if (vigente) setFamiliaRamo(null);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [cramo]);
 
   // Borrador en localStorage: se guarda medio segundo después del último cambio (no al editar un plan existente).
   useEffect(() => {
@@ -991,6 +1023,7 @@ export function Sis2000ComboPage() {
         ramoFiltro,
         claveProducto,
         tipoPlan,
+        automovil,
         parentescosTxt,
         csexo,
         edadMin,
@@ -1014,7 +1047,7 @@ export function Sis2000ComboPage() {
     }, 500);
     return () => clearTimeout(t);
   }, [
-    ramoFiltro, claveProducto, tipoPlan, parentescosTxt, csexo, edadMin, edadMax, tablaPlan, cplan, xplan, fdesde,
+    ramoFiltro, claveProducto, tipoPlan, automovil, parentescosTxt, csexo, edadMin, edadMax, tablaPlan, cplan, xplan, fdesde,
     fhasta, cmoneda, frecuencias, productoresSel, canalesSel, observacion, cramo, filas, filasPer,
   ]);
 
@@ -1382,8 +1415,10 @@ export function Sis2000ComboPage() {
     return nums.length && nums.every((x) => x != null && x >= 1) ? (nums as number[]) : null;
   }, [parentescosTxt]);
 
+  /** 'cosas', 'personas' o 'automovil' (este último se graba como cosas). */
   function cambiarTipoPlan(valor: string) {
     setTipoPlan(valor === 'personas' ? 'personas' : 'cosas');
+    setAutomovil(valor === 'automovil');
     setEditandoSuma(null);
     setIntentoCrear(false);
     limpiarResultado();
@@ -1669,7 +1704,14 @@ export function Sis2000ComboPage() {
       else await api.createSis2000MasterPlan(cuerpo);
       const ifrecuencia =
         opcionesFrecuencia.find((f) => frecuencias.includes(f.ifrecuencia))?.ifrecuencia ?? 'A';
-      setPlanGuardado({ cramo, cplan: String(payload.cplan), tipo: tipoPlan, ifrecuencia, editado: modoEdicion });
+      setPlanGuardado({
+        cramo,
+        cplan: String(payload.cplan),
+        tipo: tipoPlan,
+        automovil: automovil && tipoPlan === 'cosas',
+        ifrecuencia,
+        editado: modoEdicion,
+      });
       setMotivo('');
       setVersionHistorial((n) => n + 1);
       if (modoEdicion) {
@@ -2369,7 +2411,7 @@ export function Sis2000ComboPage() {
           <div className="mt-5 border-t border-border/50 pt-4">
             <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
               ¿Qué asegura el plan?
-              <InfoTip text="Cambia los datos que se piden: en cosas, suma asegurada y tasa o prima por cobertura; en personas, quiénes se aseguran, sus edades y una tabla de precios por edad." />
+              <InfoTip text="Cambia los datos que se piden: en cosas, suma asegurada y tasa o prima por cobertura; en personas, quiénes se aseguran, sus edades y una tabla de precios por edad. Automóvil se graba como cosas y después, en la ficha del plan, sigue con la tarifa por tipo y uso y la tasa por antigüedad." />
             </p>
             <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Tipo de plan">
               {(
@@ -2387,34 +2429,27 @@ export function Sis2000ComboPage() {
                   {
                     valor: 'automovil',
                     titulo: 'Automóvil',
-                    texto: 'Próximamente: por ahora usa «Cosas» para planes de vehículos.',
+                    texto: 'Vehículos (casco y RCV): coberturas con tasa o prima, tarifa por tipo y uso, y tasa por antigüedad.',
                   },
                 ] as const
               ).map((o) => {
-                const proximamente = o.valor === 'automovil';
-                const elegido = tipoPlan === o.valor;
+                const elegido = o.valor === 'automovil' ? automovil : !automovil && tipoPlan === o.valor;
+                const sugerido = !elegido && ((o.valor === 'personas' && esPersonas) || (o.valor === 'automovil' && esAuto));
                 return (
                   <button
                     key={o.valor}
                     type="button"
                     role="radio"
                     aria-checked={elegido}
-                    disabled={proximamente}
                     onClick={() => cambiarTipoPlan(o.valor)}
                     className={cn(
                       'rounded-xl border p-3 text-left text-xs transition-colors',
                       elegido ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300' : 'border-border/60 bg-card hover:bg-muted/40',
-                      proximamente && 'cursor-not-allowed opacity-60',
                     )}
                   >
                     <span className="flex items-center gap-2 text-sm font-semibold">
                       {o.titulo}
-                      {proximamente && (
-                        <Badge variant="draft" className="px-2 py-0 text-[10px]">
-                          Próximamente
-                        </Badge>
-                      )}
-                      {o.valor === 'personas' && esPersonas && !elegido && (
+                      {sugerido && (
                         <Badge variant="submitted" className="px-2 py-0 text-[10px]">
                           Sugerido
                         </Badge>
@@ -2425,10 +2460,16 @@ export function Sis2000ComboPage() {
                 );
               })}
             </div>
+            {automovil && cramo > 0 && familiaRamo !== null && !esAuto && (
+              <Alert variant="warning" className="mt-3">
+                El ramo {nombreRamo || cramo} no es de vehículos: la ficha del plan no tendrá tarifa por tipo y uso ni tasa por
+                antigüedad. Si el plan no asegura vehículos, elige «Cosas» o «Personas».
+              </Alert>
+            )}
             {esPersonas && !personas && (
               <Alert variant="warning" className="mt-3">
-                Este producto es de personas y elegiste «Cosas». Si el plan asegura personas (con edades y parentescos),
-                cambia a Personas.
+                Este producto es de personas y elegiste «{automovil ? 'Automóvil' : 'Cosas'}». Si el plan asegura personas
+                (con edades y parentescos), cambia a Personas.
                 <div className="mt-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => cambiarTipoPlan('personas')}>
                     Cambiar a Personas
@@ -3616,7 +3657,11 @@ export function Sis2000ComboPage() {
                 to={`/sis2000/plans/${encodeURIComponent(sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan))}/configurar${planGuardado.editado ? '' : '?asistente=1'}`}
               >
                 <Button type="button" size="sm">
-                  {planGuardado.editado ? 'Ir a la ficha del plan' : 'Seguir: deducibles, comisiones y revisión'}
+                  {planGuardado.editado
+                    ? 'Ir a la ficha del plan'
+                    : planGuardado.automovil
+                      ? 'Seguir: tipo y uso, tasas por antigüedad, deducibles, comisiones y revisión'
+                      : 'Seguir: deducibles, comisiones y revisión'}
                 </Button>
               </Link>
               {planGuardado.tipo === 'cosas' && (
