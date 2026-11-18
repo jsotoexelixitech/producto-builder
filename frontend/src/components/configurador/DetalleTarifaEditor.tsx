@@ -4,6 +4,7 @@ import {
   cuerpoDeducible,
   deducibleDeFila,
   fechaIso,
+  textoDeducible,
   validarDeducible,
   type DeducibleForm,
 } from '@/lib/configurador';
@@ -12,6 +13,7 @@ import { AlertaError } from '@/components/ui/errores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ConfirmarDialog } from '@/components/sis2000/AsistentePasos';
 import { DeducibleCampos } from './DeducibleCampos';
 
 type Fila = Record<string, unknown>;
@@ -34,6 +36,9 @@ export function DetalleTarifaEditor({
   detalle,
   onGuardado,
   onCancelar,
+  confirmar = false,
+  moneda = '$',
+  onError,
 }: {
   cramo: number;
   ccober: string;
@@ -41,6 +46,12 @@ export function DetalleTarifaEditor({
   detalle: Fila;
   onGuardado: () => void;
   onCancelar: () => void;
+  /** Pide confirmación con el resumen de lo que cambia antes de grabar (por defecto graba directo). */
+  confirmar?: boolean;
+  /** Moneda del monto del deducible en divisa. */
+  moneda?: string;
+  /** Avisa del error ya traducido (p. ej. para dejar el panel en lectura si la escritura está apagada). */
+  onError?: (e: ErrorEntendible) => void;
 }) {
   const fdesde = fechaIso(detalle.fdesde);
   const [montos, setMontos] = useState<Record<string, string>>(() => Object.fromEntries(MONTOS.map((m) => [m.clave, aTexto(detalle[m.clave])])));
@@ -51,6 +62,7 @@ export function DetalleTarifaEditor({
   const [intento, setIntento] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<ErrorEntendible | null>(null);
+  const [porConfirmar, setPorConfirmar] = useState<{ cuerpo: Record<string, unknown>; cambios: string[] } | null>(null);
 
   const original = deducibleDeFila(detalle);
   const cambioDeducible = JSON.stringify(original) !== JSON.stringify(deducible);
@@ -82,18 +94,42 @@ export function DetalleTarifaEditor({
       onCancelar();
       return;
     }
+    if (confirmar) {
+      setPorConfirmar({ cuerpo, cambios: describirCambios(cuerpo) });
+      return;
+    }
+    await grabar(cuerpo);
+  }
+
+  /** Lo que cambia, en palabras, para el diálogo de confirmación. */
+  function describirCambios(cuerpo: Record<string, unknown>): string[] {
+    const out: string[] = [];
+    for (const m of MONTOS) {
+      if (m.clave in cuerpo) out.push(`${m.titulo}: ${aTexto(detalle[m.clave]) || '(vacío)'} → ${String(cuerpo[m.clave])}`);
+    }
+    if ('fhasta' in cuerpo) {
+      out.push(`Vigente hasta: ${detalle.fhasta ? fechaIso(detalle.fhasta) : '(sin fecha)'} → ${String(cuerpo.fhasta)}`);
+    }
+    if ('iestado' in cuerpo) out.push(`Estado: pasa a ${cuerpo.iestado === 'I' ? 'inactiva' : 'vigente'}`);
+    if (cambioDeducible) out.push(`Deducible: ${textoDeducible(original, moneda)} → ${textoDeducible(deducible, moneda)}`);
+    return out;
+  }
+
+  async function grabar(cuerpo: Record<string, unknown>) {
     setGuardando(true);
     setError(null);
     try {
       await api.editarSis2000DetalleTarifa(cramo, ccober, ctarifa, fdesde, cuerpo);
+      setPorConfirmar(null);
       onGuardado();
     } catch (e) {
-      setError(
-        entenderError(e, {
-          titulo: 'No se pudo guardar la tasa',
-          duplicado: 'La tarifa ya tiene otra tasa vigente. Cierra o inactiva esa antes de reactivar esta.',
-        }),
-      );
+      const entendido = entenderError(e, {
+        titulo: 'No se pudo guardar la tasa',
+        duplicado: 'La tarifa ya tiene otra tasa vigente. Cierra o inactiva esa antes de reactivar esta.',
+      });
+      setPorConfirmar(null);
+      setError(entendido);
+      onError?.(entendido);
     } finally {
       setGuardando(false);
     }
@@ -133,7 +169,7 @@ export function DetalleTarifaEditor({
           </select>
         </div>
       </div>
-      <DeducibleCampos idBase={`${id}-ded`} valor={deducible} onChange={setDeducible} errores={erroresDed} />
+      <DeducibleCampos idBase={`${id}-ded`} valor={deducible} onChange={setDeducible} errores={erroresDed} moneda={moneda} />
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[240px] flex-1">
           <Label htmlFor={`${id}-motivo`}>Motivo (opcional, queda en el historial)</Label>
@@ -146,6 +182,25 @@ export function DetalleTarifaEditor({
           {guardando ? 'Guardando…' : 'Guardar tasa'}
         </Button>
       </div>
+      {porConfirmar && (
+        <ConfirmarDialog
+          titulo="¿Guardar la tasa?"
+          confirmar="Sí, guardar"
+          ocupado={guardando}
+          onConfirmar={() => void grabar(porConfirmar.cuerpo)}
+          onCancelar={() => setPorConfirmar(null)}
+        >
+          <p>
+            Se cambia la tasa vigente desde {fdesde} de la tarifa {ctarifa}. Lo anterior queda en el historial y se
+            puede restaurar.
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            {porConfirmar.cambios.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        </ConfirmarDialog>
+      )}
     </div>
   );
 }

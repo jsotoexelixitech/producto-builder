@@ -6,6 +6,7 @@ import {
   Calculator,
   ClipboardCheck,
   Equal,
+  Eye,
   FileText,
   Lock,
   Package,
@@ -41,6 +42,7 @@ import {
   type SumaConfigValores,
 } from '@/components/sis2000/CoberturaSumaConfigFields';
 import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
+import { CoberturaFichaPanel } from '@/components/configurador/CoberturaFichaPanel';
 import {
   PRODUCTORES_DEFAULT,
   ProductoresSelector,
@@ -741,6 +743,10 @@ export function Sis2000ComboPage() {
   const [automovil, setAutomovil] = useState(inicio?.automovil === true && inicio?.tipoPlan !== 'personas');
   /** Familia del ramo del producto (GET core/sis2000/ramos/:cramo); null mientras no se conoce. */
   const [familiaRamo, setFamiliaRamo] = useState<FamiliaRamo | null>(null);
+  /** Ramo de solo lectura según nest-api (fianzas u otro): el panel «Ver / editar» no ofrece editar. */
+  const [ramoSoloLectura, setRamoSoloLectura] = useState(false);
+  /** Cobertura abierta en el panel lateral «Ver / editar» (código; null = cerrado). */
+  const [fichaCob, setFichaCob] = useState<string | null>(null);
   /** Personas: tabla de tasas y obligatoriedad por cobertura. */
   const [filasPer, setFilasPer] = useState<Record<string, FilaPersonas>>({});
   /** Personas: parentescos (cparen, varios separados por coma), sexo, edades y tabla de tasas por defecto. */
@@ -1000,12 +1006,17 @@ export function Sis2000ComboPage() {
   // Familia del ramo (auto, personas o cosas) para sugerir «Automóvil» y avisar si no corresponde.
   useEffect(() => {
     setFamiliaRamo(null);
+    setRamoSoloLectura(false);
+    setFichaCob(null);
     if (!cramo) return;
     let vigente = true;
     api
       .leerSis2000Ramo(cramo)
       .then((r) => {
-        if (vigente) setFamiliaRamo(normalizarRamo(r ?? {}).familia);
+        if (!vigente) return;
+        const ramo = normalizarRamo(r ?? {});
+        setFamiliaRamo(ramo.familia);
+        setRamoSoloLectura(ramo.soloLectura);
       })
       .catch(() => {
         if (vigente) setFamiliaRamo(null);
@@ -1925,6 +1936,44 @@ export function Sis2000ComboPage() {
     void refrescarCoberturas();
   }
 
+  /**
+   * Tras guardar desde el panel «Ver / editar»: vuelve a leer solo esa cobertura (o sus tarifas) y actualiza la fila de
+   * la lista. Si el usuario no tocó sus montos y no es del plan que se edita, el plan toma la tasa nueva.
+   */
+  async function refrescarCobertura(ccobertura: string, que: 'cobertura' | 'tarifas') {
+    const ramo = cramo;
+    const gen = generacion.current;
+    try {
+      if (que === 'cobertura') {
+        const row = await api.getSis2000Cobertura(ramo, ccobertura);
+        if (gen !== generacion.current) return;
+        const nueva = aCoberturaRamo(row);
+        setCatalogo((prev) =>
+          prev && prev.cramo === ramo
+            ? { ...prev, coberturas: prev.coberturas.map((c) => (c.ccobertura === ccobertura ? nueva : c)) }
+            : prev,
+        );
+        return;
+      }
+      const rows = await api.listSis2000Tarifas(ramo, ccobertura);
+      if (gen !== generacion.current) return;
+      setTarifas((prev) => ({ ...prev, [ccobertura]: { estado: 'ok', tarifas: rows } }));
+      if (cobTocadas.has(ccobertura) || delPlan.has(ccobertura)) return;
+      setFilas((prev) => {
+        const actual = prev[ccobertura];
+        if (!actual) return prev;
+        const vigentes = rows.filter(esVigente);
+        const tarifa = vigentes.find((t) => texto(t.ctarifa) === actual.ctarifa) ?? vigentes[0];
+        return { ...prev, [ccobertura]: { ...actual, incluir: actual.incluir && Boolean(tarifa), ...valoresDeTarifa(tarifa, hoy) } };
+      });
+    } catch (e) {
+      if (gen !== generacion.current) return;
+      if (que === 'tarifas') {
+        setTarifas((prev) => ({ ...prev, [ccobertura]: { estado: 'error', error: mensajeDeError(e) } }));
+      }
+    }
+  }
+
   function cerrarNuevaCobertura() {
     setMostrarNuevaCobertura(false);
     // Si la cobertura quedó grabada sin tarifa, que se vea en la lista («sin tarifa vigente»).
@@ -2502,6 +2551,44 @@ export function Sis2000ComboPage() {
     </>
   );
 
+  // Panel lateral «Ver / editar» de una cobertura (usa lo ya leído: no repite llamadas).
+  const fichaVista = fichaCob ? vistas.find((v) => v.cobertura.ccobertura === fichaCob) : undefined;
+  const fichaCobertura = fichaVista?.cobertura ?? (fichaCob ? catalogo?.coberturas.find((c) => c.ccobertura === fichaCob) : undefined);
+  const fichaCarga = fichaCob ? tarifas[fichaCob] : undefined;
+  const fichaPanel =
+    fichaCob && fichaCobertura && cramo ? (
+      <CoberturaFichaPanel
+        key={fichaCob}
+        cramo={cramo}
+        cobertura={fichaCobertura.fila}
+        tarifas={fichaCarga?.estado === 'ok' ? fichaCarga.tarifas : null}
+        cargandoTarifas={!fichaCarga || fichaCarga.estado === 'cargando'}
+        errorTarifas={fichaCarga?.estado === 'error' ? fichaCarga.error : undefined}
+        calculada={Boolean(fichaVista?.calculada)}
+        textoCalculada={fichaVista?.calculada ? textoSumaCalculada(fichaVista.sumaConfig) : undefined}
+        personas={personas}
+        enPlan={
+          fichaVista?.fila
+            ? {
+                incluida: Boolean(fichaVista.fila.incluir && fichaVista.tarifa) || delPlan.has(fichaCob),
+                delPlan: delPlan.has(fichaCob),
+                ctarifa: fichaVista.fila.ctarifa,
+                msumamin: fichaVista.fila.msumamin,
+                msumamax: fichaVista.fila.msumamax,
+                pprima: fichaVista.fila.pprima,
+                mprima: fichaVista.fila.mprima,
+                modo: fichaVista.fila.modo,
+                obligatoria: personas ? filaPer(fichaCob).obligatoria : fichaVista.obligatoria,
+                ctablatar: filaPer(fichaCob).ctablatar,
+              }
+            : null
+        }
+        soloLectura={ramoSoloLectura}
+        onCerrar={() => setFichaCob(null)}
+        onCambio={(que) => void refrescarCobertura(fichaCob, que)}
+      />
+    ) : null;
+
   // ── Paso 2: Coberturas ──
   const pasoCoberturas = (
     <>
@@ -2642,6 +2729,9 @@ export function Sis2000ComboPage() {
                         />
                       </span>
                     </th>
+                    <th className="w-28 px-3 py-2">
+                      <span className="sr-only">Ver o editar</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2730,12 +2820,25 @@ export function Sis2000ComboPage() {
                             <Badge>Opcional</Badge>
                           )}
                         </td>
+                        <td className="px-3 py-2 text-right align-top">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setFichaCob(c.ccobertura)}
+                            aria-label={`Ver o editar la cobertura ${c.descripcion || c.ccobertura}`}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Ver / editar
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
                   {filtradas.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                      <td colSpan={4} className="px-3 py-6 text-center text-xs text-muted-foreground">
                         {soloMarcadas ? 'Todavía no marcaste coberturas.' : 'Ninguna cobertura coincide con la búsqueda.'}
                       </td>
                     </tr>
@@ -2775,6 +2878,7 @@ export function Sis2000ComboPage() {
           </DetallesTecnicos>
         </SectionPanel>
       )}
+      {fichaPanel}
     </>
   );
 
