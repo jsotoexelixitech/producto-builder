@@ -72,7 +72,9 @@ export type SeccionRespaldo =
   | 'TARIFA-DIAS'
   // Auto configurable (macatvalores PLAN_TASA_DIARIA / PLAN_DEDUCIBLE)
   | 'TASA-DIARIA'
-  | 'DEDUCIBLE-DESCUENTO';
+  | 'DEDUCIBLE-DESCUENTO'
+  // Productores mancomunados (macatvalores PLAN_MANCOMUNADO)
+  | 'MANCOMUNADO';
 
 export type SeccionRamoRespaldo =
   | 'DISPOSITIVOS'

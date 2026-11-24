@@ -691,6 +691,11 @@ export const api = {
   /** bactivo 0 (no borra): el plan vuelve al cálculo de siempre. */
   desactivarSis2000AutoParametro: (planId: string, tipo: 'tasa-diaria' | 'deducibles', motivoCambio?: string) =>
     enviar('DELETE', `${rutaPlanF2(planId)}/auto/${tipo}${motivoCambio ? `?motivo=${encodeURIComponent(motivoCambio)}` : ''}`),
+  /** Productores mancomunados del plan (PLAN_MANCOMUNADO, cualquier ramo). PUT: 409 si el DBA no creó el dominio. */
+  leerSis2000Mancomunado: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/mancomunado`),
+  guardarSis2000Mancomunado: (planId: string, body: CuerpoF2) => enviar('PUT', `${rutaPlanF2(planId)}/mancomunado`, body),
+  desactivarSis2000Mancomunado: (planId: string, motivoCambio?: string) =>
+    enviar('DELETE', `${rutaPlanF2(planId)}/mancomunado${motivoCambio ? `?motivo=${encodeURIComponent(motivoCambio)}` : ''}`),
   leerSis2000TasaCasco: (cramo: number) => request<unknown>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco`),
   /** Historial de versiones de la tasa de casco (global). */
   listarSis2000VersionesCasco: (cramo: number, limit = 50) => request<unknown>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones?limit=${limit}`),

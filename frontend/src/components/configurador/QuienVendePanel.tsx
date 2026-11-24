@@ -27,6 +27,7 @@ import { InfoTip } from '@/components/ui/info-tip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
+import { MancomunadoPlan } from './MancomunadoPlan';
 import { cn } from '@/lib/utils';
 
 const POR_PAGINA = 50;
@@ -502,6 +503,8 @@ export function QuienVendePanel({ planId, soloLectura, onCambio }: { planId: str
             <Input id="qv-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
           </div>
         )}
+
+        <MancomunadoPlan planId={planId} soloLectura={soloLectura} />
 
         {confirmar && (
           <ConfirmarDialog

@@ -300,6 +300,26 @@ export class Sis2000Fase2Controller {
     return this.fase2.desactivarAutoParametro(id, tipoAutoParametro(tipo), contextoCambio(user, motivo));
   }
 
+  // ── Productores mancomunados del plan (PLAN_MANCOMUNADO) ──
+
+  @Get('plans/:id/mancomunado')
+  leerMancomunado(@Param('id') id: string) {
+    return this.fase2.leerMancomunado(id);
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Put('plans/:id/mancomunado')
+  guardarMancomunado(@Param('id') id: string, @Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.fase2.guardarMancomunado(id, cuerpo, contextoCambio(user, motivo));
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Delete('plans/:id/mancomunado')
+  desactivarMancomunado(@Param('id') id: string, @CurrentUser() user: AuthUserPayload, @Query('motivo') motivo?: string) {
+    return this.fase2.desactivarMancomunado(id, contextoCambio(user, motivo));
+  }
+
   @Get('auto/:cramo/tasa-casco')
   leerTasaCasco(@Param('cramo') cramo: string) {
     return this.fase2.leerTasaCasco(cramo);

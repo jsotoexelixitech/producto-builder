@@ -20,6 +20,7 @@ import {
   aRevisarCasco,
   aTarifaDias,
   aDeduciblesAuto,
+  aMancomunado,
   aTasaDiaria,
   aVersionCasco,
   aVistaPreviaCasco,
@@ -432,6 +433,33 @@ export class ConfiguradorFase2Service {
       leer: () => this.bridge.leerConfigurador(ruta),
       escribir: () => this.bridge.escribirConfigurador('DELETE', ruta),
       payload: { operacion: 'desactivar', tipo },
+    });
+  }
+
+  // ── Productores mancomunados del plan, cualquier ramo (macatvalores PLAN_MANCOMUNADO) ──
+
+  leerMancomunado(id: string) {
+    return this.leer(`${this.plan(id).ruta}/mancomunado`);
+  }
+
+  /** Upsert (bactivo 1) con copia previa al historial. nest-api valida y responde 409 si el DBA no creó el dominio. */
+  guardarMancomunado(id: string, body: Obj, ctx?: ContextoCambio) {
+    const p = this.plan(id);
+    const ruta = `${p.ruta}/mancomunado`;
+    return this.seccionPlan(p, 'MANCOMUNADO', ctx, 'PUT', ruta, aMancomunado(body), ruta);
+  }
+
+  /** bactivo 0 (no borra): la emisión vuelve a ser la de siempre para ese plan. */
+  desactivarMancomunado(id: string, ctx?: ContextoCambio) {
+    const p = this.plan(id);
+    const ruta = `${p.ruta}/mancomunado`;
+    return this.escribir(ctx, {
+      entidad: 'PLAN',
+      clave: claveRespaldo.seccionPlan(p.cramo, p.cplan, 'MANCOMUNADO'),
+      tipo: 'ELIMINACION',
+      leer: () => this.bridge.leerConfigurador(ruta),
+      escribir: () => this.bridge.escribirConfigurador('DELETE', ruta),
+      payload: { operacion: 'desactivar', tipo: 'mancomunado' },
     });
   }
 

@@ -317,6 +317,18 @@ export function aDeduciblesAuto(p: Obj) {
   };
 }
 
+/**
+ * PUT planes/:cramo/:cplan/mancomunado (macatvalores PLAN_MANCOMUNADO, cualquier ramo):
+ * { productores: [{ cproductor, ppart }] }. nest-api valida (≥ 2, sin repetidos, existen, suma 100).
+ */
+export function aMancomunado(p: Obj) {
+  return {
+    productores: lista(p.productores)
+      .map((x) => limpio({ cproductor: num(x.cproductor), ppart: num(x.ppart) }))
+      .filter((x) => x.cproductor !== undefined || x.ppart !== undefined),
+  };
+}
+
 export const MOVIMIENTOS_CASCO = ['INCREMENTO', 'DISMINUCION'];
 export const ALCANCES_CASCO = ['GLOBAL', 'TIPO_VEHICULO', 'COBERTURA', 'ANTIGUEDAD', 'SUMA_ASEGURADA', 'COMBINADA'];
 
