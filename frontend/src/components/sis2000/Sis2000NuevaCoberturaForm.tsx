@@ -24,6 +24,7 @@ import { AlertaError, ResumenErrores, type ErrorDeCampo } from '@/components/ui/
 import { entenderError, type ErrorEntendible } from '@/lib/errores';
 import { textoDeducible } from '@/lib/configurador';
 import { DeducibleCampos } from '@/components/configurador/DeducibleCampos';
+import { LISTA_CONTRATOS_REASEGURO, LISTA_RAMOS_REASEGURO, ReaseguroListas } from '@/components/configurador/ReaseguroListas';
 
 const ETIQUETA_OPCION =
   'inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs font-medium';
@@ -576,24 +577,27 @@ export function Sis2000NuevaCoberturaForm({
               onChange={(e) => cambiar('ccoberturaint', e.target.value)}
             />
           </FormField>
+          <ReaseguroListas />
           <FormField
-            label="Contrato de reaseguro"
+            label="Contrato de reaseguro *"
             htmlFor="nc-ccontrea"
-            hint="Pídelo a Reaseguro si la cobertura se cede. La revisión del plan avisa si queda vacío."
+            hint="Obligatorio (lo da Reaseguro); se sugiere el que más usa el ramo. Sin él la póliza no se puede emitir."
             error={err('ccontrea')}
           >
             <Input
               id="nc-ccontrea"
               inputMode="numeric"
+              list={LISTA_CONTRATOS_REASEGURO}
               value={form.ccontrea}
               disabled={bloqueada}
               onChange={(e) => cambiar('ccontrea', e.target.value)}
             />
           </FormField>
-          <FormField label="Ramo de reaseguro" htmlFor="nc-cramorea" hint="Va junto con el contrato de reaseguro; lo indica Reaseguro." error={err('cramorea')}>
+          <FormField label="Ramo de reaseguro *" htmlFor="nc-cramorea" hint="Obligatorio; va junto con el contrato de reaseguro." error={err('cramorea')}>
             <Input
               id="nc-cramorea"
               inputMode="numeric"
+              list={LISTA_RAMOS_REASEGURO}
               value={form.cramorea}
               disabled={bloqueada}
               onChange={(e) => cambiar('cramorea', e.target.value)}

@@ -509,3 +509,46 @@ export function contarRevision(items: ItemRevision[]): Record<NivelRevision, num
     { error: 0, aviso: 0, ok: 0 } as Record<NivelRevision, number>,
   );
 }
+
+/**
+ * Comisiones vigentes del ramo (cplan '0', comodín) que ya cubren la combinación del formulario: cada campo coincide o
+ * es comodín (0 / vacío) en alguno de los dos lados. Sirve para avisar antes de duplicar una comisión que el plan ya
+ * hereda del ramo. Solo filas 'V' (las 'N' no se tocan ni cuentan).
+ */
+export function comodinesRamoQueCubren(filas: Comision[], f: ComisionForm): Comision[] {
+  const c = cuerpoComision(f);
+  const cubre = (a: string | number, b: string | number) => {
+    const x = String(a).trim() || '0';
+    const y = String(b).trim() || '0';
+    return x === y || x === '0' || y === '0';
+  };
+  if (!String(f.ctipoprod).trim()) return [];
+  return filas.filter(
+    (r) =>
+      r.aplicaA === 'ramo' &&
+      r.iestado === 'V' &&
+      cubre(r.ctipoprod, c.ctipoprod) &&
+      cubre(r.cproductor, c.cproductor) &&
+      cubre(r.ccober, c.ccober) &&
+      cubre(r.ctarifa, c.ctarifa),
+  );
+}
+
+/**
+ * Parentesco y edad para la cotización de prueba de un plan de personas (spCalculoPer): el primer parentesco de la
+ * primera cobertura y una edad dentro de su rango (la mínima, o 18 si el rango la incluye). null si no hay parentescos.
+ */
+export function parentescoParaCotizar(coberturas: unknown): { cparen: number; nedad: number } | null {
+  if (!Array.isArray(coberturas)) return null;
+  for (const c of coberturas as Array<{ parentescos?: unknown }>) {
+    const ps = Array.isArray(c?.parentescos) ? (c.parentescos as Array<Record<string, unknown>>) : [];
+    for (const p of ps) {
+      const cparen = Number(p?.cparen);
+      if (!Number.isInteger(cparen) || cparen <= 0) continue;
+      const min = Number.isInteger(Number(p?.nedad_min)) ? Number(p.nedad_min) : 0;
+      const max = Number.isInteger(Number(p?.nedad_max)) ? Number(p.nedad_max) : 120;
+      return { cparen, nedad: min <= 18 && 18 <= max ? 18 : min };
+    }
+  }
+  return null;
+}

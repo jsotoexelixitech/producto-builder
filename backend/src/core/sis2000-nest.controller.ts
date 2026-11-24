@@ -336,10 +336,10 @@ export class Sis2000NestController {
     throw new ForbiddenException('Borrar planes en Sis2000 no está permitido desde el configurador.');
   }
 
-  /** Cotiza un plan de cosas recién creado (solo lectura: no emite). */
+  /** Cotiza un plan (cosas o personas) desde el configurador de nest-api (solo lectura: no emite; tasa de mamonedas). */
   @Post('plans/cotizar')
   cotizarPlan(@Body() dto: Sis2000PlanCotizarDto) {
-    return this.coreService.cotizarSis2000Plan(dto.cramo, dto.cplan, dto.ifrecuencia);
+    return this.coreService.cotizarSis2000Plan(dto.cramo, dto.cplan, dto);
   }
 
   /** Auxiliar: frecuencias valrep para armar CreatePlanDto.frecuencias. */

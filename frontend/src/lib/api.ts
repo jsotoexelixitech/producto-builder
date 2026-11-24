@@ -723,10 +723,16 @@ export const api = {
     request<{ ok: boolean }>(`/core/sis2000/plans/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
-  cotizarSis2000Plan: (cramo: number, cplan: string, ifrecuencia = 'A') =>
+  /** Cotización de prueba (no emite). Personas: parentesco y edad (spCalculoPer). La tasa sale de mamonedas. */
+  cotizarSis2000Plan: (
+    cramo: number,
+    cplan: string,
+    ifrecuencia = 'A',
+    personas?: { cparen: number; nedad: number; msumaaseg?: number },
+  ) =>
     request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/plans/cotizar', {
       method: 'POST',
-      body: JSON.stringify({ cramo, cplan, ifrecuencia }),
+      body: JSON.stringify({ cramo, cplan, ifrecuencia, ...(personas ?? {}) }),
     }),
   listSis2000PlanFrecuencias: (cplan: string, cramo?: number) =>
     request<import('@/lib/sis2000-nest-api').Sis2000NestRow[]>('/core/sis2000/plans/frecuencias', {

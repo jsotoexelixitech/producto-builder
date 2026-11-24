@@ -68,6 +68,7 @@ export function canalesAAgregar(payload: Record<string, unknown>): { all_canal?:
   return canales?.length ? { canales } : null;
 }
 import { leerSobre, respuestaEscritura } from './configurador-fase2.mapper';
+import { filasCotizacion, listaDe } from './cotizacion.mapper';
 import {
   inferBranchFromPartnerRow,
   PartnerProductPayload,
@@ -276,22 +277,14 @@ export class PartnerBridgeService {
     );
   }
 
+  /** Contratos de reaseguro (macontratos) desde nest-api GET configurador/reaseguro: { ccont, xdescripcion, iestado }. */
   async listCatalogContratosReaseguro(): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/catalogos/contratos-reaseguro',
-      ),
-    );
+    return listaDe(await this.leerConfigurador('reaseguro'), 'contratos');
   }
 
+  /** Ramos de reaseguro (maramosrea) desde nest-api GET configurador/reaseguro: { cramorea, xdescripcion, iestado }. */
   async listCatalogRamosReaseguro(): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/catalogos/ramos-reaseguro',
-      ),
-    );
+    return listaDe(await this.leerConfigurador('reaseguro'), 'ramos');
   }
 
   // ── nest-api catalog:sis2000 — macoberturas ─────────────────────────────
@@ -926,6 +919,23 @@ export class PartnerBridgeService {
         { cramo, cplan, cuotas: 1, ifrecuencia, pdescuento: 0, precargo: 0 },
       ),
     );
+  }
+
+  /**
+   * Cotización de prueba del configurador (nest-api POST configurador/planes/:cramo/:cplan/cotizar): filas por
+   * cobertura con ccober/xcobertura normalizados, más ptasamon y cmoneda usados (leídos de mamonedas, sin tasa fija).
+   */
+  async cotizarPlanConfigurador(
+    cramo: number,
+    cplan: string,
+    cuerpo: { ifrecuencia?: string; cparen?: number; nedad?: number; msumaaseg?: number },
+  ): Promise<Record<string, unknown>[]> {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      `/api/v1/configurador/planes/${cramo}/${encodeURIComponent(cplan.trim())}/cotizar`,
+      cuerpo,
+    );
+    return filasCotizacion(body.data);
   }
 
   static planMasterId(cramo: number | string, cplan: string): string {

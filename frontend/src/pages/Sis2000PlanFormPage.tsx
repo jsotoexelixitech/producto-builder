@@ -31,6 +31,7 @@ import { HistorialPanel } from '@/components/sis2000/HistorialPanel';
 import { ProveedoresPlanPanel } from '@/components/sis2000/ProveedoresPlanPanel';
 import { CobroDiasPanel } from '@/components/sis2000/CobroDiasPanel';
 import { claveHistorial } from '@/lib/sis2000-historial';
+import { parentescoParaCotizar } from '@/lib/configurador';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
@@ -270,13 +271,30 @@ export function Sis2000PlanFormPage() {
     }
   }
 
-  /** Solo planes de cosas: spCalculoRiesgoGeneral con suma y prima de maplantar. */
+  /**
+   * Cosas: spCalculoRiesgoGeneral con suma y prima de maplantar. Personas: spCalculoPer con el primer parentesco del
+   * JSON. En ambos la tasa (ptasamon) la lee nest-api de mamonedas.
+   */
   async function cotizar() {
     setCotizando(true);
     setError(null);
     setCotizacion(null);
     try {
-      const rows = await api.cotizarSis2000Plan(Number(cramoQuick), cplanQuick.trim());
+      let personas: { cparen: number; nedad: number } | undefined;
+      if (planType === 'personas') {
+        let coberturas: unknown = null;
+        try {
+          coberturas = (JSON.parse(jsonText) as { coberturas?: unknown }).coberturas;
+        } catch {
+          coberturas = null;
+        }
+        personas = parentescoParaCotizar(coberturas) ?? undefined;
+        if (!personas) {
+          setError('Para cotizar un plan de personas el JSON debe tener al menos una cobertura con parentescos.');
+          return;
+        }
+      }
+      const rows = await api.cotizarSis2000Plan(Number(cramoQuick), cplanQuick.trim(), 'A', personas);
       if (!rows.length) {
         setError('La cotización no devolvió coberturas: revisa que el plan exista y tenga suma y prima.');
         return;
@@ -470,7 +488,7 @@ export function Sis2000PlanFormPage() {
           <Save className="h-4 w-4" />
           {saving ? 'Guardando…' : isEdit ? 'Actualizar plan' : 'Crear plan'}
         </Button>
-        {planType === 'cosas' && (
+        {(planType === 'cosas' || planType === 'personas') && (
           <Button
             type="button"
             variant="outline"

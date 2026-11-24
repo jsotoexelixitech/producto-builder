@@ -256,8 +256,11 @@ export function validarCoberturaEditable(f: CoberturaEditable): ErroresCobertura
   // Mismos límites que el alta de cobertura (sis2000-nueva-cobertura).
   if (f.xdescripcion_c.trim().length > 15) e.xdescripcion_c = 'El nombre corto admite hasta 15 caracteres.';
   if (f.xabreviatura.trim().length > 5) e.xabreviatura = 'La abreviatura admite hasta 5 caracteres.';
+  // Reaseguro obligatorio: vaciarlo rompe la emisión (ccontrea NULL).
   for (const k of ['ccontrea', 'cramorea'] as const) {
-    if (f[k].trim() && !/^\d+$/.test(f[k].trim())) e[k] = 'Debe ser un número entero.';
+    const v = f[k].trim();
+    if (!v) e[k] = k === 'ccontrea' ? 'El contrato de reaseguro es obligatorio: sin él la póliza no se puede emitir.' : 'El ramo de reaseguro es obligatorio.';
+    else if (!/^[1-9]\d*$/.test(v)) e[k] = 'Debe ser un número entero mayor que 0.';
   }
   return e;
 }

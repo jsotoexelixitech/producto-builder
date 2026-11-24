@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class Sis2000RamoParamDto {
@@ -30,6 +30,27 @@ export class Sis2000PlanCotizarDto {
   @IsOptional()
   @IsString()
   ifrecuencia?: string;
+
+  /** Personas: parentesco a cotizar (spCalculoPer). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  cparen?: number;
+
+  /** Personas: edad del asegurado. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(120)
+  nedad?: number;
+
+  /** Personas: suma asegurada (0 = la del plan). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  msumaaseg?: number;
 }
 
 export class Sis2000PlanFrecuenciasDto {

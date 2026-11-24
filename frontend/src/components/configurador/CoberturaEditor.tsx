@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { CampoMotivo } from './EscrituraConfirmada';
+import { LISTA_CONTRATOS_REASEGURO, LISTA_RAMOS_REASEGURO, ReaseguroListas } from './ReaseguroListas';
 
 type Fila = Record<string, unknown>;
 
@@ -95,17 +96,18 @@ export function CoberturaEditor({
         <FormField label="Abreviatura" htmlFor={id('xab')} error={errores.xabreviatura} tooltip={'Abreviatura de la cobertura para listados y reportes.\nEn Sis2000: macoberturas.xabreviatura'}>
           <Input id={id('xab')} value={form.xabreviatura} onChange={(e) => cambiar('xabreviatura', e.target.value)} />
         </FormField>
+        <ReaseguroListas />
         <FormField
-          label="Contrato de reaseguro"
+          label="Contrato de reaseguro *"
           htmlFor={id('ccontrea')}
           error={errores.ccontrea}
-          hint="Vacío = sin contrato; la revisión del plan lo marca como pendiente."
-          tooltip={'Contrato de reaseguro al que se cede esta cobertura al emitir. Lo debe indicar Reaseguro; sin contrato la revisión del plan avisa que falta.\nEn Sis2000: macoberturas.ccontrea'}
+          hint="Obligatorio: sin contrato la póliza no se puede emitir."
+          tooltip={'Contrato de reaseguro al que se cede esta cobertura al emitir. Lo debe indicar Reaseguro. Se valida contra macontratos.\nEn Sis2000: macoberturas.ccontrea'}
         >
-          <Input id={id('ccontrea')} inputMode="numeric" value={form.ccontrea} onChange={(e) => cambiar('ccontrea', e.target.value)} />
+          <Input id={id('ccontrea')} inputMode="numeric" list={LISTA_CONTRATOS_REASEGURO} value={form.ccontrea} onChange={(e) => cambiar('ccontrea', e.target.value)} />
         </FormField>
-        <FormField label="Ramo de reaseguro" htmlFor={id('cramorea')} error={errores.cramorea} tooltip={'Ramo de reaseguro del contrato; va junto con el contrato.\nEn Sis2000: macoberturas.cramorea'}>
-          <Input id={id('cramorea')} inputMode="numeric" value={form.cramorea} onChange={(e) => cambiar('cramorea', e.target.value)} />
+        <FormField label="Ramo de reaseguro *" htmlFor={id('cramorea')} error={errores.cramorea} tooltip={'Ramo de reaseguro del contrato; va junto con el contrato. Se valida contra maramosrea.\nEn Sis2000: macoberturas.cramorea'}>
+          <Input id={id('cramorea')} inputMode="numeric" list={LISTA_RAMOS_REASEGURO} value={form.cramorea} onChange={(e) => cambiar('cramorea', e.target.value)} />
         </FormField>
         <FormField
           label="Estado"

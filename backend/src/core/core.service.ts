@@ -855,9 +855,17 @@ export class CoreService implements OnModuleInit {
     return this.partnerBridge.listPlanFrecuencias(cplan, cramo);
   }
 
-  async cotizarSis2000Plan(cramo: number, cplan: string, ifrecuencia?: string) {
+  /**
+   * Cotización de prueba: nest-api POST configurador/planes/:cramo/:cplan/cotizar (spCalculoPer en personas,
+   * spCalculoRiesgoGeneral en cosas) con la tasa de mamonedas. Devuelve las filas por cobertura.
+   */
+  async cotizarSis2000Plan(
+    cramo: number,
+    cplan: string,
+    opciones: { ifrecuencia?: string; cparen?: number; nedad?: number; msumaaseg?: number } = {},
+  ) {
     this.assertPartnerConfigured();
-    return this.partnerBridge.quoteGeneralRiskPlan(cramo, cplan.trim(), ifrecuencia || 'A');
+    return this.partnerBridge.cotizarPlanConfigurador(cramo, cplan.trim(), { ...opciones, ifrecuencia: opciones.ifrecuencia || 'A' });
   }
 
   private assertPartnerConfigured() {

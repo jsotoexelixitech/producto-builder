@@ -3,6 +3,7 @@ import { Percent, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   comodin,
+  comodinesRamoQueCubren,
   cuerpoComision,
   normalizarComision,
   validarComision,
@@ -66,6 +67,8 @@ export function ComisionesPanel({
 
   const errores = intento ? validarComision(form) : {};
   const visibles = (filas ?? []).filter((f) => verBajas || f.iestado === 'V');
+  /** Comisiones del ramo (comodín) que ya aplican a lo que se está por agregar. */
+  const yaCubiertas = useMemo(() => comodinesRamoQueCubren(filas ?? [], form), [filas, form]);
   const vigentesPlan = useMemo(() => (filas ?? []).filter((f) => f.iestado === 'V' && f.aplicaA === 'plan').length, [filas]);
 
   async function ejecutar(accion: () => Promise<unknown>, mensaje: string, titulo: string): Promise<boolean> {
@@ -260,6 +263,14 @@ export function ComisionesPanel({
 
         <div className="space-y-3 rounded-xl border border-dashed border-slate-200 p-3">
           <p className="font-semibold text-slate-800">Agregar comisión a este plan</p>
+          {yaCubiertas.length > 0 && (
+            <Alert variant="warning">
+              El ramo ya tiene {yaCubiertas.length === 1 ? 'una comisión general vigente' : `${yaCubiertas.length} comisiones generales vigentes`}{' '}
+              («Del ramo») que también aplica{yaCubiertas.length === 1 ? '' : 'n'} a esta combinación (
+              {yaCubiertas.map((r) => `${r.pcomision ?? '—'} %`).join(', ')}). Si agregas esta, el plan quedaría con la comisión
+              duplicada: revisa con Técnico antes de guardar.
+            </Alert>
+          )}
           <div className="grid gap-3 sm:grid-cols-3">
             {campo('ctipoprod', 'Tipo de intermediario', 'Tipo de intermediario al que aplica la comisión. Ejemplo: 1. Las comisiones generales del ramo usan 0 (cualquier tipo).\nEn Sis2000: maarancel.ctipoprod', { placeholder: '1' })}
             {campo('cproductor', 'Productor', 'Productor puntual que cobra este porcentaje. Vacío o 0 = todos los productores. Ejemplo: una comisión especial para un solo productor.\nEn Sis2000: maarancel.cproductor', { placeholder: 'Todos' })}

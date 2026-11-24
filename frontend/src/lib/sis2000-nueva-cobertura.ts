@@ -64,6 +64,24 @@ export function siguienteCodigoCobertura(existentes: Sis2000NestRow[]): string {
   return siguiente.length <= 4 ? siguiente : '';
 }
 
+/**
+ * Reaseguro sugerido para una cobertura nueva: el par contrato + ramo de reaseguro más usado por las coberturas
+ * activas del ramo (vacío si ninguna lo tiene). Es obligatorio: sin él la emisión graba ccontrea NULL.
+ */
+export function reaseguroSugerido(existentes: Sis2000NestRow[]): { ccontrea: string; cramorea: string } {
+  const cuenta = new Map<string, number>();
+  for (const c of existentes) {
+    const k = texto(c.ccontrea);
+    const r = texto(c.cramorea);
+    if (!/^[1-9]\d*$/.test(k) || !/^[1-9]\d*$/.test(r) || texto(c.iestado) === 'I') continue;
+    cuenta.set(`${k}|${r}`, (cuenta.get(`${k}|${r}`) ?? 0) + 1);
+  }
+  const [mejor] = [...cuenta.entries()].sort((a, b) => b[1] - a[1]);
+  if (!mejor) return { ccontrea: '', cramorea: '' };
+  const [ccontrea, cramorea] = mejor[0].split('|');
+  return { ccontrea, cramorea };
+}
+
 export function formNuevaCobertura(
   existentes: Sis2000NestRow[],
   cmoneda = '$',
@@ -79,8 +97,7 @@ export function formNuevaCobertura(
     basadaEn: base ? '1' : '',
     cramoint: base ? texto(base.cramoint) : '',
     ccoberturaint: base ? texto(base.ccoberturaint) : '',
-    ccontrea: '',
-    cramorea: '',
+    ...reaseguroSugerido(existentes),
     ctarifa: '1',
     xtarifam: '',
     fdesde: hoyLocalIso(),
@@ -122,9 +139,15 @@ export function validarNuevaCobertura(
   if (f.xabreviatura.trim().length > 5) e.xabreviatura = 'La abreviatura admite hasta 5 caracteres.';
   if (!f.cmoneda.trim()) e.cmoneda = 'Elige la moneda de la suma y la prima.';
 
-  for (const campo of ['cramoint', 'ccoberturaint', 'ccontrea', 'cramorea'] as const) {
+  for (const campo of ['cramoint', 'ccoberturaint'] as const) {
     const v = f[campo].trim();
     if (v && (!esEntero(v) || Number(v) > 32767)) e[campo] = 'Debe ser un número entero sin decimales (o déjalo vacío).';
+  }
+  // Reaseguro obligatorio: sin contrato ni ramo de reaseguro la emisión graba ccontrea NULL y falla.
+  for (const campo of ['ccontrea', 'cramorea'] as const) {
+    const v = f[campo].trim();
+    if (!v) e[campo] = campo === 'ccontrea' ? 'Indica el contrato de reaseguro (lo da Reaseguro): sin él la póliza no se puede emitir.' : 'Indica el ramo de reaseguro del contrato (lo da Reaseguro).';
+    else if (!esEntero(v) || Number(v) < 1 || Number(v) > 32767) e[campo] = 'Debe ser un número entero mayor que 0.';
   }
 
   const ctar = f.ctarifa.trim();

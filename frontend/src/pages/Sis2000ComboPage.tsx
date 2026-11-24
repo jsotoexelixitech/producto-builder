@@ -327,6 +327,8 @@ interface PlanGuardado {
   /** Frecuencia con la que se cotiza: Anual si el plan la tiene, si no la primera del plan. */
   ifrecuencia: string;
   editado: boolean;
+  /** Personas: parentesco y edad con los que se prueba spCalculoPer (primer parentesco, edad mínima del rango). */
+  cotizarPersona?: { cparen: number; nedad: number };
 }
 
 /** Plan leído de Sis2000 para editarlo con el formulario. */
@@ -1725,6 +1727,8 @@ export function Sis2000ComboPage() {
         automovil: automovil && tipoPlan === 'cosas',
         ifrecuencia,
         editado: modoEdicion,
+        cotizarPersona:
+          tipoPlan === 'personas' && cparens?.length ? { cparen: cparens[0], nedad: entero(edadMin) ?? 0 } : undefined,
       });
       setMotivo('');
       setVersionHistorial((n) => n + 1);
@@ -1752,7 +1756,10 @@ export function Sis2000ComboPage() {
     }
   }
 
-  /** Cotiza el plan guardado con spCalculoRiesgoGeneral (solo lectura: no emite). */
+  /**
+   * Cotiza el plan guardado (solo lectura: no emite): spCalculoRiesgoGeneral en cosas, spCalculoPer en personas (primer
+   * parentesco y edad mínima). La tasa la lee nest-api de mamonedas.
+   */
   async function cotizar() {
     if (!planGuardado) return;
     setCotizando(true);
@@ -1763,6 +1770,7 @@ export function Sis2000ComboPage() {
         planGuardado.cramo,
         planGuardado.cplan,
         planGuardado.ifrecuencia,
+        planGuardado.cotizarPersona,
       );
       if (!rows.length) {
         setErrorCotizar(
@@ -3829,7 +3837,7 @@ export function Sis2000ComboPage() {
                       : 'Seguir: deducibles, comisiones y revisión'}
                 </Button>
               </Link>
-              {planGuardado.tipo === 'cosas' && (
+              {(planGuardado.tipo === 'cosas' || planGuardado.cotizarPersona) && (
                 <Button type="button" variant="outline" size="sm" onClick={cotizar} disabled={cotizando}>
                   <Calculator className="h-3.5 w-3.5" />
                   {cotizando ? 'Cotizando…' : 'Probar cotización en Sis2000'}
@@ -3869,6 +3877,9 @@ export function Sis2000ComboPage() {
             <p className="border-b border-border/50 bg-muted/30 px-2 py-2 text-xs font-semibold">
               Cotización de prueba · pago{' '}
               {(opcionesFrecuencia.find((f) => f.ifrecuencia === planGuardado.ifrecuencia)?.xfrecuencia ?? planGuardado.ifrecuencia).toLowerCase()}
+              {planGuardado.cotizarPersona &&
+                ` · parentesco ${planGuardado.cotizarPersona.cparen}, ${planGuardado.cotizarPersona.nedad} años`}
+              {Number(cotizacion[0]?.ptasamon) > 0 && ` · tasa ${Number(cotizacion[0]?.ptasamon).toLocaleString('es-VE')} (mamonedas)`}
             </p>
             <table className="w-full text-xs">
               <thead className="bg-muted/50 text-left">
@@ -3903,11 +3914,11 @@ export function Sis2000ComboPage() {
           <p>
             {modoEdicion ? (
               <>
-                nest-api <code>PUT /api/v1/configurador/planes/{cramo}/{cplan.trim()}</code> → spMantPlanes (U)
+                nest-api <code>PUT /api/v1/configurador/planes/{cramo}/{cplan.trim()}</code> → {tipoPlan === 'personas' ? 'SQL propio en una transacción' : 'spMantPlanes (U)'}
               </>
             ) : (
               <>
-                nest-api <code>POST /api/v1/configurador/planes</code> → spMantPlanes (C)
+                nest-api <code>POST /api/v1/configurador/planes</code> → {tipoPlan === 'personas' ? 'SQL propio en una transacción' : 'spMantPlanes (C)'}
               </>
             )}{' '}
             · tablas {personas ? 'maplanes_per, maplcober_per, mapltarifas_per, mapledades_per' : 'maplanes, maplantar'}, maplanes_frec,
