@@ -1,0 +1,120 @@
+{
+  "_leeme": [
+    "Seed de Auto Renta Seguro para el configurador. NO ejecutar todavía: es lo que se cargaría por los endpoints de nest-api v1/configurador (o por el builder) en Sis2000_QA cuando (1) el DBA aplique el script de dominios PLAN_TASA_DIARIA y PLAN_DEDUCIBLE en macatdominios y el SP del contrato, y (2) La Mundial responda las preguntas abiertas de abajo.",
+    "Contrato: .antigravity/CONTRATO-AUTO-CONFIGURABLE.md. Datos consultados: datos-maestros-sis2000-qa/ (export 18-nov-2026).",
+    "Orden: crear el plan (producto, cabecera, coberturas y tarifas con el asistente del builder) → pasos de abajo. Cada PUT/POST exige el scope configurador:write y CONFIGURADOR_AUTO_ESCRITURA=1 (comisiones: CONFIGURADOR_COMISIONES_ESCRITURA=1).",
+    "Todo lo marcado TODO o en preguntasAbiertas está sin confirmar."
+  ],
+  "producto": "Auto Renta Seguro (reglamento actuarial LM): casco para vehículos de alquiler sin chofer, antigüedad máxima 10 años.",
+  "plan": {
+    "cramo": 18,
+    "cramo_TODO": "Ramo sin confirmar (pregunta 1). Se propone 18 (automóvil): es el único ramo con matipos y macattip; las coberturas de abajo son del 18.",
+    "cplan": "RENTA1",
+    "cplan_nota": "Propuesto: CHAR(6), no existe en maplanes ni maplanes_per de ningún ramo (cvalor de macatvalores es solo el cplan).",
+    "frecuencia_TODO": "Pregunta 2: si es por días, una sola frecuencia 'D' (por días) en maplanes_frec, como los BINAC; si es anual, 'A' con la tasa anual equivalente.",
+    "referencia": "18/RCVAL1 «Plan RCV Básico Alquiler Sin Chofer» (solo coberturas RCV 6 y 7): el RCV de alquiler ya existe aparte."
+  },
+  "mapeoTiposVehiculo": {
+    "_fuente": "datos-maestros-sis2000-qa/matipos.csv (ramo 18) y macattip.csv",
+    "Particulares": { "ctipo": 1, "xtipo": "PARTICULARES", "certeza": "alta" },
+    "Rústicos (4x4)": { "ctipo": 2, "xtipo": "RUSTICO", "certeza": "media: matipos no distingue 4x4; confirmar con LM (pregunta 4)" },
+    "Pick-ups": {
+      "ctipo": 9,
+      "xtipo": "PICK-UP",
+      "certeza": "media: confirmar con LM (pregunta 4)",
+      "ojo": "macattip del ramo 18 solo tiene el par tipo 9 / uso 25 («Hasta 2 TM. de Cap.»). El uso de alquiler sin chofer es el 5 y solo existe para los tipos 1 y 2 (pares 1/5 y 2/5). Sin el par 9/5 un pick-up de alquiler no cotiza (THROW 99021): crear el par con PUT auto/18/tipos-uso/9/5 (afecta a todos los planes del ramo 18) o cotizar los pick-ups con uso 25 (decidir con Técnica)."
+    },
+    "noUsar": "ctipo 0 (TODOS): el cálculo busca el tipo exacto del vehículo; para cualquier tipo se usa tasa_defecto."
+  },
+  "mapeoCoberturas": {
+    "_fuente": "datos-maestros-sis2000-qa/macoberturas.csv y matarifa.csv (ramo 18). En el ramo 18 no hay coberturas sueltas de colisión, incendio, robo ni grúa: van dentro de las de casco y de la asistencia.",
+    "Colisión": { "ccobertura": "1", "xcobertura": "COBERTURA AMPLIA", "ctarifa": "1", "certeza": "media: la Amplia cubre pérdida parcial y total por colisión" },
+    "Incendio y rayo": { "ccobertura": "1", "xcobertura": "COBERTURA AMPLIA", "ctarifa": "1", "certeza": "media: incluido en la Amplia (y en 2 PÉRDIDA TOTAL si se arma el plan con PT + PP)" },
+    "Robo, hurto y asalto": { "ccobertura": "1", "xcobertura": "COBERTURA AMPLIA", "ctarifa": "1", "certeza": "media: incluido en la Amplia" },
+    "Daño accidental": { "ccobertura": "1", "xcobertura": "COBERTURA AMPLIA", "ctarifa": "1", "alternativa": "28 PÉRDIDA PARCIAL (ojo: su matarifa 28/1 se llama «MOTÍN, DISTURBIOS…» y 28/2 «EVENTOS CATASTRÓFICOS»: revisar con Técnica antes de usarla)" },
+    "Grúa": { "ccobertura": "15", "xcobertura": "CLUB ARYS", "ctarifa": "1", "certeza": "baja: la grúa viene en la asistencia Arys; separam GRUE del ramo 18 limita la antigüedad para grúa. Confirmar con LM y Técnica" },
+    "propuesta": "Opción A (recomendada): plan con 1 COBERTURA AMPLIA + 15 CLUB ARYS; tasa diaria y descuento por deducible sobre [\"1\"]. Opción B: 2 PÉRDIDA TOTAL + 28 PÉRDIDA PARCIAL + 15; tasa diaria sobre [\"2\",\"28\"] y deducible sobre [\"28\"]. No cobrar la tasa diaria en 1 y además en 2/28 a la vez: la prima se duplicaría."
+  },
+  "pasos": [
+    {
+      "paso": 1,
+      "que": "Tasa diaria por tipo de vehículo (macatvalores PLAN_TASA_DIARIA)",
+      "metodo": "PUT",
+      "ruta": "/api/v1/configurador/planes/18/RENTA1/auto/tasa-diaria",
+      "rutaBuilder": "PUT /core/sis2000/plans/18-RENTA1/auto/tasa-diaria",
+      "cuerpo": {
+        "coberturas": ["1"],
+        "tasas": [
+          { "ctipo": 1, "tasa": 0.072 },
+          { "ctipo": 2, "tasa": 0.09 },
+          { "ctipo": 9, "tasa": 0.106 }
+        ],
+        "tasa_defecto": null,
+        "dias_min": 1,
+        "dias_max": 365
+      },
+      "jsonQueQueda": "{\"cramo\":18,\"coberturas\":[\"1\"],\"tasas\":{\"1\":0.072,\"2\":0.09,\"9\":0.106},\"tasa_defecto\":null,\"dias_min\":1,\"dias_max\":365}",
+      "tasaAnualEquivalente": { "1": 26.28, "2": 32.85, "9": 38.69 },
+      "TODO": ["ctipo de Rústicos y Pick-ups (pregunta 4)", "dias_min/dias_max según LM (pregunta 2)", "tasa_defecto null = otro tipo de vehículo no cotiza"]
+    },
+    {
+      "paso": 2,
+      "que": "Descuento por deducible (macatvalores PLAN_DEDUCIBLE)",
+      "metodo": "PUT",
+      "ruta": "/api/v1/configurador/planes/18/RENTA1/auto/deducibles",
+      "rutaBuilder": "PUT /core/sis2000/plans/18-RENTA1/auto/deducibles",
+      "cuerpo": {
+        "coberturas": ["1"],
+        "aplica": "PARCIAL",
+        "opciones": [
+          { "pdeducible": 3, "pdescuento": 25 },
+          { "pdeducible": 4, "pdescuento": 30 },
+          { "pdeducible": 5, "pdescuento": 45 }
+        ],
+        "obligatorio": false
+      },
+      "TODO": ["obligatorio según quién elige el deducible (pregunta 3)", "significado de «aplica» lo fija el SP del DBA (hoy texto libre, PARCIAL por defecto)"]
+    },
+    {
+      "paso": 3,
+      "que": "Antigüedad máxima 10 años (maplantar_ano, solo tope: la prima la da la tasa diaria)",
+      "metodo": "PUT",
+      "ruta": "/api/v1/configurador/planes/18/RENTA1/tasas-antiguedad/1/1",
+      "rutaBuilder": "PUT /core/sis2000/plans/18-RENTA1/tasas-antiguedad/1/1",
+      "cuerpo": { "tramos": [{ "desde": 0, "hasta": 10, "pprima": 26.28 }] },
+      "notas": [
+        "pprima = tasa anual equivalente de Particulares (0,072 × 365); maplantar_ano no distingue tipo de vehículo y con tasa diaria activa no se usa para la prima.",
+        "nest-api avisa (no bloquea) que el último tramo no llega a 20 años: es lo buscado (más de 10 años no cotiza).",
+        "Desde 0: un vehículo del año siguiente (antigüedad -1) no cotiza; si LM lo acepta, usar desde -1.",
+        "Si se usa la opción B, repetir para 2/1 y 28/<tarifa>."
+      ]
+    },
+    {
+      "paso": 4,
+      "que": "Comisión 15 % (maarancel)",
+      "metodo": "GET (revisar) y POST solo si hace falta",
+      "ruta": "/api/v1/configurador/planes/18/RENTA1/comisiones",
+      "hoyEnSis2000QA": "El ramo 18 ya tiene filas 'V' comodín (cplan '0', ctipoprod 0, cproductor 0, ctarifa '0') con 15 % para las coberturas 1, 2, 28, 3, 4, 14 y 16, y 10 % para la 15 (CLUB ARYS). GET comisiones del plan las muestra con aplicaA 'ramo'.",
+      "recomendacion": "No agregar filas del plan para 1/2/28: los SP de emisión y endosos de auto unen maarancel por cramo+ccober y una segunda fila 'V' para la misma cobertura puede duplicar la comisión (nest-api lo avisa).",
+      "cuerpoSiLMPideOtraCosa": { "ctipoprod": 0, "cproductor": 0, "ccober": "15", "ctarifa": "0", "fdesde": "2026-12-01", "pcomision": 15 },
+      "TODO": "Grúa/Club Arys (15) está al 10 % en el ramo: confirmar si Auto Renta lleva 15 % también ahí. No se toca ninguna fila 'N' (significado desconocido)."
+    },
+    {
+      "paso": 5,
+      "que": "Frecuencia, quién vende y revisión",
+      "notas": [
+        "Frecuencia única según pregunta 2 (POST planes/18/RENTA1/frecuencias con 'D' o 'A').",
+        "Quién vende (mausuplan) según canal de las arrendadoras.",
+        "GET planes/18/RENTA1/revision antes de cotizar."
+      ]
+    }
+  ],
+  "preguntasAbiertas": [
+    "1. Ramo: el reglamento dice RCV y el producto es casco. ¿Ramo 18 (automóvil) u otro?",
+    "2. Cobro: ¿por días de alquiler (tasa diaria × días, frecuencia D) o anual con tasa equivalente (26,28 / 32,85 / 38,69 %)? ¿Días mínimo y máximo?",
+    "3. Deducible: ¿lo elige el cliente (obligatorio false/true) o es fijo?",
+    "4. Equivalencia Particulares / Rústicos (4x4) / Pick-ups con matipos (propuesto 1 / 2 / 9) y uso para pick-ups de alquiler (no existe macattip 9/5).",
+    "5. Coberturas: ¿opción A (Amplia + Arys) u opción B (PT + PP + Arys)? ¿La grúa es la de Club Arys?",
+    "6. Comisión de la asistencia (15 Club Arys): 10 % del ramo o 15 %."
+  ]
+}
