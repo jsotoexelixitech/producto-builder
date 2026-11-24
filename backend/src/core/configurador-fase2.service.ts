@@ -19,6 +19,8 @@ import {
   aCancelarCasco,
   aRevisarCasco,
   aTarifaDias,
+  aDeduciblesAuto,
+  aTasaDiaria,
   aVersionCasco,
   aVistaPreviaCasco,
   consultaQuienVende,
@@ -34,6 +36,12 @@ import { claveRespaldo, Sis2000HistorialService, type SeccionRamoRespaldo, type 
 import type { ContextoCambio } from './respaldo/respaldo.types';
 
 type Obj = Record<string, unknown>;
+
+/** Parámetros de auto configurable por plan (rutas de nest-api planes/:cramo/:cplan/auto/<tipo>). */
+export type TipoAutoParametro = 'tasa-diaria' | 'deducibles';
+export const TIPOS_AUTO_PARAMETRO: TipoAutoParametro[] = ['tasa-diaria', 'deducibles'];
+const SECCION_AUTO: Record<TipoAutoParametro, SeccionRespaldo> = { 'tasa-diaria': 'TASA-DIARIA', deducibles: 'DEDUCIBLE-DESCUENTO' };
+
 const t = (v: unknown) => String(v ?? '').trim();
 const enc = (v: unknown) => encodeURIComponent(t(v));
 
@@ -398,6 +406,33 @@ export class ConfiguradorFase2Service {
       `${p.ruta}/tarifa-dias`,
       { ccober: t(ccober), ctarifa: t(ctarifa), ...cuerpo },
     );
+  }
+
+  // ── Auto configurable: tasa diaria por tipo de vehículo y descuento por deducible (macatvalores) ──
+
+  leerAutoParametro(id: string, tipo: TipoAutoParametro) {
+    return this.leer(`${this.plan(id).ruta}/auto/${tipo}`);
+  }
+
+  /** Upsert del JSON del plan (bactivo 1). nest-api responde 409 si el DBA todavía no creó el dominio. */
+  guardarAutoParametro(id: string, tipo: TipoAutoParametro, body: Obj, ctx?: ContextoCambio) {
+    const p = this.plan(id);
+    const ruta = `${p.ruta}/auto/${tipo}`;
+    return this.seccionPlan(p, SECCION_AUTO[tipo], ctx, 'PUT', ruta, tipo === 'tasa-diaria' ? aTasaDiaria(body) : aDeduciblesAuto(body), ruta);
+  }
+
+  /** bactivo 0 (no borra): el cálculo vuelve a su comportamiento de siempre para ese plan. */
+  desactivarAutoParametro(id: string, tipo: TipoAutoParametro, ctx?: ContextoCambio) {
+    const p = this.plan(id);
+    const ruta = `${p.ruta}/auto/${tipo}`;
+    return this.escribir(ctx, {
+      entidad: 'PLAN',
+      clave: claveRespaldo.seccionPlan(p.cramo, p.cplan, SECCION_AUTO[tipo]),
+      tipo: 'ELIMINACION',
+      leer: () => this.bridge.leerConfigurador(ruta),
+      escribir: () => this.bridge.escribirConfigurador('DELETE', ruta),
+      payload: { operacion: 'desactivar', tipo },
+    });
   }
 
   leerTasaCasco(cramo: string) {

@@ -3,7 +3,7 @@ import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthUserPayload } from '../auth/auth.service';
-import { ConfiguradorFase2Service } from './configurador-fase2.service';
+import { ConfiguradorFase2Service, TIPOS_AUTO_PARAMETRO, type TipoAutoParametro } from './configurador-fase2.service';
 import { contextoCambio, separarMotivo } from './respaldo/contexto';
 import type { TipoDescRec } from '../partner-bridge/configurador-fase2.mapper';
 
@@ -12,6 +12,11 @@ type Cuerpo = Record<string, unknown>;
 const tipoDescRec = (v: string): TipoDescRec => {
   if (v === 'dispositivos' || v === 'sustancias') return v;
   throw new BadRequestException('Usa «dispositivos» o «sustancias».');
+};
+
+const tipoAutoParametro = (v: string): TipoAutoParametro => {
+  if ((TIPOS_AUTO_PARAMETRO as string[]).includes(v)) return v as TipoAutoParametro;
+  throw new BadRequestException('Usa «tasa-diaria» o «deducibles».');
 };
 
 /**
@@ -268,6 +273,31 @@ export class Sis2000Fase2Controller {
   ) {
     const { cuerpo, motivo } = separarMotivo(body);
     return this.fase2.guardarTarifaDias(id, ccober, ctarifa, cuerpo, contextoCambio(user, motivo));
+  }
+
+  // ── Auto configurable: tasa diaria por tipo de vehículo y descuento por deducible (macatvalores) ──
+
+  @Get('plans/:id/auto/:tipo')
+  leerAutoParametro(@Param('id') id: string, @Param('tipo') tipo: string) {
+    return this.fase2.leerAutoParametro(id, tipoAutoParametro(tipo));
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Put('plans/:id/auto/:tipo')
+  guardarAutoParametro(@Param('id') id: string, @Param('tipo') tipo: string, @Body() body: Cuerpo, @CurrentUser() user: AuthUserPayload) {
+    const { cuerpo, motivo } = separarMotivo(body);
+    return this.fase2.guardarAutoParametro(id, tipoAutoParametro(tipo), cuerpo, contextoCambio(user, motivo));
+  }
+
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Delete('plans/:id/auto/:tipo')
+  desactivarAutoParametro(
+    @Param('id') id: string,
+    @Param('tipo') tipo: string,
+    @CurrentUser() user: AuthUserPayload,
+    @Query('motivo') motivo?: string,
+  ) {
+    return this.fase2.desactivarAutoParametro(id, tipoAutoParametro(tipo), contextoCambio(user, motivo));
   }
 
   @Get('auto/:cramo/tasa-casco')

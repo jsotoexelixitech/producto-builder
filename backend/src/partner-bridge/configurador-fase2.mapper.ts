@@ -283,6 +283,40 @@ export function aTarifaDias(p: Obj) {
   return conConfirmar({ filas }, p);
 }
 
+/** Coberturas como lista de códigos sin repetir (mayúsculas, sin vacíos). */
+const codigos = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).map((c) => texto(c).toUpperCase()).filter(Boolean))];
+
+/**
+ * PUT planes/:cramo/:cplan/auto/tasa-diaria (macatvalores PLAN_TASA_DIARIA, contrato auto configurable):
+ * { coberturas, tasas: [{ ctipo, tasa }], tasa_defecto (null = sin defecto), dias_min, dias_max }.
+ */
+export function aTasaDiaria(p: Obj) {
+  const defecto = num(p.tasa_defecto);
+  return {
+    coberturas: codigos(p.coberturas),
+    tasas: lista(p.tasas)
+      .map((t) => limpio({ ctipo: num(t.ctipo), tasa: num(t.tasa) }))
+      .filter((t) => t.ctipo !== undefined || t.tasa !== undefined),
+    tasa_defecto: defecto ?? null,
+    ...limpio({ dias_min: num(p.dias_min), dias_max: num(p.dias_max) }),
+  };
+}
+
+/**
+ * PUT planes/:cramo/:cplan/auto/deducibles (macatvalores PLAN_DEDUCIBLE):
+ * { coberturas, aplica?, opciones: [{ pdeducible, pdescuento }], obligatorio }.
+ */
+export function aDeduciblesAuto(p: Obj) {
+  return {
+    coberturas: codigos(p.coberturas),
+    ...limpio({ aplica: texto(p.aplica).toUpperCase() || undefined }),
+    opciones: lista(p.opciones)
+      .map((o) => limpio({ pdeducible: num(o.pdeducible), pdescuento: num(o.pdescuento) }))
+      .filter((o) => o.pdeducible !== undefined || o.pdescuento !== undefined),
+    obligatorio: bool(p.obligatorio) === true,
+  };
+}
+
 export const MOVIMIENTOS_CASCO = ['INCREMENTO', 'DISMINUCION'];
 export const ALCANCES_CASCO = ['GLOBAL', 'TIPO_VEHICULO', 'COBERTURA', 'ANTIGUEDAD', 'SUMA_ASEGURADA', 'COMBINADA'];
 

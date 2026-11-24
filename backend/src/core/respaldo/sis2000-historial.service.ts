@@ -69,7 +69,10 @@ export type SeccionRespaldo =
   | 'FRECUENCIAS-PRODUCTOR'
   | 'QUIEN-VENDE'
   | 'EDADES'
-  | 'TARIFA-DIAS';
+  | 'TARIFA-DIAS'
+  // Auto configurable (macatvalores PLAN_TASA_DIARIA / PLAN_DEDUCIBLE)
+  | 'TASA-DIARIA'
+  | 'DEDUCIBLE-DESCUENTO';
 
 export type SeccionRamoRespaldo =
   | 'DISPOSITIVOS'
