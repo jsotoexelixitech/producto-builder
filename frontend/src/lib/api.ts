@@ -683,6 +683,14 @@ export const api = {
   listarSis2000TarifaDias: (planId: string) => request<unknown>(`${rutaPlanF2(planId)}/tarifa-dias`),
   guardarSis2000TarifaDias: (planId: string, ccober: string, ctarifa: string, body: CuerpoF2) =>
     enviar('PUT', `${rutaPlanF2(planId)}/tarifa-dias/${encodeURIComponent(ccober.trim())}/${encodeURIComponent(ctarifa.trim())}`, body),
+  /** Auto configurable (macatvalores): tipo «tasa-diaria» (PLAN_TASA_DIARIA) o «deducibles» (PLAN_DEDUCIBLE). */
+  leerSis2000AutoParametro: (planId: string, tipo: 'tasa-diaria' | 'deducibles') => request<unknown>(`${rutaPlanF2(planId)}/auto/${tipo}`),
+  /** Upsert del plan; 409 si el DBA no creó el dominio o el cplan tiene fila de otro ramo. */
+  guardarSis2000AutoParametro: (planId: string, tipo: 'tasa-diaria' | 'deducibles', body: CuerpoF2) =>
+    enviar('PUT', `${rutaPlanF2(planId)}/auto/${tipo}`, body),
+  /** bactivo 0 (no borra): el plan vuelve al cálculo de siempre. */
+  desactivarSis2000AutoParametro: (planId: string, tipo: 'tasa-diaria' | 'deducibles', motivoCambio?: string) =>
+    enviar('DELETE', `${rutaPlanF2(planId)}/auto/${tipo}${motivoCambio ? `?motivo=${encodeURIComponent(motivoCambio)}` : ''}`),
   leerSis2000TasaCasco: (cramo: number) => request<unknown>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco`),
   /** Historial de versiones de la tasa de casco (global). */
   listarSis2000VersionesCasco: (cramo: number, limit = 50) => request<unknown>(`/core/sis2000/auto/${encodeURIComponent(String(cramo))}/tasa-casco/versiones?limit=${limit}`),

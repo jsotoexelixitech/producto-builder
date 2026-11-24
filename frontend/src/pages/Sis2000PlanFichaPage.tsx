@@ -339,7 +339,7 @@ function Seccion({
     case 'coberturas':
       return <CoberturasPlanPanel planId={id} cramo={cramo} familia={familia} plan={plan} catalogo={catalogo} soloLectura={soloLectura} onCambio={onCambio} />;
     case 'deducibles':
-      return <DeduciblesPanel planId={id} cramo={cramo} coberturas={coberturas} filasPlan={filasPlanCob} moneda={moneda} conCopiaEnPlan={familia !== 'personas'} onCambio={onCambio} />;
+      return <DeduciblesPanel planId={id} cramo={cramo} coberturas={coberturas} filasPlan={filasPlanCob} moneda={moneda} conCopiaEnPlan={familia !== 'personas'} conDescuentoAuto={familia === 'auto'} onCambio={onCambio} />;
     case 'frecuencias':
       return <FrecuenciasPanel planId={id} soloLectura={soloLectura} onCambio={onCambio} />;
     case 'quien-vende':

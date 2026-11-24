@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { TablaEditable, type ColumnaEditable, type FilaTexto } from './TablaEditable';
+import { TasaDiariaAuto } from './AutoConfigurable';
 import { CampoMotivo, DialogoConfirmarEscritura, EstadoEscritura, useEscritura } from './EscrituraConfirmada';
 
 type FilaLeida = ReturnType<typeof normalizarTarifaDias>;
@@ -160,6 +161,7 @@ export function TarifaDiasPanel({
   }
 
   return (
+    <>
     <SectionPanel title="Tarifa por días" description="Prima según los días de vigencia, por cobertura (planes Binacional, placa B). Ojo: la cotización no mira si la fila está activa, así que una fila inactiva con los mismos días y grupo de tarifa todavía puede tomarse." icon={CalendarDays}>
       <div className="space-y-4 text-xs">
         <AlertaError error={errorCarga} onReintentar={cargar} />
@@ -229,5 +231,7 @@ export function TarifaDiasPanel({
         <DialogoConfirmarEscritura esc={esc} />
       </div>
     </SectionPanel>
+    <TasaDiariaAuto planId={planId} coberturas={coberturas} soloLectura={soloLectura} />
+    </>
   );
 }

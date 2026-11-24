@@ -39,7 +39,7 @@ export const SECCIONES_BASE = ['producto', 'plan', 'coberturas', 'tarifas', 'ded
 export const SECCION_INFO: Record<string, { titulo: string; resumen: string; tabla: string }> = {
   coberturas: { titulo: 'Coberturas', resumen: 'Qué cubre el plan, con qué suma y a qué tasa o prima', tabla: 'maplancob / maplantar' },
   tarifas: { titulo: 'Tarifas y tasas', resumen: 'Tasa o prima base de cada cobertura (una sola vigente por tarifa)', tabla: 'matarifa / matarifa_d' },
-  deducibles: { titulo: 'Deducibles', resumen: 'Monto o % que asume el asegurado en cada siniestro', tabla: 'matarifa_d / maplancob' },
+  deducibles: { titulo: 'Deducibles', resumen: 'Monto o % que asume el asegurado en cada siniestro', tabla: 'matarifa_d / maplancob (auto: descuento por deducible en macatvalores PLAN_DEDUCIBLE)' },
   frecuencias: { titulo: 'Formas de pago', resumen: 'Cómo se fracciona el pago: anual, semestral, trimestral, mensual…', tabla: 'maplanes_frec' },
   canales: { titulo: 'Quién lo vende', resumen: 'Productores y canales que pueden emitir el plan', tabla: 'mausuplan' },
   comisiones: { titulo: 'Comisiones', resumen: '% de la prima para el productor; sin comisión cargada queda en 0 %', tabla: 'maarancel' },
@@ -48,7 +48,11 @@ export const SECCION_INFO: Record<string, { titulo: string; resumen: string; tab
   producto: { titulo: 'Producto', resumen: 'Producto al que pertenece el plan y qué tipo de intermediario lo usa', tabla: 'maproductos' },
   'quien-vende': { titulo: 'Quién lo vende', resumen: 'Productores, canales y gestores incluidos o excluidos del plan', tabla: 'mausuplan' },
   'tasa-casco': { titulo: 'Tasa de casco', resumen: 'Tasa de casco por tipo, suma y antigüedad; afecta a todos los planes del ramo', tabla: 'macalcasco / macobtipo / marangosum / marangoano' },
-  'tarifa-dias': { titulo: 'Tarifa por días', resumen: 'Prima según los días de viaje (Binacional)', tabla: 'maplantar_dias' },
+  'tarifa-dias': {
+    titulo: 'Tarifa por días',
+    resumen: 'Prima según los días de vigencia: tabla del Binacional o tasa diaria por tipo de vehículo',
+    tabla: 'maplantar_dias / macatvalores PLAN_TASA_DIARIA',
+  },
   'edades-parentesco': { titulo: 'Edades por parentesco', resumen: 'Edad mínima y máxima de entrada por parentesco', tabla: 'mapledades_per' },
   'tablas-edad': { titulo: 'Tablas de edad', resumen: 'Prima o tasa por tramo de edad; fuera de tramo la prima queda en 0', tabla: 'mapltabedad' },
   proveedores: { titulo: 'Proveedores', resumen: 'Clínicas y proveedores de servicio del plan', tabla: 'maplprov_per' },

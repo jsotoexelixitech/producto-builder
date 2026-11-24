@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { DeducibleCampos } from './DeducibleCampos';
+import { DeducibleDescuentoAuto } from './AutoConfigurable';
 
 type Fila = Record<string, unknown>;
 
@@ -32,6 +33,8 @@ interface Props {
   moneda?: string;
   /** Copia del deducible en el plan (maplancob): solo cosas y auto; en personas nest-api no la tiene. */
   conCopiaEnPlan?: boolean;
+  /** Auto: opciones de deducible con descuento en la prima (macatvalores PLAN_DEDUCIBLE). */
+  conDescuentoAuto?: boolean;
   onCambio?: () => void;
 }
 
@@ -39,7 +42,7 @@ interface Props {
  * Deducibles de todas las familias. El que se usa al emitir está en la tasa vigente de la tarifa; el plan guarda una
  * copia por cobertura (más el desembolso máximo). La tarifa puede estar en otros planes del ramo: se avisa.
  */
-export function DeduciblesPanel({ planId, cramo, coberturas, filasPlan = [], moneda = '$', conCopiaEnPlan = true, onCambio }: Props) {
+export function DeduciblesPanel({ planId, cramo, coberturas, filasPlan = [], moneda = '$', conCopiaEnPlan = true, conDescuentoAuto = false, onCambio }: Props) {
   const [motivo, setMotivo] = useState('');
   return (
     <SectionPanel
@@ -75,6 +78,7 @@ export function DeduciblesPanel({ planId, cramo, coberturas, filasPlan = [], mon
             <Input id="deducibles-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
           </div>
         )}
+        {conDescuentoAuto && coberturas.length > 0 && <DeducibleDescuentoAuto planId={planId} coberturas={coberturas} />}
       </div>
     </SectionPanel>
   );
