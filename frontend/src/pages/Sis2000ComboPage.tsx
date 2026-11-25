@@ -967,7 +967,7 @@ export function Sis2000ComboPage() {
   const nombresRepetidos = useMemo(() => {
     const cuenta = new Map<string, number>();
     opcionesProductoFiltradas.forEach((o) => {
-      const n = texto(o.producto.xdescripcion_l).toUpperCase();
+      const n = o.nombres.join(' / ').toUpperCase();
       cuenta.set(n, (cuenta.get(n) ?? 0) + 1);
     });
     return cuenta;
@@ -984,7 +984,8 @@ export function Sis2000ComboPage() {
   const opcionesComboProducto = useMemo<OpcionCombo[]>(
     () =>
       opcionesProductoFiltradas.map((o) => {
-        const nombre = texto(o.producto.xdescripcion_l) || 'Sin nombre';
+        // Un mismo código puede tener varios nombres (RCV, RCV Nexus, Cobertura Amplia): se muestran todos.
+        const nombre = o.nombres.join(' / ') || 'Sin nombre';
         const repetido = (nombresRepetidos.get(nombre.toUpperCase()) ?? 0) > 1;
         const detalle = [
           ramoFiltro === RAMO_TODOS && o.cramo ? `ramo ${o.cramo}` : '',
@@ -997,7 +998,7 @@ export function Sis2000ComboPage() {
           valor: o.clave,
           etiqueta: repetido ? `${nombre} (${o.cproducto})` : nombre,
           detalle: detalle || undefined,
-          buscar: `${o.cproducto} ${o.cramo}`,
+          buscar: `${o.cproducto} ${o.cramo} ${o.nombres.join(' ')}`,
           deshabilitada: !o.cramo,
         };
       }),

@@ -382,6 +382,8 @@ export interface Sis2000ProductoOpcion {
   producto: Sis2000Product;
   /** Todos los xform del producto (SysIP y Nexus). */
   formularios: string[];
+  /** Nombres distintos del mismo código (p. ej. 24: RCV, RCV Nexus y Cobertura Amplia). */
+  nombres: string[];
   tieneNexus: boolean;
 }
 
@@ -399,6 +401,7 @@ export function agruparProductosSis2000(rows: Sis2000Product[]): Sis2000Producto
     const cramo = Number(p.cramo) > 0 ? Number(p.cramo) : 0;
     const clave = `${cproducto}|${cramo}`;
     const xform = String(p.xform ?? '').trim();
+    const nombre = String(p.xdescripcion_l ?? '').trim();
     const grupo = grupos.get(clave);
     if (!grupo) {
       grupos.set(clave, {
@@ -407,10 +410,12 @@ export function agruparProductosSis2000(rows: Sis2000Product[]): Sis2000Producto
         cramo,
         producto: p,
         formularios: xform ? [xform] : [],
+        nombres: nombre ? [nombre] : [],
         tieneNexus: esXformNexus(xform),
       });
       continue;
     }
+    if (nombre && !grupo.nombres.includes(nombre)) grupo.nombres.push(nombre);
     if (xform && !grupo.formularios.includes(xform)) grupo.formularios.push(xform);
     if (esXformNexus(xform)) grupo.tieneNexus = true;
     else if (esXformNexus(grupo.producto.xform)) grupo.producto = p;
