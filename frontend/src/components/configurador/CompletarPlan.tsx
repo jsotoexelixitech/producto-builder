@@ -31,6 +31,8 @@ export function usePlanCompletar(cramo: number, planId: string | null) {
   const [catalogo, setCatalogo] = useState<Fila[]>([]);
   const [revision, setRevision] = useState<RevisionPlan | null>(null);
   const [cambios, setCambios] = useState(0);
+  /** Lo guardado desde los paneles de completar (no por el propio combo): guardar el combo otra vez lo pisaría. */
+  const [cambiosPaneles, setCambiosPaneles] = useState(0);
 
   const cargarRamo = useCallback(() => {
     if (!(cramo > 0)) return;
@@ -78,13 +80,19 @@ export function usePlanCompletar(cramo: number, planId: string | null) {
     api.listSis2000CoberturasByRamo(cramo).then(setCatalogo).catch(() => setCatalogo([]));
   }, [planId, cramo]);
 
-  /** Tras guardar en cualquier panel: se vuelve a leer el plan y la revisión se recalcula. */
-  const alCambiar = useCallback(() => {
+  /** Se vuelve a leer el plan y la revisión se recalcula. */
+  const recargar = useCallback(() => {
     setCambios((n) => n + 1);
     cargarPlan();
   }, [cargarPlan]);
 
-  return { ramo, errorRamo, cargarRamo, leido, errorPlan, catalogo, revision, cambios, alCambiar, cargarPlan };
+  /** Tras guardar en cualquier panel de completar. */
+  const alCambiar = useCallback(() => {
+    setCambiosPaneles((n) => n + 1);
+    recargar();
+  }, [recargar]);
+
+  return { ramo, errorRamo, cargarRamo, leido, errorPlan, catalogo, revision, cambios, cambiosPaneles, recargar, alCambiar, cargarPlan };
 }
 
 export type PlanCompletar = ReturnType<typeof usePlanCompletar>;

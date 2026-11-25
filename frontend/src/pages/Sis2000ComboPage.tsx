@@ -1768,7 +1768,14 @@ export function Sis2000ComboPage() {
     setConfirmando(true);
   }
 
+  // Al editar: lo cambiado en los pasos de completar no está en este formulario; guardarlo otra vez lo pisaría.
+  const guardarPisaria = modoEdicion && completar.cambiosPaneles > 0;
+
   async function guardarPlan() {
+    if (guardarPisaria) {
+      setConfirmando(false);
+      return;
+    }
     setIntentoCrear(true);
     limpiarResultado();
     if (errores.length) {
@@ -1796,7 +1803,7 @@ export function Sis2000ComboPage() {
       setMotivo('');
       setVersionHistorial((n) => n + 1);
       if (modoEdicion) {
-        completar.alCambiar();
+        completar.recargar();
         // Lo recién agregado ya es parte del plan (no se puede quitar desde aquí).
         setPlanOriginal((prev) =>
           prev ? { ...prev, plan: { ...prev.plan, ...payload }, coberturas: incluidas.map((v) => v.cobertura.ccobertura) } : prev,
@@ -4017,7 +4024,16 @@ export function Sis2000ComboPage() {
     </>
   );
 
-  const botonGuardar = (
+  const botonGuardar = guardarPisaria ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-amber-900">
+        Cambiaste el plan en los pasos siguientes. Vuelve a cargarlo para editar estos datos sin borrar esos cambios.
+      </span>
+      <Button type="button" variant="outline" onClick={() => window.location.reload()}>
+        Volver a cargar el plan
+      </Button>
+    </div>
+  ) : (
     <Button type="button" onClick={pedirConfirmacion} disabled={creando || Boolean(planGuardado && !modoEdicion)}>
       <Send className="h-4 w-4" />
       {creando ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Crear plan en Sis2000'}
