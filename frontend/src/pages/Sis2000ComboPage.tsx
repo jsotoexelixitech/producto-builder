@@ -967,7 +967,7 @@ export function Sis2000ComboPage() {
   const nombresRepetidos = useMemo(() => {
     const cuenta = new Map<string, number>();
     opcionesProductoFiltradas.forEach((o) => {
-      const n = o.nombres.join(' / ').toUpperCase();
+      const n = o.nombre.toUpperCase();
       cuenta.set(n, (cuenta.get(n) ?? 0) + 1);
     });
     return cuenta;
@@ -984,13 +984,13 @@ export function Sis2000ComboPage() {
   const opcionesComboProducto = useMemo<OpcionCombo[]>(
     () =>
       opcionesProductoFiltradas.map((o) => {
-        // Un mismo código puede tener varios nombres (RCV, RCV Nexus, Cobertura Amplia): se muestran todos.
-        const nombre = o.nombres.join(' / ') || 'Sin nombre';
+        const nombre = o.nombre || 'Sin nombre';
         const repetido = (nombresRepetidos.get(nombre.toUpperCase()) ?? 0) > 1;
         const detalle = [
           ramoFiltro === RAMO_TODOS && o.cramo ? `ramo ${o.cramo}` : '',
           !o.cramo ? 'sin ramo' : '',
           o.tieneNexus ? 'también en Nexus' : '',
+          o.codigoCompartido ? `código ${o.cproducto}` : '',
         ]
           .filter(Boolean)
           .join(' · ');
@@ -998,19 +998,23 @@ export function Sis2000ComboPage() {
           valor: o.clave,
           etiqueta: repetido ? `${nombre} (${o.cproducto})` : nombre,
           detalle: detalle || undefined,
-          buscar: `${o.cproducto} ${o.cramo} ${o.nombres.join(' ')}`,
+          buscar: `${o.cproducto} ${o.cramo}`,
           deshabilitada: !o.cramo,
         };
       }),
     [opcionesProductoFiltradas, nombresRepetidos, ramoFiltro],
   );
   const opcionProducto = useMemo(
-    () => opcionesProducto.find((o) => o.clave === claveProducto) ?? null,
+    // Borradores anteriores y el plan en edición guardan cproducto|cramo (sin nombre): vale la primera opción del código.
+    () =>
+      opcionesProducto.find((o) => o.clave === claveProducto) ??
+      (claveProducto ? opcionesProducto.find((o) => o.clave.startsWith(`${claveProducto}|`)) : null) ??
+      null,
     [opcionesProducto, claveProducto],
   );
   const producto = opcionProducto?.producto ?? null;
   const cproducto = opcionProducto?.cproducto ?? '';
-  const nombreProducto = opcionProducto?.nombres.join(' / ') || (cproducto ? `Producto ${cproducto}` : '');
+  const nombreProducto = opcionProducto?.nombre || (cproducto ? `Producto ${cproducto}` : '');
   const cramo = producto && Number(producto.cramo) > 0 ? Number(producto.cramo) : 0;
   const nombreRamo = cramo ? (opcionesRamo.find((r) => r.cramo === cramo)?.etiqueta ?? `Ramo ${cramo}`) : '';
   const esPersonas = texto(producto?.xform).toLowerCase().startsWith('person');
@@ -2413,7 +2417,7 @@ export function Sis2000ComboPage() {
                 id="combo-producto"
                 ariaLabel="Producto"
                 placeholder="Escribe el producto…"
-                value={claveProducto}
+                value={opcionProducto?.clave ?? claveProducto}
                 onChange={elegirProducto}
                 cargando={cargandoProductos && !productos.length}
                 opciones={opcionesComboProducto}

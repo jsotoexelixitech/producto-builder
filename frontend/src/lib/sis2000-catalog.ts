@@ -374,7 +374,7 @@ export function validateSis2000ProductForSave(form: Sis2000ProductInput): string
 
 /** Un producto de maproductos para los selectores (sin repetir la fila SysIP y la fila `*-nexus`). */
 export interface Sis2000ProductoOpcion {
-  /** Valor del selector: cproducto + cramo. */
+  /** Valor del selector: cproducto + cramo + nombre (un código puede tener varios nombres). */
   clave: string;
   cproducto: string;
   cramo: number;
@@ -382,8 +382,9 @@ export interface Sis2000ProductoOpcion {
   producto: Sis2000Product;
   /** Todos los xform del producto (SysIP y Nexus). */
   formularios: string[];
-  /** Nombres distintos del mismo código (p. ej. 24: RCV, RCV Nexus y Cobertura Amplia). */
-  nombres: string[];
+  nombre: string;
+  /** Otro nombre del listado usa el mismo código (p. ej. 24: RCV, RCV Nexus y Cobertura Amplia). */
+  codigoCompartido: boolean;
   tieneNexus: boolean;
 }
 
@@ -391,7 +392,7 @@ const esXformNexus = (xform: unknown) => /nexus/i.test(String(xform ?? ''));
 
 /**
  * maproductos tiene por cada producto una fila SysIP y otra `*-nexus` (mismo cproducto y cramo,
- * distinto xform). Agrupa por (cproducto, cramo) en el orden de llegada y marca si tiene versión Nexus.
+ * distinto xform). Agrupa por (cproducto, cramo, nombre) en el orden de llegada y marca si tiene versión Nexus.
  */
 export function agruparProductosSis2000(rows: Sis2000Product[]): Sis2000ProductoOpcion[] {
   const grupos = new Map<string, Sis2000ProductoOpcion>();
@@ -399,9 +400,9 @@ export function agruparProductosSis2000(rows: Sis2000Product[]): Sis2000Producto
     const cproducto = String(p.cproducto ?? '').trim();
     if (!cproducto) continue;
     const cramo = Number(p.cramo) > 0 ? Number(p.cramo) : 0;
-    const clave = `${cproducto}|${cramo}`;
-    const xform = String(p.xform ?? '').trim();
     const nombre = String(p.xdescripcion_l ?? '').trim();
+    const clave = `${cproducto}|${cramo}|${nombre.toUpperCase()}`;
+    const xform = String(p.xform ?? '').trim();
     const grupo = grupos.get(clave);
     if (!grupo) {
       grupos.set(clave, {
@@ -410,15 +411,19 @@ export function agruparProductosSis2000(rows: Sis2000Product[]): Sis2000Producto
         cramo,
         producto: p,
         formularios: xform ? [xform] : [],
-        nombres: nombre ? [nombre] : [],
+        nombre,
+        codigoCompartido: false,
         tieneNexus: esXformNexus(xform),
       });
       continue;
     }
-    if (nombre && !grupo.nombres.includes(nombre)) grupo.nombres.push(nombre);
     if (xform && !grupo.formularios.includes(xform)) grupo.formularios.push(xform);
     if (esXformNexus(xform)) grupo.tieneNexus = true;
     else if (esXformNexus(grupo.producto.xform)) grupo.producto = p;
   }
-  return [...grupos.values()];
+  const opciones = [...grupos.values()];
+  const cuenta = new Map<string, number>();
+  for (const o of opciones) cuenta.set(`${o.cproducto}|${o.cramo}`, (cuenta.get(`${o.cproducto}|${o.cramo}`) ?? 0) + 1);
+  for (const o of opciones) o.codigoCompartido = (cuenta.get(`${o.cproducto}|${o.cramo}`) ?? 0) > 1;
+  return opciones;
 }
