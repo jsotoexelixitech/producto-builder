@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Boxes,
@@ -74,9 +74,19 @@ import {
   DetallesTecnicos,
   NavegacionPasos,
   type EstadoPaso,
+  type PasoAsistente,
 } from '@/components/sis2000/AsistentePasos';
 import { formatoMonto2 } from '@/lib/sis2000-tramos';
 import { normalizarRamo, type FamiliaRamo } from '@/lib/configurador';
+import {
+  ETIQUETA_ESTADO,
+  PASO_COMBO_DE_SECCION,
+  estadoGrupo,
+  grupoDeSeccion,
+  gruposCompletar,
+  type EstadoGrupo,
+} from '@/lib/configurador-combo';
+import { CompletarPlan, usePlanCompletar } from '@/components/configurador/CompletarPlan';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { AlertaError, irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
@@ -1028,6 +1038,42 @@ export function Sis2000ComboPage() {
     };
   }, [cramo]);
 
+  // ── Completar el plan sin salir del combo (secciones del ramo: GET ramos/:cramo, igual que la ficha) ──
+  const navigate = useNavigate();
+  const planIdCompletar =
+    modoEdicion && editId ? editId : planGuardado ? sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan) : null;
+  const cramoCompletar = cramo || Number((editId ?? '').split('-')[0]) || 0;
+  const completar = usePlanCompletar(cramoCompletar, planIdCompletar);
+  const gruposPlan = useMemo(
+    () => (completar.ramo || completar.errorRamo ? gruposCompletar(completar.ramo?.familia ?? null, completar.ramo?.secciones ?? []) : []),
+    [completar.ramo, completar.errorRamo],
+  );
+  const totalPasos = PASOS.length + gruposPlan.length;
+  /** Grupos de «completar» que ya se abrieron (se quedan montados para no perder lo escrito). */
+  const [gruposVistos, setGruposVistos] = useState<ReadonlySet<string>>(() => new Set());
+  const grupoActivo = paso >= PASOS.length ? (gruposPlan[paso - PASOS.length]?.id ?? null) : null;
+  useEffect(() => {
+    if (grupoActivo && !gruposVistos.has(grupoActivo)) setGruposVistos((prev) => new Set(prev).add(grupoActivo));
+  }, [grupoActivo, gruposVistos]);
+  const estadoDeGrupo = (g: (typeof gruposPlan)[number]): EstadoGrupo =>
+    estadoGrupo(g, {
+      planListo: Boolean(planIdCompletar),
+      visitados: gruposVistos,
+      items: completar.revision?.items ?? null,
+      revisionListo: completar.revision ? completar.revision.listo : null,
+    });
+  const pasosCompletar: PasoAsistente[] = gruposPlan.map((g) => {
+    const e = estadoDeGrupo(g);
+    return {
+      id: `completar-${g.id}`,
+      titulo: g.titulo,
+      resumen: g.resumen,
+      etiqueta: ETIQUETA_ESTADO[e],
+      tono: e === 'hecho' ? 'bien' : e === 'falta' ? 'falta' : e === 'revisar' ? 'aviso' : undefined,
+      bloqueo: 'Se habilita al guardar el plan',
+    };
+  });
+
   // Borrador en localStorage: se guarda medio segundo después del último cambio (no al editar un plan existente).
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1662,16 +1708,33 @@ export function Sis2000ComboPage() {
 
   function estadoPaso(i: number): EstadoPaso {
     if (i === paso) return 'actual';
+    if (i >= PASOS.length) {
+      const e = estadoDeGrupo(gruposPlan[i - PASOS.length]);
+      return e === 'bloqueado' ? 'bloqueado' : e === 'hecho' ? 'hecho' : 'pendiente';
+    }
     if (i > limitePasos && i > paso) return 'bloqueado';
     if (i === PASOS.length - 1) return planGuardado ? 'hecho' : 'pendiente';
     return faltasDe(i).length ? 'pendiente' : 'hecho';
   }
 
   function irAPaso(i: number) {
-    const destino = Math.max(0, Math.min(PASOS.length - 1, i));
+    const destino = Math.max(0, Math.min(totalPasos - 1, i));
+    if (destino >= PASOS.length && !planIdCompletar) return;
     setPaso(destino);
     setAvisoPaso(null);
     arriba.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Desde la revisión: al paso del combo o al paso de completar donde se corrige la sección. */
+  function irASeccionDelPlan(seccion: string) {
+    const pasoCombo = PASO_COMBO_DE_SECCION[seccion];
+    if (pasoCombo) {
+      irAPaso(PASOS.findIndex((p) => p.id === pasoCombo));
+      return;
+    }
+    const grupo = grupoDeSeccion(gruposPlan, seccion);
+    if (grupo && planIdCompletar) irAPaso(PASOS.length + gruposPlan.findIndex((g) => g.id === grupo));
+    else if (planIdCompletar) navigate(`/sis2000/plans/${encodeURIComponent(planIdCompletar)}/configurar?seccion=${encodeURIComponent(seccion)}`);
   }
 
   function siguiente() {
@@ -1733,6 +1796,7 @@ export function Sis2000ComboPage() {
       setMotivo('');
       setVersionHistorial((n) => n + 1);
       if (modoEdicion) {
+        completar.alCambiar();
         // Lo recién agregado ya es parte del plan (no se puede quitar desde aquí).
         setPlanOriginal((prev) =>
           prev ? { ...prev, plan: { ...prev.plan, ...payload }, coberturas: incluidas.map((v) => v.cobertura.ccobertura) } : prev,
@@ -2181,8 +2245,9 @@ export function Sis2000ComboPage() {
         </p>
         {!modoEdicion && (
           <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-            Después de guardar el plan sigues en su ficha con lo que le falta según el ramo: deducibles, comisiones y, en
-            automóvil, tipo y uso del vehículo y tasa por antigüedad; al final, la revisión «¿se puede emitir?».
+            Después de guardar el plan sigues en esta misma pantalla con lo que le falta según el ramo: deducibles, pagos,
+            quién lo vende, comisiones y, en automóvil, tipo y uso del vehículo y tasa por antigüedad; al final, la revisión
+            «¿se puede emitir?». La ficha del plan sigue disponible como alternativa.
           </p>
         )}
       </div>
@@ -3826,15 +3891,20 @@ export function Sis2000ComboPage() {
                 : 'Ya se puede usar en la emisión. Si elegiste proveedores o cobro por días, se agregaron al plan.'}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
+              {gruposPlan.length > 0 && (
+                <Button type="button" size="sm" onClick={() => irAPaso(PASOS.length)}>
+                  Seguir aquí: completar el plan
+                </Button>
+              )}
               <Link
                 to={`/sis2000/plans/${encodeURIComponent(sis2000PlanMasterId(planGuardado.cramo, planGuardado.cplan))}/configurar${planGuardado.editado ? '' : '?asistente=1'}`}
               >
-                <Button type="button" size="sm">
+                <Button type="button" size="sm" variant={gruposPlan.length > 0 ? 'outline' : 'default'}>
                   {planGuardado.editado
                     ? 'Ir a la ficha del plan'
                     : planGuardado.automovil
-                      ? 'Seguir: tipo y uso, tasas por antigüedad, deducibles, comisiones y revisión'
-                      : 'Seguir: deducibles, comisiones y revisión'}
+                      ? 'Abrir la ficha: tipo y uso, tasas por antigüedad, deducibles, comisiones y revisión'
+                      : 'Abrir la ficha: deducibles, comisiones y revisión'}
                 </Button>
               </Link>
               {(planGuardado.tipo === 'cosas' || planGuardado.cotizarPersona) && (
@@ -3968,7 +4038,7 @@ export function Sis2000ComboPage() {
         </Alert>
       )}
 
-      <BarraPasos pasos={PASOS} actual={paso} estado={estadoPaso} onIr={irAPaso} />
+      <BarraPasos pasos={[...PASOS, ...pasosCompletar]} actual={paso} estado={estadoPaso} onIr={irAPaso} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
         <div className="min-w-0">
@@ -3978,6 +4048,35 @@ export function Sis2000ComboPage() {
               {contenido}
             </div>
           ))}
+          <CompletarPlan
+            grupos={gruposPlan}
+            activo={grupoActivo}
+            visitados={gruposVistos}
+            planId={planIdCompletar}
+            cramo={cramoCompletar}
+            datos={completar}
+            onIrSeccion={irASeccionDelPlan}
+          />
+          {paso >= PASOS.length && gruposPlan[paso - PASOS.length] ? (
+            <NavegacionPasos
+              actual={paso}
+              total={totalPasos}
+              onAtras={() => irAPaso(paso - 1)}
+              onSiguiente={() => irAPaso(paso + 1)}
+              faltan={[]}
+              mostrarFaltan={false}
+              etiquetaSiguiente={`Siguiente: ${gruposPlan[paso - PASOS.length + 1]?.titulo ?? ''}`}
+              accionFinal={
+                planIdCompletar ? (
+                  <Link to={`/sis2000/plans/${encodeURIComponent(planIdCompletar)}/configurar`}>
+                    <Button type="button" variant="outline">
+                      Abrir la ficha del plan
+                    </Button>
+                  </Link>
+                ) : undefined
+              }
+            />
+          ) : (
           <NavegacionPasos
             actual={paso}
             total={PASOS.length}
@@ -3989,6 +4088,7 @@ export function Sis2000ComboPage() {
             etiquetaSiguiente={paso === PASOS.length - 2 ? 'Revisar' : undefined}
             accionFinal={botonGuardar}
           />
+          )}
         </div>
 
         <Card className="hidden h-fit xl:sticky xl:top-28 xl:block">

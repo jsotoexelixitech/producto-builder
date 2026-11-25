@@ -36,7 +36,19 @@ export interface RamoConfigurador {
 export const SECCIONES_BASE = ['producto', 'plan', 'coberturas', 'tarifas', 'deducibles', 'frecuencias', 'quien-vende', 'comisiones', 'revision'];
 
 /** Cómo se llama cada sección en pantalla; `tabla` va solo en la ayuda (no en el texto principal). */
-export const SECCION_INFO: Record<string, { titulo: string; resumen: string; tabla: string }> = {
+export interface InfoSeccion {
+  titulo: string;
+  resumen: string;
+  tabla: string;
+  /** Qué es y para qué sirve, en lenguaje sencillo (sin nombres de tablas). */
+  ayuda?: string;
+  /** Ejemplo corto con números. */
+  ejemplo?: string;
+  /** true = lo que se guarda vale para TODOS los planes del ramo, no solo para este plan. */
+  afectaRamo?: boolean;
+}
+
+const SECCION_INFO_BASE: Record<string, { titulo: string; resumen: string; tabla: string }> = {
   coberturas: { titulo: 'Coberturas', resumen: 'Qué cubre el plan, con qué suma y a qué tasa o prima', tabla: 'maplancob / maplantar' },
   tarifas: { titulo: 'Tarifas y tasas', resumen: 'Tasa o prima base de cada cobertura (una sola vigente por tarifa)', tabla: 'matarifa / matarifa_d' },
   deducibles: { titulo: 'Deducibles', resumen: 'Monto o % que asume el asegurado en cada siniestro', tabla: 'matarifa_d / maplancob (auto: descuento por deducible en macatvalores PLAN_DEDUCIBLE)' },
@@ -81,7 +93,61 @@ export function pasosDespuesDelPlan(secciones: string[]): string[] {
   return secciones.filter((s) => !SECCIONES_DEL_ASISTENTE_DE_PLAN.includes(s));
 }
 
-export function infoSeccion(seccion: string) {
+/** Ayudas en lenguaje sencillo por sección: qué es, para qué sirve y un ejemplo. */
+const AYUDAS_SECCION: Record<string, { ayuda: string; ejemplo?: string; afectaRamo?: boolean }> = {
+  coberturas: {
+    ayuda: 'Lista lo que el plan paga cuando ocurre un siniestro, con la suma máxima y cómo se cobra cada una.',
+    ejemplo: 'Casco con suma de 20.000 y tasa de 3 %.',
+  },
+  tarifas: { ayuda: 'Define el precio base de cada cobertura. Debe haber una sola tasa vigente por tarifa.', ejemplo: 'Responsabilidad civil con prima fija de 150.' },
+  deducibles: {
+    ayuda: 'Es la parte del daño que paga el asegurado de su bolsillo. En automóvil, elegir un deducible mayor puede dar un descuento en la prima.',
+    ejemplo: 'Deducible de 5 % con descuento de 45 %: una prima de 432 baja a 237,60.',
+  },
+  frecuencias: { ayuda: 'Cómo puede pagar el cliente: de contado o en cuotas.', ejemplo: 'Anual, semestral o trimestral.' },
+  canales: { ayuda: 'Quién puede ofrecer y emitir este plan, y quién queda excluido.', ejemplo: 'Todos los productores, menos uno.' },
+  'quien-vende': {
+    ayuda: 'Quién puede ofrecer y emitir este plan. Aquí también se marcan los productores que comparten una póliza (mancomunados).',
+    ejemplo: 'Dos productores mancomunados: 60 % y 40 % de la póliza.',
+  },
+  comisiones: { ayuda: 'Porcentaje de la prima que gana el productor. Sin comisión cargada queda en 0 %.', ejemplo: '12 % de una prima de 1.000 = 120.' },
+  'tipos-uso': {
+    ayuda: 'Prima base y sumas según el tipo de vehículo y su uso. Vale para todos los planes del ramo, no solo para este.',
+    ejemplo: 'Automóvil particular: prima base de RCV de 85.',
+    afectaRamo: true,
+  },
+  'tasas-antiguedad': {
+    ayuda: 'La tasa de casco cambia según los años del vehículo. Si el vehículo cae fuera de los tramos, no se puede cotizar.',
+    ejemplo: '0 a 5 años: 3 %; 6 a 10 años: 4 %.',
+  },
+  'tasa-casco': {
+    ayuda: 'Tasa de casco por tipo de vehículo, rango de suma y antigüedad. Vale para todos los planes del ramo, no solo para este.',
+    ejemplo: 'Camioneta de 0 a 5 años con suma hasta 30.000: 3,5 %.',
+    afectaRamo: true,
+  },
+  'tarifa-dias': {
+    ayuda: 'Para planes que cobran según los días de vigencia: la prima sale de la suma, la tasa diaria y los días.',
+    ejemplo: 'Suma 20.000, tasa diaria 0,072 %, 30 días = 432. Con deducible de 5 % (descuento de 45 %) = 237,60.',
+  },
+  'edades-parentesco': { ayuda: 'Edad mínima y máxima con que puede entrar cada tipo de asegurado.', ejemplo: 'Titular de 18 a 64 años; hijos de 0 a 25.' },
+  'tablas-edad': { ayuda: 'Prima o tasa según la edad del asegurado. Si una edad no cae en ningún tramo, la prima queda en 0.', ejemplo: '30 a 39 años: prima de 120.' },
+  proveedores: { ayuda: 'Clínicas y proveedores de servicio donde el asegurado puede atenderse con este plan.', ejemplo: 'Red de clínicas de la ciudad.' },
+  'descuentos-recargos': {
+    ayuda: 'Descuento si el vehículo tiene dispositivos de seguridad y recargo si transporta sustancias peligrosas. Vale para todos los planes del ramo.',
+    ejemplo: 'Alarma satelital: 5 % de descuento.',
+    afectaRamo: true,
+  },
+  condominio: { ayuda: 'Tasas según la antigüedad del inmueble y cómo se reparte la prima entre las partes del condominio.', ejemplo: 'Edificio de más de 20 años: tasa más alta.' },
+  revision: { ayuda: 'Revisa sin cambiar nada si el plan tiene lo necesario para emitirse y te lleva a corregir lo que falta.', ejemplo: 'En rojo: sin comisión cargada.' },
+  producto: { ayuda: 'El producto agrupa los planes y define qué tipo de intermediario los usa.', ejemplo: 'Producto «Auto Renta Seguro».' },
+  plan: { ayuda: 'Nombre, código, vigencia y moneda del plan.', ejemplo: 'Código AUTO01, vigente hasta 31-12-2099.' },
+};
+
+export const SECCION_INFO: Record<string, InfoSeccion> = Object.fromEntries(
+  Object.entries(SECCION_INFO_BASE).map(([k, v]) => [k, { ...v, ...(AYUDAS_SECCION[k] ?? {}) }]),
+);
+
+export function infoSeccion(seccion: string): InfoSeccion {
   return SECCION_INFO[seccion] ?? { titulo: seccion, resumen: '', tabla: '' };
 }
 

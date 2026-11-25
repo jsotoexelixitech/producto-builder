@@ -11,6 +11,12 @@ export interface PasoAsistente {
   titulo: string;
   /** Una línea: qué se hace en el paso. */
   resumen: string;
+  /** Estado corto bajo el título (p. ej. «Falta», «Hecho»). */
+  etiqueta?: string;
+  /** Color de la etiqueta. */
+  tono?: 'bien' | 'falta' | 'aviso';
+  /** Texto del paso bloqueado (por defecto: completar los pasos anteriores). */
+  bloqueo?: string;
 }
 
 export type EstadoPaso = 'actual' | 'hecho' | 'pendiente' | 'bloqueado';
@@ -62,7 +68,7 @@ export function BarraPasos({
                 onClick={() => onIr(i)}
                 disabled={e === 'bloqueado'}
                 aria-current={e === 'actual' ? 'step' : undefined}
-                title={e === 'bloqueado' ? 'Completa los pasos anteriores para llegar aquí' : p.resumen}
+                title={e === 'bloqueado' ? (p.bloqueo ?? 'Completa los pasos anteriores para llegar aquí') : p.resumen}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs transition-colors',
                   e === 'actual' && 'bg-indigo-50 font-bold text-indigo-800 ring-1 ring-indigo-200',
@@ -81,7 +87,22 @@ export function BarraPasos({
                 >
                   {e === 'hecho' ? <Check className="h-3.5 w-3.5" /> : i + 1}
                 </span>
-                <span className="truncate">{p.titulo}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">{p.titulo}</span>
+                  {p.etiqueta && (
+                    <span
+                      className={cn(
+                        'block text-[10px] font-normal leading-tight',
+                        p.tono === 'bien' && 'text-emerald-700',
+                        p.tono === 'falta' && 'text-red-700',
+                        p.tono === 'aviso' && 'text-amber-700',
+                        !p.tono && 'text-slate-500',
+                      )}
+                    >
+                      {p.etiqueta}
+                    </span>
+                  )}
+                </span>
               </button>
             </li>
           );
