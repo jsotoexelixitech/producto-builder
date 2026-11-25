@@ -90,6 +90,8 @@ import { CompletarPlan, usePlanCompletar } from '@/components/configurador/Compl
 import { PasoAnimado } from '@/components/ayudas/PasoAnimado';
 import { ListaAnimada } from '@/components/ayudas/ListaAnimada';
 import { useAvisoComplementario } from '@/lib/ayudas/avisos';
+import { PanelAyudas } from '@/components/ayudas/PanelAyudas';
+import { useAyudas } from '@/components/ayudas/AyudasProvider';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { AlertaError, irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
@@ -836,6 +838,7 @@ export function Sis2000ComboPage() {
   const [cotizando, setCotizando] = useState(false);
   const [errorCotizar, setErrorCotizar] = useState<ErrorEntendible | string | null>(null);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
+  const { activas: ayudasActivas } = useAyudas();
   // Vista con ayudas: los mismos avisos de pantalla, repetidos como aviso complementario (no los reemplaza).
   useAvisoComplementario(planGuardado ? `Plan ${planGuardado.cplan} guardado en Sis2000.` : null, 'exito');
   useAvisoComplementario(errorCrear?.mensaje, 'error');
@@ -4120,6 +4123,7 @@ export function Sis2000ComboPage() {
           )}
         </div>
 
+        <div className={ayudasActivas ? 'h-fit space-y-4 xl:sticky xl:top-28' : 'contents'}>
         <Card className="hidden h-fit xl:sticky xl:top-28 xl:block">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Tu plan</CardTitle>
@@ -4152,6 +4156,28 @@ export function Sis2000ComboPage() {
             </p>
           </CardContent>
         </Card>
+        <PanelAyudas
+          pasos={PASOS.slice(0, PASOS.length - 1).map((p, i) => ({ indice: i, titulo: p.titulo, faltas: faltasDe(i).map((f) => f.texto) }))}
+          grupos={gruposPlan.map((g, i) => ({ indice: PASOS.length + i, titulo: g.titulo, estado: estadoDeGrupo(g) }))}
+          resumen={{
+            modoEdicion,
+            cplan,
+            nombrePlan: xplan,
+            producto: nombreProducto,
+            personas,
+            coberturas: incluidas.length,
+            moneda: cmoneda,
+            formasDePago: frecuencias.length,
+          }}
+          auto={{
+            mostrar: (automovil || completar.ramo?.familia === 'auto') && gruposPlan.some((g) => g.secciones.includes('tarifa-dias')),
+            sumaInicial: resumen.sumaMaxima,
+            moneda: cmoneda,
+          }}
+          paso={paso}
+          onIr={irAPaso}
+        />
+        </div>
       </div>
 
       {confirmando && (
