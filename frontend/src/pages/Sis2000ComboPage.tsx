@@ -1010,7 +1010,7 @@ export function Sis2000ComboPage() {
   );
   const producto = opcionProducto?.producto ?? null;
   const cproducto = opcionProducto?.cproducto ?? '';
-  const nombreProducto = texto(producto?.xdescripcion_l) || (cproducto ? `Producto ${cproducto}` : '');
+  const nombreProducto = opcionProducto?.nombres.join(' / ') || (cproducto ? `Producto ${cproducto}` : '');
   const cramo = producto && Number(producto.cramo) > 0 ? Number(producto.cramo) : 0;
   const nombreRamo = cramo ? (opcionesRamo.find((r) => r.cramo === cramo)?.etiqueta ?? `Ramo ${cramo}`) : '';
   const esPersonas = texto(producto?.xform).toLowerCase().startsWith('person');
