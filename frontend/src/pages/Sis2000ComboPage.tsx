@@ -92,6 +92,8 @@ import { ListaAnimada } from '@/components/ayudas/ListaAnimada';
 import { useAvisoComplementario } from '@/lib/ayudas/avisos';
 import { PanelAyudas } from '@/components/ayudas/PanelAyudas';
 import { useAyudas } from '@/components/ayudas/AyudasProvider';
+import { comandosDeRamos } from '@/lib/ayudas/busqueda';
+import { useRegistrarComandos } from '@/lib/ayudas/usar-comandos';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { AlertaError, irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
@@ -4055,6 +4057,18 @@ export function Sis2000ComboPage() {
       {creando ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Crear plan en Sis2000'}
     </Button>
   );
+
+  // Buscador Ctrl+K: pasos de este asistente y ramos ya cargados (sin llamadas nuevas).
+  useRegistrarComandos('combo', [
+    ...[...PASOS, ...pasosCompletar].map((p, i) => ({
+      id: `combo-paso-${i}`,
+      grupo: 'Pasos del combo' as const,
+      titulo: `Paso ${i + 1}: ${p.titulo}`,
+      detalle: p.resumen,
+      ejecutar: () => irAPaso(i),
+    })),
+    ...comandosDeRamos(ramosSis2000),
+  ]);
 
   const contenidoPasos: ReactNode[] = [pasoProducto, pasoCoberturas, pasoPrecios, pasoDatos, pasoRevisar];
 

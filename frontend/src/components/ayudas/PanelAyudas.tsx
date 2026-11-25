@@ -6,6 +6,7 @@ import { construirChecklist, type EstadoItem, type GrupoEntrada, type PasoEntrad
 import { aNumeroEs, estimarPrimaAuto } from '@/lib/ayudas/prima-auto';
 import { resumenEnPalabras, type EntradaResumen } from '@/lib/ayudas/resumen-plan';
 import { useAyudas } from './AyudasProvider';
+import { GuiaCombo } from './GuiaCombo';
 
 export interface DatosAutoAyudas {
   /** El plan es de auto y tiene la sección de tarifa por días (tasa diaria). */
@@ -63,6 +64,8 @@ export function PanelAyudas({
       </button>
       {abierto && (
         <div id={idCuerpo} className="space-y-4 border-t border-slate-100 px-4 py-3 text-xs">
+          <GuiaCombo />
+
           <section aria-label="¿Se puede emitir?">
             <div className="mb-1 flex items-center justify-between gap-2">
               <h3 className="font-semibold text-slate-800">¿Se puede emitir?</h3>

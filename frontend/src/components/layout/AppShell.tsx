@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { cn } from '@/lib/utils';
 import { AyudasToggle } from '@/components/ayudas/AyudasToggle';
+import { BuscadorAyudas } from '@/components/ayudas/BuscadorAyudas';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -63,6 +64,7 @@ export function AppShell({
               )}
             </div>
             <div className="flex shrink-0 items-center gap-3">
+              <BuscadorAyudas />
               <AyudasToggle />
               {actions}
             </div>
