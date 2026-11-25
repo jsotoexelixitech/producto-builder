@@ -22,6 +22,7 @@ import { Sis2000PlanFichaPage } from './pages/Sis2000PlanFichaPage';
 import { Sis2000RamosPage } from './pages/Sis2000RamosPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
+import { AyudasProvider } from './components/ayudas/AyudasProvider';
 import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
 import './index.css';
 
@@ -268,6 +269,8 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <AyudasProvider>
+      <Root />
+    </AyudasProvider>
   </StrictMode>,
 );

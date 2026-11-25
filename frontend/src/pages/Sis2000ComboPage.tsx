@@ -87,6 +87,9 @@ import {
   type EstadoGrupo,
 } from '@/lib/configurador-combo';
 import { CompletarPlan, usePlanCompletar } from '@/components/configurador/CompletarPlan';
+import { PasoAnimado } from '@/components/ayudas/PasoAnimado';
+import { ListaAnimada } from '@/components/ayudas/ListaAnimada';
+import { useAvisoComplementario } from '@/lib/ayudas/avisos';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { AlertaError, irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
@@ -833,6 +836,11 @@ export function Sis2000ComboPage() {
   const [cotizando, setCotizando] = useState(false);
   const [errorCotizar, setErrorCotizar] = useState<ErrorEntendible | string | null>(null);
   const [cotizacion, setCotizacion] = useState<Sis2000NestRow[] | null>(null);
+  // Vista con ayudas: los mismos avisos de pantalla, repetidos como aviso complementario (no los reemplaza).
+  useAvisoComplementario(planGuardado ? `Plan ${planGuardado.cplan} guardado en Sis2000.` : null, 'exito');
+  useAvisoComplementario(errorCrear?.mensaje, 'error');
+  useAvisoComplementario(avisoProducto, 'exito');
+  useAvisoComplementario(avisoCobertura, 'exito');
 
   async function cargarProductos() {
     setCargandoProductos(true);
@@ -2829,7 +2837,7 @@ export function Sis2000ComboPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <ListaAnimada as="tbody">
                   {filtradas.map((v) => {
                     const { cobertura: c, fila } = v;
                     const habilitada = Boolean(fila && v.tarifa);
@@ -2939,7 +2947,7 @@ export function Sis2000ComboPage() {
                       </td>
                     </tr>
                   )}
-                </tbody>
+                </ListaAnimada>
               </table>
               <p className="px-3 py-2 text-xs text-muted-foreground">
                 {incluidas.length} marcada{incluidas.length === 1 ? '' : 's'} de {vistas.length}
@@ -3068,7 +3076,7 @@ export function Sis2000ComboPage() {
               Suma fija (mínima = máxima) en todas
             </Button>
           </div>
-          <ul className="space-y-3">
+          <ListaAnimada className="space-y-3">
             {incluidas.map((v) => {
               const cc = v.cobertura.ccobertura;
               const f = v.fila;
@@ -3205,7 +3213,7 @@ export function Sis2000ComboPage() {
                 </li>
               );
             })}
-          </ul>
+          </ListaAnimada>
           <p className="mt-3 text-right text-sm">
             Prima de referencia del plan (con las sumas máximas):{' '}
             <strong>
@@ -3355,7 +3363,7 @@ export function Sis2000ComboPage() {
             Marca coberturas en el paso 2 para ponerles suma y tabla.
           </p>
         ) : (
-          <ul className="space-y-3">
+          <ListaAnimada className="space-y-3">
             {incluidas.map((v) => {
               const cc = v.cobertura.ccobertura;
               const propia = filaPer(cc).ctablatar.trim();
@@ -3453,7 +3461,7 @@ export function Sis2000ComboPage() {
                 </li>
               );
             })}
-          </ul>
+          </ListaAnimada>
         )}
         {avisosPersonas.length > 0 && (
           <Alert variant="warning" className="mt-3">
@@ -3722,7 +3730,7 @@ export function Sis2000ComboPage() {
 
   // ── Paso 5: Revisar y confirmar ──
   const listaCoberturasTexto = (
-    <ul className="space-y-1.5">
+    <ListaAnimada className="space-y-1.5">
       {incluidas.map((v) => (
         <li key={v.cobertura.ccobertura} className="rounded-lg border border-border/40 bg-white px-3 py-2">
           <span className="font-semibold">{nombreCob(v)}</span>
@@ -3734,7 +3742,7 @@ export function Sis2000ComboPage() {
           <span className="block text-xs text-slate-600">{descripcionPrecio(v)}</span>
         </li>
       ))}
-    </ul>
+    </ListaAnimada>
   );
 
   const pasoRevisar = (
@@ -4065,9 +4073,9 @@ export function Sis2000ComboPage() {
         <div className="min-w-0">
           {/* Todos los pasos quedan montados (los paneles de proveedores y cobro por días guardan lo pendiente). */}
           {contenidoPasos.map((contenido, i) => (
-            <div key={PASOS[i].id} hidden={i !== paso} data-paso={i} onBlurCapture={registrarBlur}>
+            <PasoAnimado key={PASOS[i].id} activo={i === paso} data-paso={i} onBlurCapture={registrarBlur}>
               {contenido}
-            </div>
+            </PasoAnimado>
           ))}
           <CompletarPlan
             grupos={gruposPlan}

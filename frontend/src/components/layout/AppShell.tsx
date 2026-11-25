@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { cn } from '@/lib/utils';
+import { AyudasToggle } from '@/components/ayudas/AyudasToggle';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -61,7 +62,10 @@ export function AppShell({
                 <div className="min-w-0 flex-1 border-l border-border/50 pl-4">{headerExtra}</div>
               )}
             </div>
-            {actions && <div className="shrink-0">{actions}</div>}
+            <div className="flex shrink-0 items-center gap-3">
+              <AyudasToggle />
+              {actions}
+            </div>
           </div>
         </header>
 

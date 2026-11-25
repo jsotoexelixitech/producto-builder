@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AyudaCampo } from '@/components/ayudas/AyudaCampo';
+import { useAyudas } from '@/components/ayudas/AyudasProvider';
 
 const ANCHO = 300;
 const PREFIJO_TABLA = 'En Sis2000:';
@@ -14,6 +16,7 @@ const PREFIJO_TABLA = 'En Sis2000:';
 export function InfoTip({ text, className }: { text: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const { activas } = useAyudas();
 
   function mostrar() {
     const r = ref.current?.getBoundingClientRect();
@@ -24,6 +27,8 @@ export function InfoTip({ text, className }: { text: string; className?: string 
     );
     setPos({ top: r.bottom + 6, left });
   }
+
+  if (activas) return <AyudaCampo text={text} className={className} />;
 
   return (
     <>
