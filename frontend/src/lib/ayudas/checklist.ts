@@ -56,3 +56,11 @@ export function construirChecklist(pasos: PasoEntrada[], grupos: GrupoEntrada[])
   const total = items.length;
   return { items, hechos, total, porcentaje: total ? Math.round((hechos / total) * 100) : 0, puedeEmitir: total > 0 && hechos === total };
 }
+
+/** Sin coberturas elegidas, los pasos de coberturas y precios no están listos aunque la validación no marque nada. */
+export function conCoberturas(idPaso: string, coberturas: number, faltas: string[]): string[] {
+  if (coberturas > 0 || faltas.length) return faltas;
+  if (idPaso === 'coberturas') return ['Elige al menos una cobertura'];
+  if (idPaso === 'precios') return ['Primero elige las coberturas'];
+  return faltas;
+}

@@ -2,7 +2,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { aNumeroEs, estimarPrimaAuto } from '../src/lib/ayudas/prima-auto.ts';
-import { construirChecklist } from '../src/lib/ayudas/checklist.ts';
+import { conCoberturas, construirChecklist } from '../src/lib/ayudas/checklist.ts';
 import { resumenEnPalabras } from '../src/lib/ayudas/resumen-plan.ts';
 
 describe('estimado de prima de auto', () => {
@@ -75,4 +75,11 @@ describe('resumen en palabras', () => {
     assert.match(resumenEnPalabras({ ...base, modoEdicion: true, coberturas: 3, formasDePago: 2 }), /^Se guardarán los cambios del plan RENTA1.*3 coberturas, 2 formas de pago/);
     assert.match(resumenEnPalabras({ ...base, cplan: '', nombrePlan: '', coberturas: 0 }), /\(todavía sin código\).*sin coberturas marcadas/);
   });
+});
+
+it('checklist: sin coberturas, los pasos de coberturas y precios no salen listos', () => {
+  assert.deepEqual(conCoberturas('coberturas', 0, []), ['Elige al menos una cobertura']);
+  assert.deepEqual(conCoberturas('precios', 0, []), ['Primero elige las coberturas']);
+  assert.deepEqual(conCoberturas('precios', 2, []), []);
+  assert.deepEqual(conCoberturas('datos', 0, []), []);
 });

@@ -91,6 +91,7 @@ import { PasoAnimado } from '@/components/ayudas/PasoAnimado';
 import { ListaAnimada } from '@/components/ayudas/ListaAnimada';
 import { useAvisoComplementario } from '@/lib/ayudas/avisos';
 import { PanelAyudas } from '@/components/ayudas/PanelAyudas';
+import { conCoberturas } from '@/lib/ayudas/checklist';
 import { useAyudas } from '@/components/ayudas/AyudasProvider';
 import { comandosDeRamos } from '@/lib/ayudas/busqueda';
 import { useRegistrarComandos } from '@/lib/ayudas/usar-comandos';
@@ -4171,7 +4172,11 @@ export function Sis2000ComboPage() {
           </CardContent>
         </Card>
         <PanelAyudas
-          pasos={PASOS.slice(0, PASOS.length - 1).map((p, i) => ({ indice: i, titulo: p.titulo, faltas: faltasDe(i).map((f) => f.texto) }))}
+          pasos={PASOS.slice(0, PASOS.length - 1).map((p, i) => ({
+            indice: i,
+            titulo: p.titulo,
+            faltas: conCoberturas(p.id, incluidas.length, faltasDe(i).map((f) => f.texto)),
+          }))}
           grupos={gruposPlan.map((g, i) => ({ indice: PASOS.length + i, titulo: g.titulo, estado: estadoDeGrupo(g) }))}
           resumen={{
             modoEdicion,
