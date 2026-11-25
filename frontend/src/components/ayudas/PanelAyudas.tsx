@@ -7,6 +7,8 @@ import { aNumeroEs, estimarPrimaAuto } from '@/lib/ayudas/prima-auto';
 import { resumenEnPalabras, type EntradaResumen } from '@/lib/ayudas/resumen-plan';
 import { useAyudas } from './AyudasProvider';
 import { GuiaCombo } from './GuiaCombo';
+import { BotonMapa } from './BotonMapa';
+import type { DatosMapa } from '@/lib/ayudas/mapa-plan';
 
 export interface DatosAutoAyudas {
   /** El plan es de auto y tiene la sección de tarifa por días (tasa diaria). */
@@ -34,6 +36,7 @@ export function PanelAyudas({
   grupos,
   resumen,
   auto,
+  mapa,
   paso,
   onIr,
 }: {
@@ -41,6 +44,7 @@ export function PanelAyudas({
   grupos: GrupoEntrada[];
   resumen: EntradaResumen;
   auto: DatosAutoAyudas;
+  mapa: DatosMapa;
   paso: number;
   onIr: (indice: number) => void;
 }) {
@@ -64,7 +68,10 @@ export function PanelAyudas({
       </button>
       {abierto && (
         <div id={idCuerpo} className="space-y-4 border-t border-slate-100 px-4 py-3 text-xs">
-          <GuiaCombo />
+          <div className="flex flex-wrap items-start gap-2">
+            <GuiaCombo />
+            <BotonMapa datos={mapa} />
+          </div>
 
           <section aria-label="¿Se puede emitir?">
             <div className="mb-1 flex items-center justify-between gap-2">

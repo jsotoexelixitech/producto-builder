@@ -4188,6 +4188,20 @@ export function Sis2000ComboPage() {
             sumaInicial: resumen.sumaMaxima,
             moneda: cmoneda,
           }}
+          mapa={{
+            producto: nombreProducto,
+            plan: [cplan.trim(), xplan.trim()].filter(Boolean).join(' · '),
+            coberturas: incluidas.map((v) => ({
+              codigo: v.cobertura.ccobertura,
+              nombre: nombreCob(v),
+              tarifa: personas ? (filaPer(v.cobertura.ccobertura).ctablatar.trim() || tablaPlan.trim()) : formatTarifaDescripcion(v.tarifa),
+            })),
+            tablasEdad: Object.entries(tablasLeidas).flatMap(([codigo, t]) =>
+              typeof t === 'object'
+                ? [{ codigo, nombre: t.xtablaedad, tramos: t.tramos.map((x) => ({ desde: x.nedad_min, hasta: x.nedad_max, tasa: x.pprima, prima: x.mprima })) }]
+                : [],
+            ),
+          }}
           paso={paso}
           onIr={irAPaso}
         />
