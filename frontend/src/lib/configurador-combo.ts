@@ -33,7 +33,7 @@ const MIEMBROS: Array<{ id: string; resumen: string; secciones: string[] }> = [
   { id: 'deducibles', resumen: 'Lo que asume el asegurado en cada siniestro y su descuento', secciones: ['deducibles'] },
   { id: 'pagos', resumen: 'Cómo puede pagar el cliente: contado o en cuotas', secciones: ['frecuencias'] },
   { id: 'vende', resumen: 'Quién puede ofrecer el plan (con mancomunados) y qué comisión gana', secciones: ['quien-vende', 'canales', 'comisiones'] },
-  { id: 'proveedores', resumen: 'Clínicas y proveedores de servicio del plan', secciones: ['proveedores'] },
+  { id: 'proveedores', resumen: 'Proveedores de servicio del plan (grúa, clínicas, asistencia…)', secciones: ['proveedores'] },
   { id: 'revision', resumen: '¿El plan se puede emitir? Lo que falta, sin cambiar nada', secciones: ['revision'] },
 ];
 

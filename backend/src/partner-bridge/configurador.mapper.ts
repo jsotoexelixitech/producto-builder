@@ -4,6 +4,8 @@
 type Obj = Record<string, unknown>;
 
 const texto = (v: unknown) => (v == null ? '' : String(v).trim());
+/** itiposerv es CHAR(1) en Sis2000: puede ser dígito o letra; vacío = que nest-api use el del catálogo. */
+const tipoServicio = (v: unknown) => (texto(v) === '' ? undefined : texto(v).slice(0, 1));
 const num = (v: unknown) => (v == null || v === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
 const fecha = (v: unknown) => (texto(v) ? texto(v).slice(0, 10) : undefined);
 
@@ -90,7 +92,7 @@ export function aProveedorPlan(p: Obj) {
   return limpio({
     ...claveProveedor(p),
     fhasta: fecha(p.fhasta),
-    itiposerv: num(p.itiposerv),
+    itiposerv: tipoServicio(p.itiposerv),
     mcosto: num(p.mcosto),
     mcostoext: num(p.mcostoext),
     cmoneda: texto(p.cmoneda),
@@ -103,7 +105,7 @@ export function aEditarProveedorPlan(p: Obj) {
     ...claveProveedor(p),
     fhasta: sinFin ? undefined : fecha(p.fhasta),
     sin_fin: sinFin || undefined,
-    itiposerv: num(p.itiposerv),
+    itiposerv: tipoServicio(p.itiposerv),
     mcosto: num(p.mcosto),
     mcostoext: num(p.mcostoext),
     cmoneda: texto(p.cmoneda),

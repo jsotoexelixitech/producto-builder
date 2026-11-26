@@ -67,7 +67,7 @@ const SECCION_INFO_BASE: Record<string, { titulo: string; resumen: string; tabla
   },
   'edades-parentesco': { titulo: 'Edades por parentesco', resumen: 'Edad mínima y máxima de entrada por parentesco', tabla: 'mapledades_per' },
   'tablas-edad': { titulo: 'Tablas de edad', resumen: 'Prima o tasa por tramo de edad; fuera de tramo la prima queda en 0', tabla: 'mapltabedad' },
-  proveedores: { titulo: 'Proveedores', resumen: 'Clínicas y proveedores de servicio del plan', tabla: 'maplprov_per' },
+  proveedores: { titulo: 'Proveedores', resumen: 'Proveedores de servicio del plan (grúa, clínicas, asistencia…)', tabla: 'maplprov_per' },
   'descuentos-recargos': { titulo: 'Descuentos y recargos', resumen: 'Descuento por dispositivos de seguridad y recargo por sustancias peligrosas (por ramo)', tabla: 'madisseg / masustac' },
   condominio: { titulo: 'Condominio', resumen: 'Tasas por antigüedad del inmueble, reparto de la prima y rango de tasa del ramo', tabla: 'MATARIFA_ANTIGUEDAD_NEXUS / MATARIFA_REPARTO_NEXUS / MATARIFA_RANGO_NEXUS' },
   revision: { titulo: 'Revisión', resumen: '¿El plan se puede emitir? Revisa lo que falta, sin cambiar nada', tabla: '' },
@@ -131,7 +131,7 @@ const AYUDAS_SECCION: Record<string, { ayuda: string; ejemplo?: string; afectaRa
   },
   'edades-parentesco': { ayuda: 'Edad mínima y máxima con que puede entrar cada tipo de asegurado.', ejemplo: 'Titular de 18 a 64 años; hijos de 0 a 25.' },
   'tablas-edad': { ayuda: 'Prima o tasa según la edad del asegurado. Si una edad no cae en ningún tramo, la prima queda en 0.', ejemplo: '30 a 39 años: prima de 120.' },
-  proveedores: { ayuda: 'Clínicas y proveedores de servicio donde el asegurado puede atenderse con este plan.', ejemplo: 'Red de clínicas de la ciudad.' },
+  proveedores: { ayuda: 'Proveedores de servicio del plan (grúa, clínicas, asistencia…). Se copia a cada póliza que se emita con este plan.', ejemplo: 'Grúa de la red de asistencia vial.' },
   'descuentos-recargos': {
     ayuda: 'Descuento si el vehículo tiene dispositivos de seguridad y recargo si transporta sustancias peligrosas. Vale para todos los planes del ramo.',
     ejemplo: 'Alarma satelital: 5 % de descuento.',

@@ -16,6 +16,8 @@ export interface ProveedorPlan {
   fdesde: string;
   fhasta: string | null;
   itiposerv: number | string | null;
+  /** Descripción del servicio en el catálogo (maclient_prov.xdescripcion). */
+  xdescripcion_servicio?: string | null;
   mcosto: number | null;
   mcostoext: number | null;
   cmoneda: string | null;
@@ -47,7 +49,8 @@ export const PROVEEDOR_FORM_VACIO = (): ProveedorPlanForm => ({
   cclave_num: '1',
   fdesde: new Date().toISOString().slice(0, 10),
   fhasta: '',
-  itiposerv: '1',
+  // Vacío = nest-api toma el tipo de servicio del catálogo del proveedor.
+  itiposerv: '',
   mcostoext: '',
   mcosto: '',
   cmoneda: '$',
@@ -78,7 +81,7 @@ export function proveedorFormToPayload(f: ProveedorPlanForm): Record<string, unk
     cclave_num: Number(f.cclave_num),
     fdesde: f.fdesde,
     fhasta: f.fhasta || undefined,
-    itiposerv: n(f.itiposerv),
+    itiposerv: f.itiposerv.trim() || undefined,
     mcostoext: n(f.mcostoext),
     mcosto: n(f.mcosto),
     cmoneda: f.cmoneda.trim() || '$',
