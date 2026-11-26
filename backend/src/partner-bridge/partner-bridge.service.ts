@@ -638,6 +638,27 @@ export class PartnerBridgeService {
     );
   }
 
+  /** Crea la empresa como cliente (maclient, sp_create_maclient_nexus). 409 si ya existe. Solo campos conocidos. */
+  async crearSis2000Cliente(payload: Record<string, unknown>) {
+    const claves = ['tipo_documento', 'rif', 'xcliente', 'xcorreo', 'xtelefono', 'cestado', 'cciudad', 'xdireccion'];
+    const cuerpo = Object.fromEntries(claves.filter((k) => payload[k] != null && payload[k] !== '').map((k) => [k, payload[k]]));
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>('POST', '/api/v1/configurador/clientes', cuerpo);
+    if (!body.data) throw new BadGatewayException('nest-api no devolvió la empresa creada.');
+    return body.data;
+  }
+
+  /** Estados de Venezuela para el alta de cliente. */
+  async listSis2000Estados(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(await this.request<NestEnvelope<unknown[]>>('GET', '/api/v1/configurador/clientes/estados'));
+  }
+
+  /** Ciudades de un estado para el alta de cliente. */
+  async listSis2000Ciudades(cestado: number): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', `/api/v1/configurador/clientes/ciudades?cestado=${Math.trunc(Number(cestado))}`),
+    );
+  }
+
   /** Alta en el catálogo de proveedores (maclient_prov). Requiere la bandera de escritura en nest-api. */
   async crearSis2000ProveedorCatalogo(payload: Record<string, unknown>) {
     const body = await this.request<NestEnvelope<Record<string, unknown>>>(

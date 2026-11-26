@@ -111,6 +111,24 @@ export class Sis2000NestController {
     return this.coreService.buscarSis2000Clientes(rif ?? '');
   }
 
+  /** Crea la empresa como cliente de Sis2000 (J, G o C); luego se registra su servicio como proveedor. */
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('catalogos/clientes')
+  crearCliente(@Body() body: Cuerpo) {
+    const { cuerpo } = separarMotivo(body);
+    return this.coreService.crearSis2000Cliente(cuerpo);
+  }
+
+  @Get('catalogos/clientes/estados')
+  listEstados() {
+    return this.coreService.listSis2000Estados();
+  }
+
+  @Get('catalogos/clientes/ciudades')
+  listCiudades(@Query('cestado') cestado?: string) {
+    return this.coreService.listSis2000Ciudades(Number(cestado));
+  }
+
   @Get('catalogos/proveedores/tipos-servicio')
   listTiposServicio() {
     return this.coreService.listSis2000TiposServicio();

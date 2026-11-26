@@ -106,6 +106,15 @@ import { comandosDeRamos } from '@/lib/ayudas/busqueda';
 import { useRegistrarComandos } from '@/lib/ayudas/usar-comandos';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
 import { AlertaError, irACampo } from '@/components/ui/errores';
+import { MancomunadoPendientePanel } from '@/components/configurador/MancomunadoPendientePanel';
+import {
+  PENDIENTE_MANC_VACIO,
+  aplicarMancomunadoPendiente,
+  errorPendienteMancomunado,
+  resumenMancomunado,
+  type PendienteMancomunado,
+  type ResultadoMancomunado,
+} from '@/lib/configurador-mancomunado';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -196,6 +205,8 @@ interface BorradorCombo {
   productoresSel: ProductoresSelection;
   canalesSel: CanalesSelection;
   observacion?: string;
+  /** Productores mancomunados elegidos (se guardan con el plan al crearlo). */
+  mancomunado?: PendienteMancomunado;
   /** Ramo al que pertenecen las filas guardadas (si el usuario cambia de ramo, no se aplican). */
   cramo: number;
   filas: Record<string, FilaCombo>;
@@ -816,6 +827,11 @@ export function Sis2000ComboPage() {
   const [productoresSel, setProductoresSel] = useState<ProductoresSelection>(inicio?.productoresSel ?? PRODUCTORES_DEFAULT);
   /** Canales alternos (mausuplan C): solo si el servidor lo habilita (SIS2000_PLAN_CANALES). */
   const [canalesSel, setCanalesSel] = useState<CanalesSelection>(inicio?.canalesSel ?? CANALES_DEFAULT);
+  /** Mancomunados pendientes: se hace el PUT justo después de crear el plan. Al editar parte de lo guardado en Sis2000. */
+  const [mancPend, setMancPend] = useState<PendienteMancomunado>(inicio?.mancomunado ?? PENDIENTE_MANC_VACIO);
+  const [mancOriginal, setMancOriginal] = useState<PendienteMancomunado>(PENDIENTE_MANC_VACIO);
+  const [resultadoManc, setResultadoManc] = useState<ResultadoMancomunado | null>(null);
+  const [reintentandoManc, setReintentandoManc] = useState(false);
   const [canalesHabilitados, setCanalesHabilitados] = useState(false);
 
   // ── Edición de un plan existente ──
@@ -1134,6 +1150,7 @@ export function Sis2000ComboPage() {
         productoresSel,
         canalesSel,
         observacion,
+        mancomunado: mancPend,
         cramo: cramo || pendiente?.cramo || 0,
         filas: pendiente ? { ...pendiente.filas, ...filas } : filas,
         filasPer: Object.keys(filasPer).length || !pendiente ? filasPer : pendiente.filasPer,
@@ -1144,7 +1161,7 @@ export function Sis2000ComboPage() {
     return () => clearTimeout(t);
   }, [
     ramoFiltro, claveProducto, tipoPlan, automovil, parentescosTxt, csexo, edadMin, edadMax, tablaPlan, cplan, xplan, fdesde,
-    fhasta, cmoneda, frecuencias, productoresSel, canalesSel, observacion, cramo, filas, filasPer,
+    fhasta, cmoneda, frecuencias, productoresSel, canalesSel, observacion, mancPend, cramo, filas, filasPer,
   ]);
 
   /** Empieza un combo nuevo: borra el borrador y recarga la pantalla limpia. */
@@ -1729,6 +1746,8 @@ export function Sis2000ComboPage() {
     }
     const errorProductores = validarProductores(productoresSel);
     if (errorProductores) falta('datos', errorProductores, 'combo-prod-buscar');
+    const errorManc = errorPendienteMancomunado(mancPend);
+    if (errorManc) falta('datos', `Productores mancomunados: ${errorManc}`, 'combo-manc-buscar');
 
     if (!faltas.length) validatePlanPayload(armarPayload()).forEach((t) => falta('revisar', t));
     return faltas;
@@ -1814,6 +1833,7 @@ export function Sis2000ComboPage() {
 
   function limpiarResultado() {
     setErrorCrear(null);
+    setResultadoManc(null);
     if (planGuardado && !planGuardado.editado) setProveedoresKey((k) => k + 1);
     setPlanGuardado(null);
     setCotizacion(null);
@@ -1834,6 +1854,28 @@ export function Sis2000ComboPage() {
 
   // Al editar: lo cambiado en los pasos de completar no está en este formulario; guardarlo otra vez lo pisaría.
   const guardarPisaria = modoEdicion && completar.cambiosPaneles > 0;
+
+  /** PUT/DELETE del mancomunado del plan ya creado; no lanza: deja el resultado para mostrarlo. */
+  async function aplicarMancomunado(cramoPlan: number, cplanPlan: string) {
+    const planId = sis2000PlanMasterId(cramoPlan, cplanPlan);
+    const r = await aplicarMancomunadoPendiente(mancPend, mancOriginal, {
+      guardar: (cuerpo) => api.guardarSis2000Mancomunado(planId, cuerpo),
+      desactivar: () => api.desactivarSis2000Mancomunado(planId),
+    });
+    setResultadoManc(r);
+    if (r.estado === 'guardado' || r.estado === 'desactivado') setMancOriginal(mancPend);
+    return r;
+  }
+
+  async function reintentarMancomunado() {
+    if (!planGuardado) return;
+    setReintentandoManc(true);
+    try {
+      await aplicarMancomunado(planGuardado.cramo, planGuardado.cplan);
+    } finally {
+      setReintentandoManc(false);
+    }
+  }
 
   async function guardarPlan() {
     if (guardarPisaria) {
@@ -1870,6 +1912,8 @@ export function Sis2000ComboPage() {
                 ? { cparen: cparens[0], nedad: entero(edadMin) ?? 0 }
                 : undefined,
       });
+      // Mancomunados: se guardan DESPUÉS de crear el plan. Si falla, el plan queda creado y se avisa (sin perder lo elegido).
+      await aplicarMancomunado(cramo, String(payload.cplan));
       setMotivo('');
       setVersionHistorial((n) => n + 1);
       if (modoEdicion) {
@@ -3826,6 +3870,21 @@ export function Sis2000ComboPage() {
         </FormGrid>
       </SectionPanel>
 
+      {/* Mancomunados: pendientes; el PUT se hace justo después de crear el plan. */}
+      <MancomunadoPendientePanel
+        className="mt-5"
+        value={mancPend}
+        onChange={setMancPend}
+        planIdEdicion={modoEdicion && editId ? editId : null}
+        onOriginal={(original) => {
+          setMancOriginal(original);
+        }}
+        mostrarErrores={intentoCrear}
+        aviso={resultadoManc?.estado === 'fallo' ? resultadoManc.aviso : null}
+        onReintentar={planGuardado ? () => void reintentarMancomunado() : undefined}
+        reintentando={reintentandoManc}
+      />
+
       {/* Igual que en Planes maestro: antes de crear quedan pendientes y se agregan al crear el plan. */}
       <ProveedoresPlanPanel
         key={proveedoresKey}
@@ -3991,6 +4050,7 @@ export function Sis2000ComboPage() {
               ['Montos y precios', personas ? 'Por tabla de edad' : 'Suma y tasa o prima', 'precios'],
               ['Nombre y código', `${tituloPlan} (${cplan.trim() || '—'})`, 'datos'],
               ['Quién lo ofrece', textoProductores, 'datos'],
+              ['Productores mancomunados', resumenMancomunado(mancPend), 'datos'],
             ] as Array<[string, string, PasoId]>
           ).map(([etiqueta, valor, p]) => (
             <div key={etiqueta} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-1">
@@ -4046,8 +4106,18 @@ export function Sis2000ComboPage() {
             <p className="mt-1 text-xs">
               {planGuardado.editado
                 ? 'Lo anterior quedó en el historial (más abajo) y se puede restaurar.'
-                : 'Ya se puede usar en la emisión. Si elegiste proveedores o cobro por días, se agregaron al plan.'}
+                : 'Ya se puede usar en la emisión. Si elegiste proveedores, cobro por días o mancomunados, se agregaron al plan.'}
             </p>
+            {resultadoManc?.estado === 'guardado' && <p className="mt-1 text-xs">Mancomunado guardado en las características del plan.</p>}
+            {resultadoManc?.estado === 'desactivado' && <p className="mt-1 text-xs">Mancomunado desactivado: el plan se emite como siempre.</p>}
+            {resultadoManc?.estado === 'fallo' && (
+              <Alert variant="warning" className="mt-2">
+                <p className="text-xs">{resultadoManc.aviso}</p>
+                <Button type="button" size="sm" variant="outline" className="mt-2" disabled={reintentandoManc} onClick={() => void reintentarMancomunado()}>
+                  Reintentar guardar el mancomunado
+                </Button>
+              </Alert>
+            )}
             <div className="mt-2 flex flex-wrap items-center gap-3">
               {gruposPlan.length > 0 && (
                 <Button type="button" size="sm" onClick={() => irAPaso(PASOS.length)}>

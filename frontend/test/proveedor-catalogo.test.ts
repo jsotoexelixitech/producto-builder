@@ -82,3 +82,32 @@ describe('alta de proveedor en el catálogo', () => {
     assert.deepEqual(validarAltaProveedorForm({ ...lleno(), mcostoext: '10.50' }), []);
   });
 });
+
+describe('crear la empresa como cliente desde el alta', () => {
+  it('prellena con el RIF buscado y limita el tipo a J, G o C', async () => {
+    const m = await import('../src/lib/sis2000-proveedores.ts');
+    assert.deepEqual(m.altaClienteDesdeBusqueda('j-12345678-9'), { ...m.ALTA_CLIENTE_VACIA, tipo_documento: 'J', rif: '123456789' });
+    assert.equal(m.altaClienteDesdeBusqueda('G200012345').tipo_documento, 'G');
+    assert.equal(m.altaClienteDesdeBusqueda('V-12345678').tipo_documento, 'J');
+  });
+
+  it('valida RIF, razón social, correo y teléfono', async () => {
+    const m = await import('../src/lib/sis2000-proveedores.ts');
+    const ok = { ...m.ALTA_CLIENTE_VACIA, rif: '123456789', xcliente: 'Grúas El Sol, C.A.', xcorreo: 'a@b.com', xtelefono: '0414-1234567' };
+    assert.deepEqual(m.validarAltaClienteForm(ok), []);
+    assert.match(m.validarAltaClienteForm({ ...ok, rif: '123' }).join(' '), /entre 6 y 10 dígitos/);
+    assert.match(m.validarAltaClienteForm({ ...ok, rif: '' }).join(' '), /número de RIF/);
+    assert.match(m.validarAltaClienteForm({ ...ok, xcliente: ' ' }).join(' '), /razón social/);
+    assert.match(m.validarAltaClienteForm({ ...ok, xcliente: 'x'.repeat(251) }).join(' '), /250/);
+    assert.match(m.validarAltaClienteForm({ ...ok, xcorreo: 'sin-arroba' }).join(' '), /correo no es válido/);
+    assert.match(m.validarAltaClienteForm({ ...ok, xtelefono: '123' }).join(' '), /10 u 11 dígitos/);
+    assert.match(m.validarAltaClienteForm({ ...ok, tipo_documento: 'V' }).join(' '), /J, G o C/);
+  });
+
+  it('arma el cuerpo solo con lo que tiene valor y la respuesta queda elegible', async () => {
+    const m = await import('../src/lib/sis2000-proveedores.ts');
+    const f = { ...m.ALTA_CLIENTE_VACIA, rif: '123456789', xcliente: ' Grúas ', xcorreo: 'a@b.com', xtelefono: '0414-1234567', cestado: '1' };
+    assert.deepEqual(m.altaClienteToPayload(f), { tipo_documento: 'J', rif: '123456789', xcliente: 'Grúas', xcorreo: 'a@b.com', xtelefono: '04141234567', cestado: 1 });
+    assert.deepEqual(m.clienteCreadoABusqueda({ cci_rif: 123456789, cid: 'J-123456789', xcliente: 'GRUAS' }, f), { cci_rif: 123456789, cid: 'J-123456789', xcliente: 'GRUAS', tipo_documento: 'J' });
+  });
+});
