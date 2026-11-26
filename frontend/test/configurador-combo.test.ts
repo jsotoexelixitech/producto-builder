@@ -6,7 +6,7 @@ import { SECCION_INFO, infoSeccion } from '../src/lib/configurador.ts';
 
 const AUTO = ['producto', 'plan', 'coberturas', 'tarifas', 'deducibles', 'frecuencias', 'quien-vende', 'comisiones', 'tipos-uso', 'tasas-antiguedad', 'tasa-casco', 'tarifa-dias', 'descuentos-recargos', 'proveedores', 'revision'];
 const PERSONAS = ['producto', 'plan', 'coberturas', 'deducibles', 'frecuencias', 'canales', 'comisiones', 'edades-parentesco', 'tablas-edad', 'proveedores', 'revision'];
-const PATRIMONIAL = ['producto', 'plan', 'coberturas', 'tarifas', 'deducibles', 'frecuencias', 'quien-vende', 'comisiones', 'condominio', 'revision'];
+const PATRIMONIAL = ['producto', 'plan', 'coberturas', 'tarifas', 'deducibles', 'frecuencias', 'quien-vende', 'comisiones', 'proveedores', 'condominio', 'revision'];
 const FIANZAS = ['producto', 'plan', 'coberturas', 'revision'];
 const ids = (g: ReturnType<typeof gruposCompletar>) => g.map((x) => x.id);
 
@@ -34,7 +34,8 @@ describe('grupos de completar por familia', () => {
     const g = gruposCompletar('patrimonial', PATRIMONIAL);
     assert.equal(g[0].titulo, 'Tarifa del ramo');
     assert.deepEqual(g[0].secciones, ['condominio']);
-    assert.ok(!ids(g).includes('proveedores'));
+    assert.ok(ids(g).includes('proveedores'));
+    assert.equal(g.find((x) => x.id === 'proveedores')?.resumen, 'Proveedores de servicio del plan (grúa, clínicas, asistencia…)');
   });
   it('fianzas: solo lo que declara el ramo (revisión)', () => {
     assert.deepEqual(ids(gruposCompletar('fianzas', FIANZAS)), ['revision']);

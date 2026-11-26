@@ -49,8 +49,8 @@ const costo = (p: ProveedorPlan) =>
     .join(' · ') || '—';
 
 /**
- * Proveedores del plan (maplprov_per). Se asignan al plan y aplican a todas sus coberturas; al emitir pólizas de
- * personas, los vigentes se registran en cada póliza. Baja = cerrar la vigencia, nunca borrar.
+ * Proveedores del plan (maplprov_per) de cualquier ramo (grúa, clínicas, asistencia…). Se asignan al plan y aplican a
+ * todas sus coberturas; al emitir, los vigentes se registran en cada póliza. Baja = cerrar la vigencia, nunca borrar.
  */
 export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   const [datos, setDatos] = useState<ProveedoresPlanRespuesta | null>(null);
@@ -244,6 +244,10 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   function guardarEdicion(p: ProveedorPlan) {
     if (!planId) return;
     const n = (v: string) => (v.trim() === '' ? undefined : Number(v));
+    if (edicion.itiposerv.trim().length > 1) {
+      setError('El tipo de servicio es un solo carácter.');
+      return;
+    }
     if (edicion.fhasta && edicion.fhasta < p.fdesde) {
       setError('La vigencia hasta es anterior a la vigencia desde.');
       return;
@@ -255,7 +259,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
           cclave_num: p.cclave_num,
           fdesde: p.fdesde,
           ...(edicion.fhasta ? { fhasta: edicion.fhasta } : { sin_fin: true }),
-          itiposerv: n(edicion.itiposerv),
+          itiposerv: edicion.itiposerv.trim() || undefined,
           mcostoext: n(edicion.mcostoext),
           mcosto: n(edicion.mcosto),
           cmoneda: edicion.cmoneda.trim() || undefined,
@@ -266,6 +270,15 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
       if (guardado) setEditando(null);
     });
   }
+
+  /** Tipo de servicio y descripción del catálogo para la clave elegida (maclient_prov), si el catálogo los trae. */
+  const servicioCatalogo = (() => {
+    const fila = elegido?.claves.find((c) => String(c.cclave_num) === form.cclave_num);
+    if (!fila) return '';
+    const tipo = String(fila.itiposerv ?? '').trim();
+    const desc = String(fila.xdescripcion ?? '').trim();
+    return [tipo && `tipo ${tipo}`, desc].filter(Boolean).join(' · ');
+  })();
 
   const campo = (k: keyof ProveedorPlanForm, label: string, extra?: InputHTMLAttributes<HTMLInputElement>) => (
     <div>
@@ -298,7 +311,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   return (
     <SectionPanel
       title="Proveedores"
-      description="Clínicas y proveedores de servicio del plan de personas. Valen para todo el plan: al emitir, cada proveedor vigente a la fecha de inicio de la póliza queda registrado en esa póliza. Dar de baja cierra la vigencia (fecha hasta), no borra."
+      description="Proveedores de servicio del plan (grúa, clínicas, asistencia…). Valen para todo el plan: se copia a cada póliza que se emita con este plan (los vigentes a la fecha de inicio). Dar de baja cierra la vigencia (fecha hasta), no borra."
       icon={Truck}
       className={cn('mt-6', className)}
     >
@@ -389,7 +402,10 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
                           <td className="p-2">
                             {p.fdesde} – {p.fhasta ?? 'sin fin'}
                           </td>
-                          <td className="p-2">{p.itiposerv ?? '—'}</td>
+                          <td className="p-2">
+                            {p.itiposerv ?? '—'}
+                            {p.xdescripcion_servicio && <div className="text-muted-foreground">{p.xdescripcion_servicio}</div>}
+                          </td>
                           <td className="p-2">{costo(p)}</td>
                           <td className="p-2">
                             <span className={cn('rounded-full px-2 py-0.5', est.clase)}>{est.texto}</span>
@@ -407,6 +423,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
                                   <Input
                                     aria-label="Tipo de servicio"
                                     placeholder="Tipo de servicio"
+                                    maxLength={1}
                                     value={edicion.itiposerv}
                                     onChange={(e) => setEdicion({ ...edicion, itiposerv: e.target.value })}
                                   />
@@ -529,7 +546,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
               )}
               {campo('fdesde', 'Vigencia desde', { type: 'date' })}
               {campo('fhasta', 'Vigencia hasta (vacío = sin fin)', { type: 'date' })}
-              {campo('itiposerv', 'Tipo de servicio', { type: 'number', min: 0, step: 1 })}
+              {campo('itiposerv', 'Tipo de servicio (vacío = el del catálogo)', { maxLength: 1 })}
               {campo('mcostoext', 'Costo en divisa', { type: 'number', min: 0, step: '0.01' })}
               {campo('mcosto', 'Costo en bolívares (opcional)', { type: 'number', min: 0, step: '0.01' })}
               {monedas.length ? (
@@ -541,6 +558,11 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
                 campo('cmoneda', 'Moneda', { maxLength: 4 })
               )}
             </div>
+            {servicioCatalogo && (
+              <p className="text-muted-foreground">
+                Servicio en el catálogo: <strong>{servicioCatalogo}</strong>. Se copia a cada póliza que se emita con este plan.
+              </p>
+            )}
             <div>
               <Label htmlFor="prov-motivo">Motivo del cambio (opcional, queda en el historial)</Label>
               <Input id="prov-motivo" value={motivo} maxLength={500} onChange={(e) => setMotivo(e.target.value)} />
