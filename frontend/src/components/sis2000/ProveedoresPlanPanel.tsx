@@ -590,6 +590,9 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
           </div>
         )}
       </div>
+      {altaAbierta && (
+        <AltaProveedorCatalogoDialog monedas={monedas} onCerrar={() => setAltaAbierta(false)} onCreado={creadoEnCatalogo} />
+      )}
     </SectionPanel>
   );
 }
