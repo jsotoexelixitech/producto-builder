@@ -572,6 +572,18 @@ export class CoreService implements OnModuleInit {
     return this.partnerBridge.listSis2000Proveedores(q);
   }
 
+  async buscarSis2000Clientes(rif: string) {
+    return this.partnerBridge.buscarSis2000Clientes(rif);
+  }
+
+  async listSis2000TiposServicio() {
+    return this.partnerBridge.listSis2000TiposServicio();
+  }
+
+  async crearSis2000ProveedorCatalogo(body: Record<string, unknown>) {
+    return this.partnerBridge.crearSis2000ProveedorCatalogo(body);
+  }
+
   async listSis2000PlanProveedores(id: string) {
     this.assertPartnerConfigured();
     const { cramo, cplan } = partirPlanId(id);

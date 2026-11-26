@@ -106,6 +106,24 @@ export class Sis2000NestController {
     return this.coreService.listSis2000Proveedores(q ?? '');
   }
 
+  @Get('catalogos/clientes')
+  buscarClientes(@Query('rif') rif?: string) {
+    return this.coreService.buscarSis2000Clientes(rif ?? '');
+  }
+
+  @Get('catalogos/proveedores/tipos-servicio')
+  listTiposServicio() {
+    return this.coreService.listSis2000TiposServicio();
+  }
+
+  /** Alta en el catálogo de proveedores de Sis2000 (maclient_prov); luego se asocia al plan. */
+  @Roles(UserRole.PRODUCT_MANAGER)
+  @Post('catalogos/proveedores')
+  crearProveedorCatalogo(@Body() body: Cuerpo) {
+    const { cuerpo } = separarMotivo(body);
+    return this.coreService.crearSis2000ProveedorCatalogo(cuerpo);
+  }
+
   @Get('catalogos/monedas')
   listMonedas() {
     return this.coreService.listSis2000CatalogMonedas();

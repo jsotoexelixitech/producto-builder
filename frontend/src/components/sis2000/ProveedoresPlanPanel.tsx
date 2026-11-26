@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type InputHTMLAttributes } from 'react';
-import { Plus, Truck } from 'lucide-react';
+import { Building2, Plus, Truck } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   clavesDelProveedor,
@@ -11,6 +11,7 @@ import {
   type ProveedorPlan,
   type ProveedorPlanForm,
 } from '@/lib/sis2000-proveedores';
+import { AltaProveedorCatalogoDialog } from './AltaProveedorCatalogoDialog';
 import { Alert } from '@/components/ui/alert';
 import { AlertaError } from '@/components/ui/errores';
 import { entenderError, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
@@ -66,6 +67,7 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
   const [listaFallo, setListaFallo] = useState(false);
   const [monedas, setMonedas] = useState<Array<{ codigo: string; nombre: string }>>([]);
   const [elegido, setElegido] = useState<ProveedorCatalogo | null>(null);
+  const [altaAbierta, setAltaAbierta] = useState(false);
   const [form, setForm] = useState<ProveedorPlanForm>(PROVEEDOR_FORM_VACIO);
   const [editando, setEditando] = useState<string | null>(null);
   const [edicion, setEdicion] = useState({ fhasta: '', itiposerv: '', mcostoext: '', mcosto: '', cmoneda: '' });
@@ -184,6 +186,14 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
     const claves = clavesDelProveedor(p);
     setForm((f) => ({ ...f, cci_rif: String(p.cci_rif), cclave_num: String(claves[0] ?? f.cclave_num) }));
     setQ('');
+  }
+
+  /** Proveedor recién dado de alta en el catálogo: queda elegido (con su clave) para asociarlo al plan. */
+  function creadoEnCatalogo(p: ProveedorCatalogo) {
+    setAltaAbierta(false);
+    elegir(p);
+    setError(null);
+    setOk(`Proveedor ${p.xcliente} dado de alta en el catálogo (clave ${clavesDelProveedor(p)[0]}). Ya está seleccionado: completa la vigencia y agrégalo al plan.`);
   }
 
   function agregar() {
@@ -484,7 +494,13 @@ export function ProveedoresPlanPanel({ planId, onCambio, className }: Props) {
 
         {escribir && (
           <div className="space-y-2 rounded-lg border border-border/60 p-3">
-            <p className="font-semibold">Agregar proveedor al plan</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-semibold">Agregar proveedor al plan</p>
+              <Button type="button" size="sm" variant="outline" disabled={trabajando} onClick={() => setAltaAbierta(true)}>
+                <Building2 className="h-3.5 w-3.5" />
+                Agregar proveedor al catálogo
+              </Button>
+            </div>
             {elegido ? (
               <p>
                 Proveedor: <strong>{elegido.xcliente}</strong> ({elegido.cid || elegido.cci_rif}){' '}

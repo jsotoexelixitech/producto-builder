@@ -434,6 +434,19 @@ export const api = {
     request<import('@/lib/sis2000-proveedores').ProveedorCatalogo[]>(
       `/core/sis2000/catalogos/proveedores?q=${encodeURIComponent(q)}`,
     ),
+  /** Empresas de maclient por RIF (V-/J-/G-/E- + número o cci_rif). */
+  buscarSis2000Clientes: (rif: string) =>
+    request<import('@/lib/sis2000-proveedores').ClienteBusqueda[]>(
+      `/core/sis2000/catalogos/clientes?rif=${encodeURIComponent(rif)}`,
+    ),
+  listSis2000TiposServicio: () =>
+    request<import('@/lib/sis2000-proveedores').TipoServicioCatalogo[]>('/core/sis2000/catalogos/proveedores/tipos-servicio'),
+  /** Alta en el catálogo de proveedores de Sis2000 (maclient_prov). */
+  crearSis2000ProveedorCatalogo: (body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-proveedores').ProveedorCatalogoCreado>('/core/sis2000/catalogos/proveedores', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   listSis2000PlanProveedores: (planId: string) =>
     request<import('@/lib/sis2000-proveedores').ProveedoresPlanRespuesta>(
       `/core/sis2000/plans/${encodeURIComponent(planId)}/proveedores`,
