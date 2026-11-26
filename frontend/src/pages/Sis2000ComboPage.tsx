@@ -17,6 +17,9 @@ import {
   Send,
   Shield,
   Users,
+  Building2,
+  Car,
+  Check,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { agruparProductosSis2000, type Sis2000Product } from '@/lib/sis2000-catalog';
@@ -91,7 +94,9 @@ import { PasoAnimado } from '@/components/ayudas/PasoAnimado';
 import { ListaAnimada } from '@/components/ayudas/ListaAnimada';
 import { useAvisoComplementario } from '@/lib/ayudas/avisos';
 import { PanelAyudas } from '@/components/ayudas/PanelAyudas';
-import { conCoberturas } from '@/lib/ayudas/checklist';
+import { RailPasos } from '@/components/ayudas/RailPasos';
+import { TextoPlegable } from '@/components/ayudas/TextoPlegable';
+import { conCoberturas, construirChecklist } from '@/lib/ayudas/checklist';
 import { useAyudas } from '@/components/ayudas/AyudasProvider';
 import { comandosDeRamos } from '@/lib/ayudas/busqueda';
 import { useRegistrarComandos } from '@/lib/ayudas/usar-comandos';
@@ -2264,6 +2269,14 @@ export function Sis2000ComboPage() {
           <Boxes className="h-5 w-5 text-primary" />
           {modoEdicion ? `Editar plan «${texto(planOriginal?.plan.xplan) || cplan || editId}»` : 'Combos de coberturas'}
         </h1>
+        <TextoPlegable
+          activo={ayudasActivas}
+          corto={
+            modoEdicion
+              ? 'Cambia los datos del plan, sus montos o sus coberturas.'
+              : 'Arma un plan nuevo en Sis2000 con las coberturas de un ramo. Nada se guarda hasta que lo confirmes.'
+          }
+        >
         <p className="max-w-3xl text-sm text-muted-foreground">
           {modoEdicion
             ? 'Cambia los datos del plan, sus montos o agrégale coberturas. Antes de guardar verás qué cambia y lo anterior queda en el historial.'
@@ -2276,6 +2289,7 @@ export function Sis2000ComboPage() {
             «¿se puede emitir?». La ficha del plan sigue disponible como alternativa.
           </p>
         )}
+        </TextoPlegable>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {modoEdicion && editId && (
@@ -2604,6 +2618,12 @@ export function Sis2000ComboPage() {
                       elegido ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300' : 'border-border/60 bg-card hover:bg-muted/40',
                     )}
                   >
+                    {ayudasActivas && (
+                      <span className="cb-tipo-icono" aria-hidden>
+                        {o.valor === 'cosas' ? <Building2 className="h-7 w-7" /> : o.valor === 'personas' ? <Users className="h-7 w-7" /> : <Car className="h-7 w-7" />}
+                        {elegido && <Check className="cb-tipo-check h-4 w-4" />}
+                      </span>
+                    )}
                     <span className="flex items-center gap-2 text-sm font-semibold">
                       {o.titulo}
                       {sugerido && (
@@ -4071,10 +4091,20 @@ export function Sis2000ComboPage() {
     ...comandosDeRamos(ramosSis2000),
   ]);
 
+  // Una sola fuente del avance: la barra de pasos y el panel derecho muestran este mismo número.
+  const checklistAyudas = construirChecklist(
+    PASOS.slice(0, PASOS.length - 1).map((p, i) => ({
+      indice: i,
+      titulo: p.titulo,
+      faltas: conCoberturas(p.id, incluidas.length, faltasDe(i).map((f) => f.texto)),
+    })),
+    gruposPlan.map((g, i) => ({ indice: PASOS.length + i, titulo: g.titulo, estado: estadoDeGrupo(g) })),
+  );
+
   const contenidoPasos: ReactNode[] = [pasoProducto, pasoCoberturas, pasoPrecios, pasoDatos, pasoRevisar];
 
   return (
-    <AppShell title={modoEdicion ? 'Editar plan' : 'Combos de coberturas'}>
+    <AppShell title={modoEdicion ? 'Editar plan' : 'Combos de coberturas'} maxWidth={ayudasActivas ? '1680' : undefined}>
       <div ref={arriba} className="scroll-mt-4" />
       {encabezado}
 
@@ -4085,10 +4115,15 @@ export function Sis2000ComboPage() {
         </Alert>
       )}
 
-      <BarraPasos pasos={[...PASOS, ...pasosCompletar]} actual={paso} estado={estadoPaso} onIr={irAPaso} />
+      <div className={ayudasActivas ? 'cb-layout' : 'contents'}>
+      {ayudasActivas ? (
+        <RailPasos pasos={[...PASOS, ...pasosCompletar]} corte={PASOS.length} actual={paso} estado={estadoPaso} onIr={irAPaso} avance={checklistAyudas.porcentaje} />
+      ) : (
+        <BarraPasos pasos={[...PASOS, ...pasosCompletar]} actual={paso} estado={estadoPaso} onIr={irAPaso} />
+      )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="min-w-0">
+      <div className="cb-grid grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="cb-main min-w-0">
           {/* Todos los pasos quedan montados (los paneles de proveedores y cobro por días guardan lo pendiente). */}
           {contenidoPasos.map((contenido, i) => (
             <PasoAnimado key={PASOS[i].id} activo={i === paso} data-paso={i} onBlurCapture={registrarBlur}>
@@ -4138,8 +4173,8 @@ export function Sis2000ComboPage() {
           )}
         </div>
 
-        <div className={ayudasActivas ? 'h-fit space-y-4 xl:sticky xl:top-28' : 'contents'}>
-        <Card className="hidden h-fit xl:sticky xl:top-28 xl:block">
+        <div className={ayudasActivas ? 'cb-panel' : 'contents'}>
+        <Card className="cb-tuplan hidden h-fit xl:sticky xl:top-28 xl:block">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Tu plan</CardTitle>
           </CardHeader>
@@ -4148,7 +4183,7 @@ export function Sis2000ComboPage() {
               <span className="text-muted-foreground">Producto:</span> {nombreProducto || '—'}
             </p>
             <p>
-              <span className="text-muted-foreground">Tipo:</span> {personas ? 'Personas' : 'Cosas'}
+              <span className="text-muted-foreground">Tipo:</span> {personas ? 'Personas' : automovil ? 'Automóvil' : 'Cosas'}
             </p>
             <p>
               <span className="text-muted-foreground">Coberturas:</span> {incluidas.length}
@@ -4172,12 +4207,15 @@ export function Sis2000ComboPage() {
           </CardContent>
         </Card>
         <PanelAyudas
-          pasos={PASOS.slice(0, PASOS.length - 1).map((p, i) => ({
-            indice: i,
-            titulo: p.titulo,
-            faltas: conCoberturas(p.id, incluidas.length, faltasDe(i).map((f) => f.texto)),
-          }))}
-          grupos={gruposPlan.map((g, i) => ({ indice: PASOS.length + i, titulo: g.titulo, estado: estadoDeGrupo(g) }))}
+          checklist={checklistAyudas}
+          datos={{
+            producto: nombreProducto,
+            tipo: personas ? 'Personas' : automovil ? 'Automóvil' : 'Cosas',
+            coberturas: incluidas.length,
+            prima: personas ? null : `${cmoneda} ${formatoMonto(resumen.prima)}`,
+            asegurados: personas ? `${textoParentescos}, ${edadMin || '—'} a ${edadMax || '—'} años` : null,
+            plan: xplan.trim(),
+          }}
           resumen={{
             modoEdicion,
             cplan,
@@ -4211,6 +4249,7 @@ export function Sis2000ComboPage() {
           onIr={irAPaso}
         />
         </div>
+      </div>
       </div>
 
       {confirmando && (

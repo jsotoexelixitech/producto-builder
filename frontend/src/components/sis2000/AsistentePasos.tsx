@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Check, ChevronDown, HelpCircle, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAyudas } from '@/components/ayudas/AyudasProvider';
 
 // Piezas del asistente por pasos del configurador (Combos de coberturas y edición de planes).
 // Misma identidad visual del builder: tarjetas blancas, borde slate, acento índigo.
@@ -140,7 +141,7 @@ export function NavegacionPasos({
 }) {
   const ultimo = actual >= total - 1;
   return (
-    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+    <div data-nav-pasos className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
       {mostrarFaltan && faltan.length > 0 && (
         <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
           <p className="font-bold">Para seguir te falta:</p>
@@ -204,7 +205,9 @@ const guardar = (clave: string, abierto: boolean) => {
  */
 export function ComoSeUsa({ id, titulo = '¿Cómo se usa?', children }: { id: string; titulo?: string; children: ReactNode }) {
   const clave = `pb.guia.${id}`;
-  const [abierto, setAbierto] = useState(() => leer(clave) ?? true);
+  // Vista moderna: plegado por defecto (se recuerda lo que la persona elija).
+  const moderna = useAyudas().activas;
+  const [abierto, setAbierto] = useState(() => leer(clave) ?? !moderna);
   return (
     <details
       open={abierto}

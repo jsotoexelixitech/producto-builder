@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { AYUDAS_DISPONIBLES } from '@/lib/ayudas/flag';
 import { guardarPreferenciaAyudas, leerPreferenciaAyudas } from '@/lib/ayudas/preferencia';
 import './ayudas.css';
+import './moderna.css';
 
 interface ValorAyudas {
   /** false = apagado en el build (VITE_UI_AYUDAS=0): no hay interruptor ni nada nuevo. */

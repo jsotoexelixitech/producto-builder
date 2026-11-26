@@ -1,14 +1,15 @@
 import { useId, useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import NumberFlow from '@number-flow/react';
-import { CheckCircle2, ChevronDown, Circle, Lock, TriangleAlert } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, Lock, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { construirChecklist, type EstadoItem, type GrupoEntrada, type PasoEntrada } from '@/lib/ayudas/checklist';
+import type { Checklist, EstadoItem } from '@/lib/ayudas/checklist';
 import { aNumeroEs, estimarPrimaAuto } from '@/lib/ayudas/prima-auto';
 import { resumenEnPalabras, type EntradaResumen } from '@/lib/ayudas/resumen-plan';
+import type { DatosMapa } from '@/lib/ayudas/mapa-plan';
 import { useAyudas } from './AyudasProvider';
 import { GuiaCombo } from './GuiaCombo';
 import { BotonMapa } from './BotonMapa';
-import type { DatosMapa } from '@/lib/ayudas/mapa-plan';
 
 export interface DatosAutoAyudas {
   /** El plan es de auto y tiene la sección de tarifa por días (tasa diaria). */
@@ -18,30 +19,56 @@ export interface DatosAutoAyudas {
   moneda: string;
 }
 
+/** Lo que ya mostraba «Tu plan», ahora en la pestaña Resumen. */
+export interface DatosResumenPlan {
+  producto: string;
+  tipo: string;
+  coberturas: number;
+  /** Prima de referencia ya formateada (null = no aplica, p. ej. personas). */
+  prima: string | null;
+  /** Asegurados (solo personas). */
+  asegurados: string | null;
+  plan: string;
+}
+
 const ICONO: Record<EstadoItem, { Icono: typeof Circle; clase: string; etiqueta: string }> = {
   hecho: { Icono: CheckCircle2, clase: 'text-emerald-600', etiqueta: 'Hecho' },
   falta: { Icono: TriangleAlert, clase: 'text-amber-600', etiqueta: 'Falta' },
   revisar: { Icono: TriangleAlert, clase: 'text-amber-600', etiqueta: 'Revisar' },
-  pendiente: { Icono: Circle, clase: 'text-slate-400', etiqueta: 'Pendiente' },
-  bloqueado: { Icono: Lock, clase: 'text-slate-300', etiqueta: 'Bloqueado' },
+  pendiente: { Icono: Circle, clase: 'text-slate-500', etiqueta: 'Pendiente' },
+  bloqueado: { Icono: Lock, clase: 'text-slate-500', etiqueta: 'Bloqueado' },
 };
 
+/** Anillo de avance. El número es el mismo de la barra de pasos (una sola fuente: el checklist). */
+function Anillo({ porcentaje }: { porcentaje: number }) {
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="cb-anillo" role="progressbar" aria-valuenow={porcentaje} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del plan">
+      <svg viewBox="0 0 80 80" aria-hidden>
+        <circle cx="40" cy="40" r={r} className="cb-anillo-fondo" />
+        <circle cx="40" cy="40" r={r} className="cb-anillo-valor" strokeDasharray={c} strokeDashoffset={c - (c * porcentaje) / 100} />
+      </svg>
+      <span>{porcentaje} %</span>
+    </div>
+  );
+}
+
 /**
- * Panel lateral de la vista con ayudas (debajo del contenido en pantallas angostas): checklist «¿Se puede emitir?»,
- * resumen en palabras antes de guardar y, en planes de auto con tasa diaria, un estimado de prima. Solo lee lo que ya
- * está en pantalla: no llama al servidor ni guarda nada.
+ * Panel derecho de la vista con ayudas: un solo panel con pestañas Resumen, Checklist y (planes de auto con tasa
+ * diaria) Estimado. Solo lee lo que ya está en pantalla: no llama al servidor ni guarda nada.
  */
 export function PanelAyudas({
-  pasos,
-  grupos,
+  checklist,
+  datos,
   resumen,
   auto,
   mapa,
   paso,
   onIr,
 }: {
-  pasos: PasoEntrada[];
-  grupos: GrupoEntrada[];
+  checklist: Checklist;
+  datos: DatosResumenPlan;
   resumen: EntradaResumen;
   auto: DatosAutoAyudas;
   mapa: DatosMapa;
@@ -49,54 +76,88 @@ export function PanelAyudas({
   onIr: (indice: number) => void;
 }) {
   const { activas } = useAyudas();
-  const [abierto, setAbierto] = useState(true);
-  const idCuerpo = useId();
+  const [pestana, setPestana] = useState('resumen');
   if (!activas) return null;
-  const lista = construirChecklist(pasos, grupos);
+  const lista = checklist;
+  const proximos = lista.items.filter((i) => i.estado === 'falta' || i.estado === 'revisar' || i.estado === 'pendiente').slice(0, 3);
+  const pestanas = [
+    { id: 'resumen', titulo: 'Resumen' },
+    { id: 'checklist', titulo: 'Checklist' },
+    ...(auto.mostrar ? [{ id: 'estimado', titulo: 'Estimado' }] : []),
+  ];
+  const valorPestana = pestanas.some((p) => p.id === pestana) ? pestana : 'resumen';
 
   return (
-    <aside aria-label="Ayudas del plan" className="rounded-2xl border border-slate-200 bg-white shadow-sm xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-      <button
-        type="button"
-        aria-expanded={abierto}
-        aria-controls={idCuerpo}
-        onClick={() => setAbierto(!abierto)}
-        className="flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-      >
-        Ayudas del plan
-        <ChevronDown className={cn('h-4 w-4 transition-transform motion-reduce:transition-none', abierto && 'rotate-180')} aria-hidden />
-      </button>
-      {abierto && (
-        <div id={idCuerpo} className="space-y-4 border-t border-slate-100 px-4 py-3 text-xs">
-          <div className="flex flex-wrap items-start gap-2">
-            <GuiaCombo />
-            <BotonMapa datos={mapa} />
-          </div>
+    <aside aria-label="Ayudas del plan" className="cb-panel-caja">
+      <Tabs.Root value={valorPestana} onValueChange={setPestana}>
+        <Tabs.List aria-label="Panel del plan" className="cb-tabs">
+          {pestanas.map((p) => (
+            <Tabs.Trigger key={p.id} value={p.id} className="cb-tab">
+              {p.titulo}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
 
+        <Tabs.Content value="resumen" className="cb-tab-contenido">
+          <section aria-label="Resumen del plan">
+            <div className="cb-resumen-cabeza">
+              <Anillo porcentaje={lista.porcentaje} />
+              <div>
+                <p className={cn('cb-resumen-estado', lista.puedeEmitir ? 'text-emerald-700' : 'text-slate-900')}>
+                  {lista.puedeEmitir ? 'Todo listo para emitir' : `${lista.hechos} de ${lista.total} pasos listos`}
+                </p>
+                <p className="text-slate-600">{lista.puedeEmitir ? 'No falta nada.' : 'Esto es lo que sigue.'}</p>
+              </div>
+            </div>
+            <dl className="cb-datos">
+              <div><dt>Producto</dt><dd>{datos.producto || '—'}</dd></div>
+              <div><dt>Tipo</dt><dd>{datos.tipo}</dd></div>
+              <div><dt>Coberturas</dt><dd>{datos.coberturas}</dd></div>
+              {datos.prima && <div><dt>Prima de referencia</dt><dd>{datos.prima}</dd></div>}
+              {datos.asegurados && <div><dt>Asegurados</dt><dd>{datos.asegurados}</dd></div>}
+              <div><dt>Plan</dt><dd>{datos.plan || '—'}</dd></div>
+            </dl>
+            {proximos.length > 0 && (
+              <div className="cb-proximos">
+                <h3>Lo que sigue</h3>
+                <ul>
+                  {proximos.map((it) => {
+                    const { Icono, clase } = ICONO[it.estado];
+                    return (
+                      <li key={it.indice}>
+                        <Icono className={cn('h-5 w-5 shrink-0', clase)} aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <strong>{it.titulo}</strong>
+                          <span>{it.detalle}</span>
+                        </span>
+                        <button type="button" onClick={() => onIr(it.indice)} aria-label={`Ir a ${it.titulo}`}>
+                          Ir <ArrowRight className="h-4 w-4" aria-hidden />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </section>
+          <section aria-label="Antes de guardar" className="cb-antes">
+            <h3>Antes de guardar</h3>
+            <p>{resumenEnPalabras(resumen)}</p>
+          </section>
+        </Tabs.Content>
+
+        <Tabs.Content value="checklist" className="cb-tab-contenido">
           <section aria-label="¿Se puede emitir?">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <h3 className="font-semibold text-slate-800">¿Se puede emitir?</h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="font-semibold text-slate-900">¿Se puede emitir?</h3>
               <span className={cn('font-semibold', lista.puedeEmitir ? 'text-emerald-700' : 'text-amber-700')}>
                 {lista.hechos} de {lista.total}
               </span>
             </div>
-            <div
-              className="mb-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
-              role="progressbar"
-              aria-valuenow={lista.porcentaje}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Avance para poder emitir"
-            >
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 motion-reduce:transition-none"
-                style={{ width: `${lista.porcentaje}%` }}
-              />
-            </div>
-            <p className={cn('mb-2 font-medium', lista.puedeEmitir ? 'text-emerald-700' : 'text-slate-600')}>
-              {lista.puedeEmitir ? 'Sí: todo está listo.' : 'Todavía no: falta lo marcado abajo. Toca un punto para ir a ese paso.'}
+            <p className={cn('mb-3 font-medium', lista.puedeEmitir ? 'text-emerald-700' : 'text-slate-600')}>
+              {lista.puedeEmitir ? 'Sí: todo está listo.' : 'Todavía no. Toca un punto para ir a ese paso.'}
             </p>
-            <ul className="space-y-1">
+            <ul className="cb-lista-check">
               {lista.items.map((it) => {
                 const { Icono, clase, etiqueta } = ICONO[it.estado];
                 const actual = it.indice === paso;
@@ -107,17 +168,14 @@ export function PanelAyudas({
                       disabled={it.estado === 'bloqueado'}
                       onClick={() => onIr(it.indice)}
                       aria-current={actual ? 'step' : undefined}
-                      className={cn(
-                        'flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:hover:bg-transparent',
-                        actual && 'bg-indigo-50',
-                      )}
+                      className={cn(actual && 'is-actual')}
                     >
-                      <Icono className={cn('mt-0.5 h-4 w-4 shrink-0', clase)} aria-hidden />
+                      <Icono className={cn('mt-0.5 h-5 w-5 shrink-0', clase)} aria-hidden />
                       <span className="min-w-0">
-                        <span className="block font-medium text-slate-800">
+                        <span className="block font-medium text-slate-900">
                           {it.titulo} <span className="sr-only">({etiqueta})</span>
                         </span>
-                        <span className="block text-slate-500">{it.detalle}</span>
+                        <span className="block text-slate-600">{it.detalle}</span>
                       </span>
                     </button>
                   </li>
@@ -125,15 +183,18 @@ export function PanelAyudas({
               })}
             </ul>
           </section>
+        </Tabs.Content>
 
-          <section aria-label="Antes de guardar" className="border-t border-slate-100 pt-3">
-            <h3 className="mb-1 font-semibold text-slate-800">Antes de guardar</h3>
-            <p className="leading-relaxed text-slate-600">{resumenEnPalabras(resumen)}</p>
-          </section>
-
-          {auto.mostrar && <SimuladorPrima sumaInicial={auto.sumaInicial} moneda={auto.moneda} />}
-        </div>
-      )}
+        {auto.mostrar && (
+          <Tabs.Content value="estimado" className="cb-tab-contenido">
+            <SimuladorPrima sumaInicial={auto.sumaInicial} moneda={auto.moneda} />
+          </Tabs.Content>
+        )}
+      </Tabs.Root>
+      <div className="cb-panel-acciones cb-panel-acciones-pie">
+        <GuiaCombo />
+        <BotonMapa datos={mapa} />
+      </div>
     </aside>
   );
 }
@@ -154,31 +215,31 @@ function SimuladorPrima({ sumaInicial, moneda }: { sumaInicial: number; moneda: 
   });
   const campo = (etiqueta: string, valor: string, set: (v: string) => void, ayuda: string, clave: string) => (
     <label className="block" htmlFor={`${id}-${clave}`}>
-      <span className="text-slate-600">{etiqueta}</span>
+      <span className="text-slate-700">{etiqueta}</span>
       <input
         id={`${id}-${clave}`}
         inputMode="decimal"
         value={valor}
         onChange={(e) => set(e.target.value)}
         placeholder={ayuda}
-        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+        className="cb-campo-sim"
       />
     </label>
   );
   return (
-    <section aria-label="Estimado de prima" className="border-t border-slate-100 pt-3">
-      <h3 className="mb-1 font-semibold text-slate-800">Estimado de prima</h3>
-      <p className="mb-2 text-slate-500">Escribe los datos para ver una cuenta rápida. Lo que escribes aquí no se guarda.</p>
-      <div className="grid grid-cols-2 gap-2">
+    <section aria-label="Estimado de prima">
+      <h3 className="mb-1 font-semibold text-slate-900">Estimado de prima</h3>
+      <p className="mb-3 text-slate-600">Escribe los datos para ver una cuenta rápida. Lo que escribes aquí no se guarda.</p>
+      <div className="grid grid-cols-2 gap-3">
         {campo('Suma asegurada', sumaTexto, setSuma, 'Ej. 20000', 'suma')}
         {campo('Tasa diaria (%)', tasa, setTasa, 'Ej. 0,072', 'tasa')}
         {campo('Días', dias, setDias, 'Ej. 30', 'dias')}
         {campo('Descuento por deducible (%)', descuento, setDescuento, 'Opcional', 'desc')}
       </div>
-      <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2" aria-live="polite">
+      <div className="mt-3 rounded-xl bg-slate-50 px-3 py-3" aria-live="polite">
         {est ? (
           <>
-            <p className="text-slate-600">
+            <p className="text-slate-700">
               Sin deducible: <strong>{moneda} <NumberFlow value={est.primaBase} locales="es" format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} /></strong>
             </p>
             {est.descuento > 0 && (
@@ -188,10 +249,10 @@ function SimuladorPrima({ sumaInicial, moneda }: { sumaInicial: number; moneda: 
             )}
           </>
         ) : (
-          <p className="text-slate-500">Completa suma, tasa y días para ver el estimado.</p>
+          <p className="text-slate-600">Completa suma, tasa y días para ver el estimado.</p>
         )}
       </div>
-      <p className="mt-2 font-medium text-amber-800">Estimado: la prima oficial la calcula Sis2000 al cotizar.</p>
+      <p className="mt-3 font-medium text-amber-800">Estimado: la prima oficial la calcula Sis2000 al cotizar.</p>
     </section>
   );
 }

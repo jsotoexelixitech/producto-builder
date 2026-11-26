@@ -65,11 +65,11 @@ export function AyudaCampo({ text, className }: { text: string; className?: stri
           onMouseEnter={cancelarCierre}
           onMouseLeave={cerrarPronto}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="ayuda-contenido z-[100] w-[300px] max-w-[calc(100vw-1rem)] rounded-lg bg-slate-900 px-3 py-2 text-[0.72rem] font-normal leading-relaxed text-white shadow-lg outline-none"
+          className="ayuda-contenido z-[100] w-[300px] max-w-[calc(100vw-1rem)] rounded-lg bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg outline-none"
         >
           {lineas.map((linea, i) =>
             linea.startsWith(PREFIJO_TABLA) ? (
-              <span key={i} className="mt-1.5 block border-t border-white/15 pt-1 text-[0.66rem] text-slate-400">
+              <span key={i} className="mt-1.5 block border-t border-white/15 pt-1 text-[0.75rem] text-slate-400">
                 {linea}
               </span>
             ) : (

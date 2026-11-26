@@ -3,6 +3,7 @@ import { AppSidebar } from './AppSidebar';
 import { cn } from '@/lib/utils';
 import { AyudasToggle } from '@/components/ayudas/AyudasToggle';
 import { BuscadorAyudas } from '@/components/ayudas/BuscadorAyudas';
+import { useAyudas } from '@/components/ayudas/AyudasProvider';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -11,7 +12,7 @@ interface AppShellProps {
   title?: string;
   subtitle?: string;
   headerExtra?: React.ReactNode;
-  maxWidth?: '5xl' | '6xl' | '7xl' | 'full';
+  maxWidth?: '5xl' | '6xl' | '7xl' | '1680' | 'full';
   footer?: React.ReactNode;
   variant?: 'default' | 'flow';
   hideSidebar?: boolean;
@@ -29,17 +30,20 @@ export function AppShell({
   variant = 'default',
   hideSidebar = false,
 }: AppShellProps) {
+  const moderna = useAyudas().activas;
   const widthClass =
     maxWidth === 'full'
       ? 'max-w-none'
-      : maxWidth === '7xl'
+      : maxWidth === '1680'
+        ? 'max-w-[1680px]'
+        : maxWidth === '7xl'
         ? 'max-w-7xl'
         : maxWidth === '5xl'
           ? 'max-w-5xl'
           : 'max-w-6xl';
 
   return (
-    <div className={cn('app-shell', variant === 'flow' && 'app-shell-flow')}>
+    <div className={cn('app-shell', variant === 'flow' && 'app-shell-flow', moderna && 'ui-moderna')}>
       {!hideSidebar && <AppSidebar />}
 
       <div className="app-shell-main">

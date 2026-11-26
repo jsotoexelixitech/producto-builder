@@ -22,17 +22,12 @@ export const PASOS_GUIA: PasoGuia[] = [
     texto: 'En cada paso completas una parte del plan. El ícono (i) junto a un campo explica para qué sirve.',
   },
   {
-    selector: 'aside[aria-label="Ayudas del plan"] [aria-label="¿Se puede emitir?"]',
-    titulo: '¿Se puede emitir?',
-    texto: 'Esta lista muestra qué está hecho y qué falta. Toca un punto para ir directo a ese paso.',
+    selector: 'aside[aria-label="Ayudas del plan"] [role="tablist"]',
+    titulo: 'Resumen y checklist',
+    texto: 'En Resumen ves el avance y lo que sigue; en Checklist, la lista de «¿se puede emitir?». Toca un punto para ir directo a ese paso.',
   },
   {
-    selector: 'aside[aria-label="Ayudas del plan"] [aria-label="Antes de guardar"]',
-    titulo: 'Antes de guardar',
-    texto: 'Resume en palabras lo que se va a guardar, para que lo revises de un vistazo.',
-  },
-  {
-    selector: 'aside[aria-label="Ayudas del plan"] [aria-label="Estimado de prima"]',
+    selector: 'aside[aria-label="Ayudas del plan"] [role="tab"][id$="-trigger-estimado"]',
     titulo: 'Estimado de prima',
     texto: 'En planes de auto con tasa diaria puedes hacer una cuenta rápida. Es solo un estimado: la prima oficial la calcula Sis2000 al cotizar.',
   },
