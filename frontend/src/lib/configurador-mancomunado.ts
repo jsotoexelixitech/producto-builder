@@ -63,3 +63,64 @@ export const mancomunadoValido = (e: ErroresMancomunado) => !e.general && Object
 export const cuerpoMancomunado = (filas: FilaMancomunado[]) => ({
   productores: filas.map((f) => ({ cproductor: f.cproductor, ppart: numero(f.ppart) })),
 });
+
+// ── Mancomunado pendiente (paso «Datos del plan» del Combo): se guarda con el plan ──────────────────────────────
+
+/** Lo elegido antes de crear el plan: interruptor y productores con su %. */
+export interface PendienteMancomunado {
+  activo: boolean;
+  filas: FilaMancomunado[];
+}
+
+export const PENDIENTE_MANC_VACIO: PendienteMancomunado = { activo: false, filas: [] };
+
+export const MSG_SIN_DOMINIO_MANCOMUNADO =
+  'Sis2000 aún no tiene el catálogo PLAN_MANCOMUNADO: falta el script del DBA. El plan quedó creado; lo elegido sigue aquí para guardarlo cuando el catálogo exista.';
+
+/** Primer problema del mancomunado pendiente (null si está bien o si no se activó). */
+export function errorPendienteMancomunado(p: PendienteMancomunado): string | null {
+  if (!p.activo) return null;
+  const e = validarMancomunado(p.filas);
+  return e.general ?? Object.values(e.porProductor)[0] ?? null;
+}
+
+/** Texto para el resumen «Antes de guardar». */
+export function resumenMancomunado(p: PendienteMancomunado): string {
+  if (!p.activo || !p.filas.length) return 'No';
+  return p.filas.map((f) => `${f.xproductor ? `${f.cproductor} · ${f.xproductor}` : f.cproductor} ${f.ppart.trim() || '—'} %`).join(', ');
+}
+
+/** Mismo contenido (para saber si el usuario cambió algo frente a lo guardado en Sis2000). */
+export const mismoMancomunado = (a: PendienteMancomunado, b: PendienteMancomunado) =>
+  a.activo === b.activo && JSON.stringify(a.filas.map((f) => [f.cproductor, f.ppart])) === JSON.stringify(b.filas.map((f) => [f.cproductor, f.ppart]));
+
+export interface ResultadoMancomunado {
+  estado: 'sin-cambios' | 'guardado' | 'desactivado' | 'fallo';
+  aviso?: string;
+}
+
+/**
+ * Aplica el mancomunado pendiente DESPUÉS de crear (o actualizar) el plan: PUT si está activo, DELETE si se apagó lo que había.
+ * Si falla (p. ej. 409 por dominio no creado) no lanza: devuelve el aviso para mostrarlo; el plan ya existe.
+ */
+export async function aplicarMancomunadoPendiente(
+  pendiente: PendienteMancomunado,
+  original: PendienteMancomunado,
+  io: { guardar: (cuerpo: ReturnType<typeof cuerpoMancomunado>) => Promise<unknown>; desactivar: () => Promise<unknown> },
+): Promise<ResultadoMancomunado> {
+  if (mismoMancomunado(pendiente, original)) return { estado: 'sin-cambios' };
+  if (!pendiente.activo && !original.activo) return { estado: 'sin-cambios' };
+  try {
+    if (pendiente.activo) {
+      await io.guardar(cuerpoMancomunado(pendiente.filas));
+      return { estado: 'guardado' };
+    }
+    await io.desactivar();
+    return { estado: 'desactivado' };
+  } catch (e) {
+    const status = (e as { status?: number } | null)?.status;
+    if (status === 409) return { estado: 'fallo', aviso: MSG_SIN_DOMINIO_MANCOMUNADO };
+    const msg = e instanceof Error && e.message ? e.message : 'error desconocido';
+    return { estado: 'fallo', aviso: `El plan quedó creado, pero no se pudo guardar el mancomunado: ${msg}. Lo elegido sigue aquí; reinténtalo.` };
+  }
+}

@@ -27,3 +27,58 @@ describe('mancomunado', () => {
     assert.match(validarMancomunado([f(1, '60'), f(2, '39.9999')]).general ?? '', /suman 99.9999/);
   });
 });
+
+describe('mancomunado pendiente al crear el plan', () => {
+  const ok = { activo: true, filas: [f(80080, '60'), f(1001, '40')] };
+
+  it('reglas: mínimo 2, sin repetidos, suma 100 y solo si está activo', async () => {
+    const m = await import('../src/lib/configurador-mancomunado.ts');
+    assert.equal(m.errorPendienteMancomunado({ activo: false, filas: [f(1, '5')] }), null);
+    assert.equal(m.errorPendienteMancomunado(ok), null);
+    assert.match(m.errorPendienteMancomunado({ activo: true, filas: [f(1, '100')] }) ?? '', /al menos 2/);
+    assert.match(m.errorPendienteMancomunado({ activo: true, filas: [f(1, '50'), f(1, '50')] }) ?? '', /repetido/);
+    assert.match(m.errorPendienteMancomunado({ activo: true, filas: [f(1, '50'), f(2, '40')] }) ?? '', /suman 90/);
+    assert.equal(m.resumenMancomunado(m.PENDIENTE_MANC_VACIO), 'No');
+    assert.match(m.resumenMancomunado(ok), /80080 60 %, 1001 40 %/);
+  });
+
+  it('crea el plan primero y después hace el PUT; sin cambios no llama a nada', async () => {
+    const m = await import('../src/lib/configurador-mancomunado.ts');
+    const orden: string[] = [];
+    const crearPlan = async () => { orden.push('crear plan'); };
+    await crearPlan();
+    const r = await m.aplicarMancomunadoPendiente(ok, m.PENDIENTE_MANC_VACIO, {
+      guardar: async (c) => { orden.push(`PUT ${JSON.stringify(c)}`); },
+      desactivar: async () => { orden.push('DELETE'); },
+    });
+    assert.equal(r.estado, 'guardado');
+    assert.deepEqual(orden, ['crear plan', 'PUT {"productores":[{"cproductor":80080,"ppart":60},{"cproductor":1001,"ppart":40}]}']);
+    const nada = await m.aplicarMancomunadoPendiente(m.PENDIENTE_MANC_VACIO, m.PENDIENTE_MANC_VACIO, { guardar: async () => assert.fail(), desactivar: async () => assert.fail() });
+    assert.equal(nada.estado, 'sin-cambios');
+  });
+
+  it('en edición: apagar lo que había hace DELETE', async () => {
+    const m = await import('../src/lib/configurador-mancomunado.ts');
+    let borrado = false;
+    const r = await m.aplicarMancomunadoPendiente(m.PENDIENTE_MANC_VACIO, ok, { guardar: async () => assert.fail(), desactivar: async () => { borrado = true; } });
+    assert.equal(r.estado, 'desactivado');
+    assert.ok(borrado);
+  });
+
+  it('409 (dominio no creado) no lanza: aviso claro y lo elegido no se pierde', async () => {
+    const m = await import('../src/lib/configurador-mancomunado.ts');
+    const r = await m.aplicarMancomunadoPendiente(ok, m.PENDIENTE_MANC_VACIO, {
+      guardar: async () => { throw Object.assign(new Error('conflicto'), { status: 409 }); },
+      desactivar: async () => undefined,
+    });
+    assert.equal(r.estado, 'fallo');
+    assert.match(r.aviso ?? '', /PLAN_MANCOMUNADO.*script del DBA/);
+    assert.equal(ok.filas.length, 2);
+  });
+
+  it('otro error: aviso con el motivo', async () => {
+    const m = await import('../src/lib/configurador-mancomunado.ts');
+    const r = await m.aplicarMancomunadoPendiente(ok, m.PENDIENTE_MANC_VACIO, { guardar: async () => { throw new Error('sin conexión'); }, desactivar: async () => undefined });
+    assert.match(r.aviso ?? '', /sin conexión/);
+  });
+});

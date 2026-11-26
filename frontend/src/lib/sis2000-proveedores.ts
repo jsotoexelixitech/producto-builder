@@ -212,3 +212,83 @@ export function mensajeAltaProveedor(status: number | undefined, detalle: string
   if (status === 403) return 'No tienes permiso para dar de alta proveedores.';
   return 'No se pudo crear el proveedor en el catálogo.';
 }
+
+// ── Crear la empresa como cliente (maclient) desde el alta de proveedor ─────────────────────────────────────
+
+export const TIPOS_DOCUMENTO_EMPRESA = [
+  { codigo: 'J', nombre: 'J · Persona jurídica' },
+  { codigo: 'G', nombre: 'G · Gobierno' },
+  { codigo: 'C', nombre: 'C · Consejo comunal / comuna' },
+] as const;
+
+export interface AltaClienteForm {
+  tipo_documento: string;
+  rif: string;
+  xcliente: string;
+  xcorreo: string;
+  xtelefono: string;
+  cestado: string;
+  cciudad: string;
+  xdireccion: string;
+}
+
+export const ALTA_CLIENTE_VACIA: AltaClienteForm = {
+  tipo_documento: 'J', rif: '', xcliente: '', xcorreo: '', xtelefono: '', cestado: '', cciudad: '', xdireccion: '',
+};
+
+/** Prellena el formulario con el RIF que se buscó (J-12345678-9): letra J/G/C (J si no trae) y número. */
+export function altaClienteDesdeBusqueda(rifBuscado: string): AltaClienteForm {
+  const t = rifBuscado.trim().toUpperCase();
+  const letra = t.match(/^[A-Z]/)?.[0] ?? '';
+  const digitos = t.replace(/\D/g, '');
+  return { ...ALTA_CLIENTE_VACIA, tipo_documento: ['J', 'G', 'C'].includes(letra) ? letra : 'J', rif: digitos };
+}
+
+/** Errores del formulario de cliente (vacío = válido). Mismo criterio de RIF que la búsqueda. */
+export function validarAltaClienteForm(f: AltaClienteForm): string[] {
+  const e: string[] = [];
+  if (!['J', 'G', 'C'].includes(f.tipo_documento)) e.push('Elige el tipo de documento: J, G o C.');
+  const errRif = errorRifBusqueda(`${f.tipo_documento}-${f.rif.trim()}`);
+  if (!f.rif.trim()) e.push('Escribe el número de RIF, con el dígito verificador.');
+  else if (errRif) e.push(errRif);
+  const nombre = f.xcliente.trim();
+  if (!nombre) e.push('Escribe la razón social.');
+  else if (nombre.length > 250) e.push('La razón social no puede pasar de 250 caracteres.');
+  const correo = f.xcorreo.trim();
+  if (!correo) e.push('Escribe el correo de la empresa.');
+  else if (correo.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) e.push('El correo no es válido.');
+  const tel = f.xtelefono.replace(/\D/g, '');
+  if (tel.length < 10 || tel.length > 11) e.push('El teléfono debe tener 10 u 11 dígitos.');
+  if (f.xdireccion.trim().length > 250) e.push('La dirección no puede pasar de 250 caracteres.');
+  return e;
+}
+
+/** Cuerpo del POST de clientes (solo lo que tiene valor). */
+export function altaClienteToPayload(f: AltaClienteForm): Record<string, unknown> {
+  const p: Record<string, unknown> = {
+    tipo_documento: f.tipo_documento,
+    rif: f.rif.replace(/\D/g, ''),
+    xcliente: f.xcliente.trim(),
+    xcorreo: f.xcorreo.trim(),
+    xtelefono: f.xtelefono.replace(/\D/g, ''),
+  };
+  if (f.cestado) p.cestado = Number(f.cestado);
+  if (f.cciudad) p.cciudad = Number(f.cciudad);
+  if (f.xdireccion.trim()) p.xdireccion = f.xdireccion.trim();
+  return p;
+}
+
+/** La respuesta del alta de cliente ya es la fila de búsqueda; si no trae tipo, se usa el elegido. */
+export function clienteCreadoABusqueda(r: Partial<ClienteBusqueda>, f: AltaClienteForm): ClienteBusqueda {
+  return {
+    cci_rif: Number(r.cci_rif),
+    cid: String(r.cid ?? '').trim(),
+    xcliente: String(r.xcliente ?? f.xcliente).trim(),
+    tipo_documento: String(r.tipo_documento ?? f.tipo_documento).trim() || f.tipo_documento,
+  };
+}
+
+export interface OpcionGeo {
+  codigo: number;
+  nombre: string;
+}

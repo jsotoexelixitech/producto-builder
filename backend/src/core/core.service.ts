@@ -580,6 +580,18 @@ export class CoreService implements OnModuleInit {
     return this.partnerBridge.listSis2000TiposServicio();
   }
 
+  async crearSis2000Cliente(body: Record<string, unknown>) {
+    return this.partnerBridge.crearSis2000Cliente(body);
+  }
+
+  async listSis2000Estados() {
+    return this.partnerBridge.listSis2000Estados();
+  }
+
+  async listSis2000Ciudades(cestado: number) {
+    return this.partnerBridge.listSis2000Ciudades(cestado);
+  }
+
   async crearSis2000ProveedorCatalogo(body: Record<string, unknown>) {
     return this.partnerBridge.crearSis2000ProveedorCatalogo(body);
   }

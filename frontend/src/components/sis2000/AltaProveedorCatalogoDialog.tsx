@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Building2, Search, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
+  ALTA_CLIENTE_VACIA,
   ALTA_PROVEEDOR_VACIA,
+  altaClienteDesdeBusqueda,
+  altaClienteToPayload,
+  clienteCreadoABusqueda,
+  TIPOS_DOCUMENTO_EMPRESA,
+  validarAltaClienteForm,
+  type AltaClienteForm,
   altaProveedorToPayload,
   catalogoDesdeAlta,
   mensajeAltaProveedor,
@@ -30,8 +37,9 @@ interface Props {
 }
 
 /**
- * Alta de un proveedor de servicio (p. ej. la empresa de grúa) en el catálogo de Sis2000 (maclient_prov). La empresa
- * debe existir ya como cliente: aquí solo se busca por RIF, nunca se crea. Después se asocia al plan como cualquier otro.
+ * Registro del servicio de una empresa (p. ej. la grúa) en el catálogo de Sis2000 (maclient_prov). En Sis2000 el proveedor
+ * es un servicio de una empresa cliente: se busca por RIF y, si no existe, se crea ahí mismo como cliente (J, G o C).
+ * Después se asocia al plan como cualquier otro.
  */
 export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Props) {
   const [form, setForm] = useState<AltaProveedorForm>(ALTA_PROVEEDOR_VACIA);
@@ -42,6 +50,12 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
   const [tipos, setTipos] = useState<TipoServicioCatalogo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [creandoCliente, setCreandoCliente] = useState(false);
+  const [formCli, setFormCli] = useState<AltaClienteForm>(ALTA_CLIENTE_VACIA);
+  const [intentoCli, setIntentoCli] = useState(false);
+  const [guardandoCli, setGuardandoCli] = useState(false);
+  const [estados, setEstados] = useState<Array<{ cestado: number; xdescripcion: string }>>([]);
+  const [ciudades, setCiudades] = useState<Array<{ cciudad: number; xdescripcion: string }>>([]);
 
   useEffect(() => {
     api
@@ -51,6 +65,7 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
   }, []);
 
   const errorRif = errorRifBusqueda(rif);
+  const faltanCli = validarAltaClienteForm(formCli);
   const faltan = validarAltaProveedorForm(form);
 
   async function buscar() {
@@ -73,6 +88,61 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
     setResultados(null);
   }
 
+  function abrirCrearCliente() {
+    setFormCli(altaClienteDesdeBusqueda(rif));
+    setIntentoCli(false);
+    setCreandoCliente(true);
+    setError(null);
+    if (!estados.length) {
+      api
+        .listSis2000Estados()
+        .then((e) => setEstados(Array.isArray(e) ? e : []))
+        .catch(() => setEstados([]));
+    }
+  }
+
+  function cambiarEstado(valor: string) {
+    setFormCli((f) => ({ ...f, cestado: valor, cciudad: '' }));
+    setCiudades([]);
+    if (!valor) return;
+    api
+      .listSis2000Ciudades(Number(valor))
+      .then((c) => setCiudades(Array.isArray(c) ? c : []))
+      .catch(() => setCiudades([]));
+  }
+
+  async function crearCliente() {
+    setIntentoCli(true);
+    if (faltanCli.length) return;
+    setGuardandoCli(true);
+    setError(null);
+    try {
+      const creado = await api.crearSis2000Cliente(altaClienteToPayload(formCli));
+      elegirCliente(clienteCreadoABusqueda(creado, formCli));
+      setCreandoCliente(false);
+    } catch (e) {
+      if ((e as { status?: number } | null)?.status === 409) {
+        // Ya existe (o la bandera de escritura está apagada): se vuelve a buscar para elegirla de la lista.
+        const texto = `${formCli.tipo_documento}-${formCli.rif.trim()}`;
+        setRif(texto);
+        try {
+          const lista = await api.buscarSis2000Clientes(texto);
+          if (lista.length) {
+            setResultados(lista);
+            setCreandoCliente(false);
+            setError('La empresa ya existe como cliente: elígela de la lista.');
+            return;
+          }
+        } catch {
+          // Sin búsqueda: se muestra el mensaje del servidor.
+        }
+      }
+      setError(mensajeError(e, 'No se pudo crear la empresa como cliente.'));
+    } finally {
+      setGuardandoCli(false);
+    }
+  }
+
   async function crear() {
     const errores = validarAltaProveedorForm(form);
     if (errores.length) {
@@ -86,7 +156,7 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
       const creado = await api.crearSis2000ProveedorCatalogo(altaProveedorToPayload(form));
       onCreado(catalogoDesdeAlta(cliente, creado));
     } catch (e) {
-      setError(mensajeError(e, 'No se pudo crear el proveedor en el catálogo.'));
+      setError(mensajeError(e, 'No se pudo registrar el servicio en el catálogo.'));
     } finally {
       setGuardando(false);
     }
@@ -102,15 +172,15 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Agregar proveedor al catálogo"
+        aria-label="Registrar el servicio de una empresa"
         className="max-h-full w-full max-w-xl space-y-3 overflow-y-auto rounded-xl bg-white p-5 text-xs shadow-2xl"
       >
         <header className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-base font-bold text-slate-900">Agregar proveedor al catálogo</h2>
+            <h2 className="font-display text-base font-bold text-slate-900">Registrar el servicio de una empresa</h2>
             <p className="text-muted-foreground">
-              Da de alta el servicio de una empresa que ya es cliente en Sis2000 (grúa, clínica, asistencia…). Luego lo asocias al
-              plan.
+              En Sis2000 el proveedor es un servicio de una empresa cliente. Busca la empresa por su RIF (o créala como cliente
+              si no existe), registra su servicio (grúa, clínica, asistencia…) y luego lo asocias al plan.
             </p>
           </div>
           <button type="button" aria-label="Cerrar" className="rounded p-1 hover:bg-muted" onClick={onCerrar}>
@@ -157,9 +227,15 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
               {errorRif && <p className="text-red-600">{errorRif}</p>}
               {!errorRif && !resultados && <p className="text-muted-foreground">Escribe el RIF y pulsa «Buscar»; luego elige la empresa de la lista.</p>}
               {resultados && resultados.length === 0 && (
-                <p className="text-amber-700">
-                  No hay una empresa con ese RIF. Debe existir primero como cliente en Sis2000; aquí no se crean clientes.
-                </p>
+                <div className="space-y-1.5">
+                  <p className="text-amber-700">No hay una empresa con ese RIF como cliente en Sis2000.</p>
+                  {!creandoCliente && (
+                    <Button type="button" size="sm" variant="outline" onClick={abrirCrearCliente}>
+                      <Building2 className="h-3.5 w-3.5" />
+                      Crear la empresa como cliente
+                    </Button>
+                  )}
+                </div>
               )}
               {resultados && resultados.length > 0 && (
                 <ul className="divide-y divide-border/50 rounded-lg border border-border/50">
@@ -179,6 +255,101 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
             </>
           )}
         </div>
+
+        {creandoCliente && !cliente && (
+          <fieldset className="space-y-2 rounded-lg border border-border p-3" data-testid="crear-cliente">
+            <legend className="px-1 font-semibold">Nueva empresa cliente</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="cli-tipo">Tipo de documento</Label>
+                <select
+                  id="cli-tipo"
+                  className="h-10 w-full rounded-md border border-border bg-background px-2"
+                  value={formCli.tipo_documento}
+                  onChange={(e) => setFormCli((f) => ({ ...f, tipo_documento: e.target.value }))}
+                >
+                  {TIPOS_DOCUMENTO_EMPRESA.map((t) => (
+                    <option key={t.codigo} value={t.codigo}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="cli-rif">Número de RIF (con el dígito verificador)</Label>
+                <Input
+                  id="cli-rif"
+                  inputMode="numeric"
+                  placeholder="Ej.: 123456789"
+                  maxLength={11}
+                  value={formCli.rif}
+                  onChange={(e) => setFormCli((f) => ({ ...f, rif: e.target.value.replace(/\D/g, '') }))}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="cli-nombre">Razón social</Label>
+              <Input id="cli-nombre" maxLength={250} value={formCli.xcliente} onChange={(e) => setFormCli((f) => ({ ...f, xcliente: e.target.value }))} />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="cli-correo">Correo</Label>
+                <Input id="cli-correo" type="email" maxLength={100} value={formCli.xcorreo} onChange={(e) => setFormCli((f) => ({ ...f, xcorreo: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="cli-tel">Teléfono (10 u 11 dígitos)</Label>
+                <Input id="cli-tel" inputMode="tel" maxLength={14} value={formCli.xtelefono} onChange={(e) => setFormCli((f) => ({ ...f, xtelefono: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="cli-estado">Estado</Label>
+                <select id="cli-estado" className="h-10 w-full rounded-md border border-border bg-background px-2" value={formCli.cestado} onChange={(e) => cambiarEstado(e.target.value)}>
+                  <option value="">Sin indicar</option>
+                  {estados.map((e) => (
+                    <option key={e.cestado} value={e.cestado}>
+                      {e.xdescripcion}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="cli-ciudad">Ciudad</Label>
+                <select
+                  id="cli-ciudad"
+                  className="h-10 w-full rounded-md border border-border bg-background px-2"
+                  value={formCli.cciudad}
+                  disabled={!formCli.cestado}
+                  onChange={(e) => setFormCli((f) => ({ ...f, cciudad: e.target.value }))}
+                >
+                  <option value="">Sin indicar</option>
+                  {ciudades.map((c) => (
+                    <option key={c.cciudad} value={c.cciudad}>
+                      {c.xdescripcion}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="cli-dir">Dirección</Label>
+              <Input id="cli-dir" maxLength={250} value={formCli.xdireccion} onChange={(e) => setFormCli((f) => ({ ...f, xdireccion: e.target.value }))} />
+            </div>
+            {intentoCli && faltanCli.length > 0 && (
+              <ul className="list-disc pl-4 text-red-600">
+                {faltanCli.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" onClick={() => setCreandoCliente(false)}>
+                No crear
+              </Button>
+              <Button type="button" size="sm" disabled={guardandoCli} onClick={() => void crearCliente()}>
+                {guardandoCli ? 'Creando…' : 'Crear empresa y seguir'}
+              </Button>
+            </div>
+          </fieldset>
+        )}
 
         <div>
           <Label htmlFor="alta-desc">Descripción del servicio</Label>
@@ -278,7 +449,7 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
             Cancelar
           </Button>
           <Button type="button" size="sm" disabled={guardando || !cliente || faltan.length > 0} onClick={() => void crear()}>
-            {guardando ? 'Creando…' : 'Crear proveedor'}
+            {guardando ? 'Creando…' : 'Registrar servicio'}
           </Button>
         </div>
       </div>

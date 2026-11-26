@@ -439,6 +439,15 @@ export const api = {
     request<import('@/lib/sis2000-proveedores').ClienteBusqueda[]>(
       `/core/sis2000/catalogos/clientes?rif=${encodeURIComponent(rif)}`,
     ),
+  /** Crea la empresa como cliente de Sis2000 (J, G o C). 409 si el RIF ya existe. */
+  crearSis2000Cliente: (body: Record<string, unknown>) =>
+    request<import('@/lib/sis2000-proveedores').ClienteBusqueda>('/core/sis2000/catalogos/clientes', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  listSis2000Estados: () => request<Array<{ cestado: number; xdescripcion: string }>>('/core/sis2000/catalogos/clientes/estados'),
+  listSis2000Ciudades: (cestado: number) =>
+    request<Array<{ cciudad: number; xdescripcion: string }>>(`/core/sis2000/catalogos/clientes/ciudades?cestado=${cestado}`),
   listSis2000TiposServicio: () =>
     request<import('@/lib/sis2000-proveedores').TipoServicioCatalogo[]>('/core/sis2000/catalogos/proveedores/tipos-servicio'),
   /** Alta en el catálogo de proveedores de Sis2000 (maclient_prov). */
