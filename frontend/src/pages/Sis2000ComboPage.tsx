@@ -2173,6 +2173,10 @@ export function Sis2000ComboPage() {
     </Alert>
   ) : null;
   const textoParentescos = cparens ? cparens.map(nombreParen).join(', ') : '—';
+  /** «Titular, Cónyuge, 0 a 74 años»; con edades por parentesco conservadas, cada uno con las suyas. */
+  const textoAsegurados = edadesConservadas
+    ? edadesConservadas.map((p) => `${nombreParen(p.cparen)} ${textoEdades(p)}`).join('; ')
+    : `${textoParentescos}, ${edadMin || '—'} a ${edadMax || '—'} años`;
   const textoSexo = SEXOS.find((s) => s.valor === csexo)?.etiqueta ?? csexo;
   const textoFrecuencias =
     opcionesFrecuencia.filter((f) => frecuencias.includes(f.ifrecuencia)).map((f) => f.xfrecuencia).join(', ') || '—';
@@ -4241,7 +4245,7 @@ export function Sis2000ComboPage() {
             )}
             {personas && (
               <p>
-                <span className="text-muted-foreground">Asegurados:</span> {textoParentescos}, {edadMin || '—'} a {edadMax || '—'} años
+                <span className="text-muted-foreground">Asegurados:</span> {textoAsegurados}
               </p>
             )}
             <p>
