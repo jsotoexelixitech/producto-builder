@@ -293,6 +293,9 @@ export function aPlan(p: Obj) {
     productores: lista(p.productores).map((x) => num((x as Obj)?.cproductor ?? x)).filter((x): x is number => x !== undefined),
     all_canal: aBooleano(p.all_canal ?? p.all_canales) ?? false,
     canales: lista(p.canales).map((x) => num((x as Obj)?.ccanalalt ?? x)).filter((x): x is number => x !== undefined),
+    // Solo se envía cuando se pide (edición de personas con edades distintas por parentesco): nest-api no reescribe
+    // mapledades_per. Sin él, el cuerpo es el de siempre.
+    conservarEdades: p.conservarEdades === true ? true : undefined,
     coberturas: lista(p.coberturas).map((x) => {
       const c = x as Obj;
       return limpio({

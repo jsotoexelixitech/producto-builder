@@ -264,6 +264,61 @@ describe('canales alternos en el plan (bandera SIS2000_PLAN_CANALES)', () => {
   });
 });
 
+describe('plan de personas con edades por parentesco (conservarEdades)', () => {
+  const paren = (cparen: number, min: number, max: number) => ({ cparen, csexo: 'A', ctablatar: 'VIAJE70', nedad_min: min, nedad_max: max });
+  const viaje6 = {
+    type: 'personas', cramo: 25, cplan: 'VIAJE6', xplan: 'Plan 5.000$ Viajero Local por Días', cproducto: '26',
+    fdesde: '2023-01-01', fhasta: '2040-12-31', all_productor: true,
+    coberturas: [{ ccobertura: '38', ctarifa: '1', parentescos: [paren(1, 0, 74), paren(2, 18, 74), paren(3, 0, 25), paren(6, 18, 74)] }],
+    frecuencias: [{ ifrecuencia: 'A', xfrecuencia: 'Anual' }],
+  };
+
+  it('solo viaja a nest-api cuando se pide; sin él el cuerpo es el de siempre', () => {
+    assert.equal(cuerpoSpMantPlanes({ ...viaje6, conservarEdades: true }).conservarEdades, true);
+    assert.equal(cuerpoPlan({ ...viaje6, conservarEdades: true }).conservarEdades, true);
+    for (const valor of [undefined, false, 'true', 1]) {
+      assert.ok(!('conservarEdades' in cuerpoSpMantPlanes({ ...viaje6, conservarEdades: valor })), String(valor));
+    }
+    assert.deepEqual(cuerpoSpMantPlanes({ ...viaje6, conservarEdades: false }), cuerpoSpMantPlanes(viaje6));
+  });
+
+  it('las edades de cada parentesco van tal como están en el plan', () => {
+    const [cob] = cuerpoSpMantPlanes({ ...viaje6, conservarEdades: true }).coberturas as { parentescos: Record<string, unknown>[] }[];
+    assert.deepEqual(cob.parentescos.map((x) => [x.cparen, x.nedad_min, x.nedad_max]), [[1, 0, 74], [2, 18, 74], [3, 0, 25], [6, 18, 74]]);
+  });
+
+  it('el PUT a v1/configurador/planes lleva conservarEdades: true', async () => {
+    const fetchOriginal = globalThis.fetch;
+    const enviados: { metodo: string; path: string; cuerpo: Record<string, unknown> }[] = [];
+    process.env.NEST_API_URL = 'http://nest.test';
+    process.env.NEST_API_KEY = 'k';
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      if (path === '/api/v1/auth/token') {
+        return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      enviados.push({ metodo: String(init?.method), path, cuerpo: init?.body ? JSON.parse(String(init.body)) : {} });
+      const data = { cramo: 25, cplan: 'VIAJE6', edades_conservadas: true };
+      return new Response(JSON.stringify({ status: true, data }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      const { PartnerBridgeService: Bridge } = await import('../src/partner-bridge/partner-bridge.service');
+      const res = await new Bridge().updateSis2000MasterPlan('25-VIAJE6', { ...viaje6, conservarEdades: true });
+      assert.deepEqual(res, { cramo: 25, cplan: 'VIAJE6', edades_conservadas: true });
+      const put = enviados.find((e) => e.metodo === 'PUT');
+      assert.ok(put, 'se hizo el PUT');
+      assert.equal(put.path, '/api/v1/configurador/planes/25/VIAJE6');
+      assert.equal(put.cuerpo.conservarEdades, true);
+
+      enviados.length = 0;
+      await new Bridge().updateSis2000MasterPlan('25-VIAJE6', viaje6);
+      assert.ok(!('conservarEdades' in enviados.find((e) => e.metodo === 'PUT')!.cuerpo));
+    } finally {
+      globalThis.fetch = fetchOriginal;
+    }
+  });
+});
+
 describe('diferencias', () => {
   it('lista solo los campos que cambian, también dentro de listas', () => {
     assert.deepEqual(
