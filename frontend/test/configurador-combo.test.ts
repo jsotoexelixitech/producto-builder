@@ -1,7 +1,9 @@
 // Pasos de «completar el plan» en el Combo. Correr: npm test -w frontend.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { ETIQUETA_ESTADO, estadoGrupo, grupoDeSeccion, gruposCompletar } from '../src/lib/configurador-combo.ts';
+import {
+  ETIQUETA_ESTADO, estadoGrupo, grupoDeSeccion, gruposCompletar, nombreProductoDelPlan, parentescosDelPlan, textoEdades,
+} from '../src/lib/configurador-combo.ts';
 import { SECCION_INFO, infoSeccion } from '../src/lib/configurador.ts';
 
 const AUTO = ['producto', 'plan', 'coberturas', 'tarifas', 'deducibles', 'frecuencias', 'quien-vende', 'comisiones', 'tipos-uso', 'tasas-antiguedad', 'tasa-casco', 'tarifa-dias', 'descuentos-recargos', 'proveedores', 'revision'];
@@ -102,5 +104,77 @@ describe('ayudas de las secciones', () => {
       assert.doesNotMatch(visible, /\bma(plan|tarifa|cat|usu|arancel|prod)\w*|\w+_\w+/i);
       assert.doesNotMatch(visible, /vendedor/i);
     }
+  });
+});
+
+describe('plan de personas con edades distintas por parentesco', () => {
+  // VIAJE6 (ramo 25): Titular 0-74, Cónyuge 18-74, Hijo(a) 0-25, Padres 18-74; misma tabla por cobertura.
+  const paren = (cparen: number, min: number, max: number, csexo = 'A') => ({ cparen, csexo, ctablatar: 'VIAJE70', nedad_min: min, nedad_max: max });
+  const viaje6 = ['38', '39', '40'].map((ccobertura) => ({
+    ccobertura,
+    ctarifa: '1',
+    parentescos: [paren(6, 18, 74), paren(1, 0, 74), paren(2, 18, 74), paren(3, 0, 25)],
+  }));
+
+  it('detecta que las edades varían y devuelve los parentescos tal como están, por código', () => {
+    const r = parentescosDelPlan(viaje6);
+    assert.equal(r.varian, true);
+    assert.equal(r.igualesEnTodas, true);
+    assert.deepEqual(r.lista, [
+      { cparen: 1, csexo: 'A', nedad_min: 0, nedad_max: 74 },
+      { cparen: 2, csexo: 'A', nedad_min: 18, nedad_max: 74 },
+      { cparen: 3, csexo: 'A', nedad_min: 0, nedad_max: 25 },
+      { cparen: 6, csexo: 'A', nedad_min: 18, nedad_max: 74 },
+    ]);
+  });
+  it('mismas edades y sexo para todos: no varían (el formulario los edita como siempre)', () => {
+    const r = parentescosDelPlan([{ ccobertura: '1', parentescos: [paren(1, 0, 74), paren(2, 0, 74)] }]);
+    assert.equal(r.varian, false);
+    assert.equal(r.igualesEnTodas, true);
+  });
+  it('el sexo distinto por parentesco también cuenta como variación', () => {
+    assert.equal(parentescosDelPlan([{ ccobertura: '1', parentescos: [paren(1, 0, 74, 'M'), paren(2, 0, 74, 'F')] }]).varian, true);
+  });
+  it('coberturas con parentescos distintos: no son iguales en todas (eso sí impide guardar)', () => {
+    const r = parentescosDelPlan([viaje6[0], { ccobertura: '41', parentescos: [paren(1, 0, 74)] }]);
+    assert.equal(r.igualesEnTodas, false);
+  });
+  it('el orden de los parentescos en cada cobertura no importa', () => {
+    const alReves = { ccobertura: '41', parentescos: [...viaje6[0].parentescos].reverse() };
+    assert.equal(parentescosDelPlan([viaje6[0], alReves]).igualesEnTodas, true);
+  });
+  it('parentesco sin edades en Sis2000 (sin fila en mapledades_per): no revienta, van en 0', () => {
+    const r = parentescosDelPlan([{ ccobertura: '1', parentescos: [{ cparen: 1, csexo: 'A' }, paren(2, 18, 74)] }]);
+    assert.deepEqual(r.lista[0], { cparen: 1, csexo: 'A', nedad_min: 0, nedad_max: 0 });
+    assert.equal(r.varian, true);
+  });
+  it('plan sin coberturas o sin parentescos: lista vacía y nada que conservar', () => {
+    assert.deepEqual(parentescosDelPlan([]), { lista: [], varian: false, igualesEnTodas: true });
+    assert.deepEqual(parentescosDelPlan([{ ccobertura: '1' }]), { lista: [], varian: false, igualesEnTodas: true });
+  });
+  it('texto de edades', () => {
+    assert.equal(textoEdades({ nedad_min: 0, nedad_max: 74 }), 'de 0 a 74 años');
+    assert.equal(textoEdades({ nedad_min: 18, nedad_max: 18 }), '18 años');
+  });
+});
+
+describe('nombre del producto de un plan', () => {
+  const catalogo = [
+    { cproducto: '25', cramo: 5, nombre: 'Viajero' },
+    { cproducto: '26', cramo: 5, nombre: 'Viajero Local' },
+    { cproducto: '89', cramo: 25, nombre: 'Asistencia en viaje' },
+  ];
+  it('el producto está en otro ramo: su nombre y dónde está registrado', () => {
+    assert.equal(nombreProductoDelPlan(catalogo, '26', 25), 'Viajero Local · registrado en ramo 5');
+    assert.equal(nombreProductoDelPlan(catalogo, ' 26 ', 25), 'Viajero Local · registrado en ramo 5');
+  });
+  it('el producto no existe: lo dice en vez de parecer un nombre', () => {
+    assert.equal(nombreProductoDelPlan(catalogo, '1', 25), 'Producto 1 (no está en el catálogo)');
+  });
+  it('si está en el ramo del plan, su nombre sin más', () => {
+    assert.equal(nombreProductoDelPlan(catalogo, '89', 25), 'Asistencia en viaje');
+  });
+  it('registrado sin ramo', () => {
+    assert.equal(nombreProductoDelPlan([{ cproducto: '7', cramo: 0, nombre: 'Suelto' }], '7', 25), 'Suelto · sin ramo en el catálogo');
   });
 });
