@@ -8,6 +8,9 @@ import {
   mensajeAltaProveedor,
   OTRO_TIPO,
   validarAltaProveedorForm,
+  errorRifBusqueda,
+  limpiarRifEntrada,
+  limpiarCodigo1,
   type AltaProveedorForm,
   type ClienteBusqueda,
   type ProveedorCatalogo,
@@ -47,8 +50,11 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
       .catch(() => setTipos([]));
   }, []);
 
+  const errorRif = errorRifBusqueda(rif);
+  const faltan = validarAltaProveedorForm(form);
+
   async function buscar() {
-    if (!rif.trim()) return;
+    if (!rif.trim() || errorRif) return;
     setBuscando(true);
     setError(null);
     setResultados(null);
@@ -130,8 +136,12 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
                   id="alta-rif"
                   placeholder="Ej.: J-12345678-9"
                   value={rif}
-                  maxLength={40}
-                  onChange={(e) => setRif(e.target.value)}
+                  maxLength={12}
+                  aria-invalid={Boolean(errorRif)}
+                  onChange={(e) => {
+                    setRif(limpiarRifEntrada(e.target.value));
+                    setResultados(null);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -139,11 +149,13 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
                     }
                   }}
                 />
-                <Button type="button" size="sm" variant="outline" disabled={buscando || !rif.trim()} onClick={() => void buscar()}>
+                <Button type="button" size="sm" variant="outline" disabled={buscando || !rif.trim() || Boolean(errorRif)} onClick={() => void buscar()}>
                   <Search className="h-3.5 w-3.5" />
                   Buscar
                 </Button>
               </div>
+              {errorRif && <p className="text-red-600">{errorRif}</p>}
+              {!errorRif && !resultados && <p className="text-muted-foreground">Escribe el RIF y pulsa «Buscar»; luego elige la empresa de la lista.</p>}
               {resultados && resultados.length === 0 && (
                 <p className="text-amber-700">
                   No hay una empresa con ese RIF. Debe existir primero como cliente en Sis2000; aquí no se crean clientes.
@@ -204,7 +216,7 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
                 id="alta-tipo-otro"
                 maxLength={1}
                 value={form.tipoOtro}
-                onChange={(e) => campoTexto('tipoOtro')(e.target.value)}
+                onChange={(e) => campoTexto('tipoOtro')(limpiarCodigo1(e.target.value))}
               />
               <p className="mt-1 text-muted-foreground">Código que La Mundial usa para este servicio.</p>
             </div>
@@ -216,6 +228,7 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
               type="number"
               min={0}
               step="0.01"
+              inputMode="decimal"
               value={form.mcostoext}
               onChange={(e) => campoTexto('mcostoext')(e.target.value)}
             />
@@ -245,16 +258,26 @@ export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Pro
               id="alta-modalidad"
               maxLength={1}
               value={form.imodalidad}
-              onChange={(e) => campoTexto('imodalidad')(e.target.value)}
+              onChange={(e) => campoTexto('imodalidad')(limpiarCodigo1(e.target.value))}
             />
           </div>
         </div>
 
+        {faltan.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-900">
+            <p className="font-semibold">Para crear el proveedor falta:</p>
+            <ul className="list-disc pl-4">
+              {faltan.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" size="sm" variant="ghost" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button type="button" size="sm" disabled={guardando || !cliente} onClick={() => void crear()}>
+          <Button type="button" size="sm" disabled={guardando || !cliente || faltan.length > 0} onClick={() => void crear()}>
             {guardando ? 'Creando…' : 'Crear proveedor'}
           </Button>
         </div>
