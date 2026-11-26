@@ -84,7 +84,11 @@ import {
   estadoGrupo,
   grupoDeSeccion,
   gruposCompletar,
+  nombreProductoDelPlan,
+  parentescosDelPlan,
+  textoEdades,
   type EstadoGrupo,
+  type ParentescoDelPlan,
 } from '@/lib/configurador-combo';
 import { CompletarPlan, usePlanCompletar } from '@/components/configurador/CompletarPlan';
 import { entenderError, miles, mensajeDeError, type ErrorEntendible } from '@/lib/errores';
@@ -351,6 +355,11 @@ interface PlanOriginal {
   advertencias: string[];
   /** Personas: por qué el formulario no puede guardarlo sin perder datos (null = se puede). */
   bloqueo: string | null;
+  /**
+   * Personas: las edades o el sexo cambian según el parentesco. El formulario no los edita: al guardar se devuelven
+   * tal cual y se pide `conservarEdades` (mapledades_per no se toca). null = iguales para todos (se editan aquí).
+   */
+  edadesConservadas: ParentescoDelPlan[] | null;
 }
 
 const texto = (v: unknown) => (v == null ? '' : String(v).trim());
@@ -546,12 +555,15 @@ interface PlanParaFormulario {
   productores: ProductoresSelection;
   canales: CanalesSelection;
   bloqueo: string | null;
+  edadesConservadas: ParentescoDelPlan[] | null;
 }
 
 /**
  * Pasa el plan de Sis2000 (forma de PlanDto) a los campos del formulario. En personas el formulario usa los
  * mismos parentescos, sexo y edades para todas las coberturas y la misma tabla y montos para todos los
  * parentescos de una cobertura: si el plan no es así, `bloqueo` lo explica (guardar perdería esa diferencia).
+ * Excepción: si lo único que cambia según el parentesco son las edades o el sexo, no se bloquea; van en
+ * `edadesConservadas` y el guardado las deja como están.
  */
 function planAFormulario(plan: Record<string, unknown>, tipoLeido: string): PlanParaFormulario {
   const tipo: Sis2000PlanType = texto(tipoLeido || plan.type) === 'personas' ? 'personas' : 'cosas';
@@ -574,29 +586,18 @@ function planAFormulario(plan: Record<string, unknown>, tipoLeido: string): Plan
         continue;
       }
       const p0 = ps[0];
-      const firma = (p: Record<string, unknown>) =>
-        [texto(p.csexo) || 'A', Number(p.nedad_min), Number(p.nedad_max)].join('|');
       const precio = (p: Record<string, unknown>) =>
         [texto(p.ctablatar).toUpperCase(), Number(p.msuma ?? 0), Number(p.msumamax ?? 0), Number(p.mprima ?? 0)].join('|');
-      if (ps.some((p) => firma(p) !== firma(p0))) marcar('las edades o el sexo cambian según el parentesco');
       if (ps.some((p) => precio(p) !== precio(p0))) marcar('la tabla de tasas o los montos cambian según el parentesco');
       if (Number(p0.msuma ?? 0) !== Number(p0.msumamax ?? 0)) marcar('la suma y la suma máxima por persona son distintas');
       const cparens = ps.map((p) => Number(p.cparen)).filter((n) => Number.isInteger(n) && n > 0);
       const base = {
-        cparens: [...cparens].sort((a, b) => a - b),
+        cparens: [...new Set(cparens)].sort((a, b) => a - b),
         csexo: texto(p0.csexo) || 'A',
         min: Number(p0.nedad_min) || 0,
         max: Number(p0.nedad_max) || 0,
       };
       if (!personas) personas = base;
-      else if (
-        personas.cparens.join(',') !== base.cparens.join(',') ||
-        personas.csexo !== base.csexo ||
-        personas.min !== base.min ||
-        personas.max !== base.max
-      ) {
-        marcar('las coberturas no tienen los mismos parentescos, sexo o edades');
-      }
       filas[cc] = {
         incluir: true,
         ctarifa: texto(c.ctarifa),
@@ -621,6 +622,10 @@ function planAFormulario(plan: Record<string, unknown>, tipoLeido: string): Plan
       };
     }
   }
+
+  // Edades o sexo distintos por parentesco no bloquean (se conservan); parentescos distintos entre coberturas sí.
+  const delPlan = tipo === 'personas' ? parentescosDelPlan(coberturas) : null;
+  if (delPlan && !delPlan.igualesEnTodas) marcar('las coberturas no tienen los mismos parentescos, sexo o edades');
 
   const frecuencias = (Array.isArray(plan.frecuencias) ? (plan.frecuencias as Record<string, unknown>[]) : [])
     .map((f) => ({
@@ -655,6 +660,7 @@ function planAFormulario(plan: Record<string, unknown>, tipoLeido: string): Plan
     bloqueo: bloqueo
       ? `Este plan no se puede guardar desde el formulario porque ${bloqueo}: el formulario usa los mismos datos para todos y se perdería esa diferencia. Usa el modo avanzado (JSON).`
       : null,
+    edadesConservadas: delPlan?.varian ? delPlan.lista : null,
   };
 }
 
@@ -908,6 +914,7 @@ export function Sis2000ComboPage() {
           coberturas: Object.keys(f.filas),
           advertencias: Array.isArray(leido?.advertencias) ? leido.advertencias : [],
           bloqueo: f.bloqueo,
+          edadesConservadas: f.edadesConservadas,
         });
       })
       .catch((e) => {
@@ -932,7 +939,10 @@ export function Sis2000ComboPage() {
     if (op) {
       setClaveProducto(op.clave);
     } else {
-      setProductos((prev) => [...prev, productoProvisional(productoPlan.cproducto, productoPlan.cramo)]);
+      // maproductos no lo tiene en el ramo del plan: se muestra su nombre de otro ramo o que no está en el catálogo
+      // (solo el nombre; se sigue grabando el mismo cproducto en el ramo del plan).
+      const nombre = opcionesProducto.length ? nombreProductoDelPlan(opcionesProducto, productoPlan.cproducto, productoPlan.cramo) : '';
+      setProductos((prev) => [...prev, productoProvisional(productoPlan.cproducto, productoPlan.cramo, nombre)]);
       setClaveProducto(`${productoPlan.cproducto}|${productoPlan.cramo}`);
     }
     setProductoPlan(null);
@@ -1482,6 +1492,27 @@ export function Sis2000ComboPage() {
     return nums.length && nums.every((x) => x != null && x >= 1) ? (nums as number[]) : null;
   }, [parentescosTxt]);
 
+  /** Editando un plan de personas con edades o sexo distintos por parentesco: se conservan (no se editan aquí). */
+  const edadesConservadas = modoEdicion ? (planOriginal?.edadesConservadas ?? null) : null;
+  // En ese caso no se monta el selector de parentescos (que es quien carga sus nombres): se cargan aquí.
+  useEffect(() => {
+    if (!edadesConservadas) return;
+    let vigente = true;
+    api
+      .listSis2000Parentescos()
+      .then((rows) => {
+        if (!vigente) return;
+        const lista = (rows ?? [])
+          .map((r) => ({ cparen: Number(r.cparen), xparentesco: String(r.xparentesco ?? '').trim() }))
+          .filter((r) => Number.isInteger(r.cparen) && r.cparen >= 1);
+        if (lista.length) setParentescosCat(lista);
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [edadesConservadas]);
+
   /** 'cosas', 'personas' o 'automovil' (este último se graba como cosas). */
   function cambiarTipoPlan(valor: string) {
     setTipoPlan(valor === 'personas' ? 'personas' : 'cosas');
@@ -1520,17 +1551,22 @@ export function Sis2000ComboPage() {
       .filter((f) => frecuencias.includes(f.ifrecuencia))
       .map((f) => ({ ...f }));
     if (personas) {
-      // Personas: cada cobertura lleva sus parentescos con edades, tabla de tasas, suma y prima.
+      // Personas: cada cobertura lleva sus parentescos con edades, tabla de tasas, suma y prima. Si el plan tiene
+      // edades o sexo distintos por parentesco, van los del plan tal cual y nest-api no reescribe mapledades_per.
+      const deCadaParentesco: ParentescoDelPlan[] =
+        edadesConservadas ??
+        (cparens ?? []).map((cparen) => ({ cparen, csexo, nedad_min: entero(edadMin) ?? 0, nedad_max: entero(edadMax) ?? 0 }));
+      if (edadesConservadas) payload.conservarEdades = true;
       payload.coberturas = incluidas.map((v) => ({
         ccobertura: v.cobertura.ccobertura,
         ctarifa: v.fila.ctarifa,
         bobligatoria: filaPer(v.cobertura.ccobertura).obligatoria,
-        parentescos: (cparens ?? []).map((cparen) => ({
-          cparen,
-          csexo,
+        parentescos: deCadaParentesco.map((p) => ({
+          cparen: p.cparen,
+          csexo: p.csexo,
           ctablatar: tablaDe(v.cobertura.ccobertura),
-          nedad_min: entero(edadMin) ?? 0,
-          nedad_max: entero(edadMax) ?? 0,
+          nedad_min: p.nedad_min,
+          nedad_max: p.nedad_max,
           msuma: numero(v.fila.msumamax),
           msumamax: numero(v.fila.msumamax),
           mprima: numero(v.fila.mprima),
@@ -1570,7 +1606,8 @@ export function Sis2000ComboPage() {
 
     if (modoEdicion && cargandoPlan) falta('producto', 'Espera a que termine de leerse el plan de Sis2000.');
     if (errorPlan) falta('producto', 'No se pudo leer el plan de Sis2000.');
-    if (planOriginal?.bloqueo) falta('producto', planOriginal.bloqueo);
+    // Va en el último paso: impide guardar, pero deja ver los demás pasos del plan.
+    if (planOriginal?.bloqueo) falta('revisar', planOriginal.bloqueo);
     if (!producto) falta('producto', 'Elige el producto (escribe su nombre o código en «Producto»).', 'combo-producto');
 
     if (producto && !incluidas.length) falta('coberturas', 'Marca al menos una cobertura para el plan.', 'combo-tabla-coberturas');
@@ -1591,12 +1628,15 @@ export function Sis2000ComboPage() {
     if (personas) {
       const min = entero(edadMin);
       const max = entero(edadMax);
-      if (!cparens) falta('precios', 'Marca al menos un parentesco en «¿Quiénes se aseguran?» (por ejemplo, Titular).', 'combo-cparen-texto');
-      else if (new Set(cparens).size !== cparens.length) falta('precios', 'Hay parentescos repetidos: deja cada uno una sola vez.', 'combo-cparen-texto');
-      if (min == null) falta('precios', 'Escribe la edad mínima en años, sin decimales (por ejemplo, 0).', 'combo-edad-min');
-      if (max == null) falta('precios', 'Escribe la edad máxima en años, sin decimales (por ejemplo, 74).', 'combo-edad-max');
-      if (min != null && max != null && min > max) {
-        falta('precios', `La edad mínima (${min}) es mayor que la máxima (${max}). Inviértelas.`, 'combo-edad-min');
+      // Con edades por parentesco conservadas no hay nada que validar aquí: parentescos y edades son los del plan.
+      if (!edadesConservadas) {
+        if (!cparens) falta('precios', 'Marca al menos un parentesco en «¿Quiénes se aseguran?» (por ejemplo, Titular).', 'combo-cparen-texto');
+        else if (new Set(cparens).size !== cparens.length) falta('precios', 'Hay parentescos repetidos: deja cada uno una sola vez.', 'combo-cparen-texto');
+        if (min == null) falta('precios', 'Escribe la edad mínima en años, sin decimales (por ejemplo, 0).', 'combo-edad-min');
+        if (max == null) falta('precios', 'Escribe la edad máxima en años, sin decimales (por ejemplo, 74).', 'combo-edad-max');
+        if (min != null && max != null && min > max) {
+          falta('precios', `La edad mínima (${min}) es mayor que la máxima (${max}). Inviértelas.`, 'combo-edad-min');
+        }
       }
       for (const v of incluidas) {
         const n = `«${nombreCob(v)}»`;
@@ -1803,7 +1843,13 @@ export function Sis2000ComboPage() {
         ifrecuencia,
         editado: modoEdicion,
         cotizarPersona:
-          tipoPlan === 'personas' && cparens?.length ? { cparen: cparens[0], nedad: entero(edadMin) ?? 0 } : undefined,
+          tipoPlan !== 'personas'
+            ? undefined
+            : edadesConservadas?.length
+              ? { cparen: edadesConservadas[0].cparen, nedad: edadesConservadas[0].nedad_min }
+              : cparens?.length
+                ? { cparen: cparens[0], nedad: entero(edadMin) ?? 0 }
+                : undefined,
       });
       setMotivo('');
       setVersionHistorial((n) => n + 1);
@@ -2107,6 +2153,25 @@ export function Sis2000ComboPage() {
 
   const ocupado = cargandoProductos || cargandoCoberturas;
   const nombreParen = (c: number) => nombreParentesco(parentescosCat.find((p) => p.cparen === c), c);
+  /** Paso donde se cambian las edades por parentesco (su título depende de la familia del ramo). */
+  const pasoEdades = gruposPlan.find((g) => g.secciones.includes('edades-parentesco'))?.titulo ?? 'Tarifa del ramo';
+  /** Edades distintas por parentesco: no bloquean; se avisa que se conservan y dónde se cambian. */
+  const avisoEdadesConservadas = edadesConservadas ? (
+    <Alert variant="info" className="mt-3">
+      <span data-aviso="edades-conservadas">
+        Las edades por parentesco de este plan se conservan; para cambiarlas usa el paso «{pasoEdades}».
+      </span>{' '}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="ml-1 align-middle"
+        onClick={() => irASeccionDelPlan('edades-parentesco')}
+      >
+        Ir a «{pasoEdades}»
+      </Button>
+    </Alert>
+  ) : null;
   const textoParentescos = cparens ? cparens.map(nombreParen).join(', ') : '—';
   const textoSexo = SEXOS.find((s) => s.valor === csexo)?.etiqueta ?? csexo;
   const textoFrecuencias =
@@ -2130,8 +2195,8 @@ export function Sis2000ComboPage() {
       if (t === 'error') avisosPersonas.push(`No se encontró la tabla ${c} en Sis2000: elígela con «Elegir» o créala.`);
       else if (t && t !== 'cargando' && !(t.tramos ?? []).length) avisosPersonas.push(`La tabla ${nombreTabla(c)} no tiene tramos de edad: el plan no podrá cotizar.`);
       else if (t && t !== 'cargando') {
-        const min = entero(edadMin);
-        const max = entero(edadMax);
+        const min = edadesConservadas ? Math.min(...edadesConservadas.map((p) => p.nedad_min)) : entero(edadMin);
+        const max = edadesConservadas ? Math.max(...edadesConservadas.map((p) => p.nedad_max)) : entero(edadMax);
         const cubre = (e: number) => (t.tramos ?? []).some((x) => e >= x.nedad_min && e <= x.nedad_max);
         if (min != null && max != null && (!cubre(min) || !cubre(max))) {
           avisosPersonas.push(`La tabla ${nombreTabla(c)} no cubre todas las edades del plan (${min} a ${max} años): a quien quede fuera no se le podrá calcular la prima.`);
@@ -2204,7 +2269,7 @@ export function Sis2000ComboPage() {
         });
       }
     }
-    if (personas) {
+    if (personas && !edadesConservadas) {
       const p0 = ((originales[0]?.parentescos as Record<string, unknown>[] | undefined) ?? [])[0];
       if (p0) {
         if (Number(p0.nedad_min) !== entero(edadMin) || Number(p0.nedad_max) !== entero(edadMax)) cambios.push(`Edades: ahora de ${edadMin} a ${edadMax} años`);
@@ -2363,6 +2428,7 @@ export function Sis2000ComboPage() {
               </div>
             </dl>
           )}
+          {!planOriginal?.bloqueo && avisoEdadesConservadas}
           {planOriginal?.bloqueo && (
             <Alert variant="warning" className="mt-3">
               {planOriginal.bloqueo}{' '}
@@ -3225,81 +3291,111 @@ export function Sis2000ComboPage() {
     <>
       <SectionPanel
         title="¿Quiénes se aseguran?"
-        description="Los mismos parentescos y edades aplican a todas las coberturas del plan."
+        description={
+          edadesConservadas
+            ? 'Este plan tiene edades distintas según el parentesco: se muestran aquí y se conservan al guardar.'
+            : 'Los mismos parentescos y edades aplican a todas las coberturas del plan.'
+        }
         icon={Users}
       >
-        <FormGrid>
-          <FormField
-            span={2}
-            label="Parentescos que puede incluir el plan *"
-            htmlFor="combo-cparen-texto"
-            hint="Titular es el asegurado principal. Ejemplo: Titular, Cónyuge, Hijos."
-            tooltip={'Quiénes pueden entrar en la póliza (Titular, Cónyuge, Hijos…). Cada cobertura se graba una vez por parentesco marcado, con su tabla de precios; un parentesco sin marcar no se puede asegurar con este plan.\nEn Sis2000: mapltarifas_per.cparen · mapledades_per'}
-            error={errorDe('combo-cparen-texto')}
-          >
-            <ParentescosSelector
-              idPrefix="combo-cparen"
-              value={parentescosTxt}
-              onChange={setParentescosTxt}
-              onCatalogo={setParentescosCat}
-            />
-          </FormField>
-          <FormField
-            label="Sexo"
-            htmlFor="combo-csexo"
-            hint="Normalmente «Ambos»."
-            tooltip={'Se guarda como dato del plan, pero hoy ningún cálculo de cotización ni de emisión lo aplica: no limita quién puede asegurarse.\nEn Sis2000: mapltarifas_per.csexo'}
-          >
-            <Select value={csexo} onValueChange={setCsexo}>
-              <SelectTrigger id="combo-csexo">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SEXOS.map((s) => (
-                  <SelectItem key={s.valor} value={s.valor}>
-                    {s.etiqueta}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField
-              label="Edad mínima *"
-              htmlFor="combo-edad-min"
-              hint="En años. Ejemplo: 0."
-              tooltip={'Edad mínima de entrada para cada parentesco marcado. La valida la cotización; la tabla de precios debe cubrir desde esta edad o esa persona queda con prima 0.\nEn Sis2000: mapledades_per.cemin_ase · mapltarifas_per.nedad_min'}
-              error={errorDe('combo-edad-min')}
-            >
-              <Input
-                id="combo-edad-min"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={edadMin}
-                onChange={(e) => setEdadMin(e.target.value)}
-              />
-            </FormField>
-            <FormField
-              label="Edad máxima *"
-              htmlFor="combo-edad-max"
-              hint="En años. Ejemplo: 74."
-              tooltip={'Edad máxima de entrada para cada parentesco marcado. La valida la cotización; la tabla de precios debe llegar hasta esta edad o esa persona queda con prima 0.\nEn Sis2000: mapledades_per.cemax_ase · mapltarifas_per.nedad_max'}
-              error={errorDe('combo-edad-max')}
-            >
-              <Input
-                id="combo-edad-max"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={edadMax}
-                onChange={(e) => setEdadMax(e.target.value)}
-              />
-            </FormField>
-          </div>
-        </FormGrid>
+        {edadesConservadas ? (
+          <>
+            <div className="overflow-x-auto rounded-xl border border-border/60">
+              <table id="combo-edades-conservadas" className="w-full text-left text-sm">
+                <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Parentesco</th>
+                    <th className="px-3 py-2">Sexo</th>
+                    <th className="px-3 py-2">Edad de entrada</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {edadesConservadas.map((p) => (
+                    <tr key={`${p.cparen}-${p.csexo}`} className="border-b border-border/40 last:border-0">
+                      <td className="px-3 py-2 font-medium">{nombreParen(p.cparen)}</td>
+                      <td className="px-3 py-2">{SEXOS.find((x) => x.valor === p.csexo)?.etiqueta ?? p.csexo}</td>
+                      <td className="px-3 py-2">{textoEdades(p)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {avisoEdadesConservadas}
+          </>
+        ) : (
+          <FormGrid>
+              <FormField
+                span={2}
+                label="Parentescos que puede incluir el plan *"
+                htmlFor="combo-cparen-texto"
+                hint="Titular es el asegurado principal. Ejemplo: Titular, Cónyuge, Hijos."
+                tooltip={'Quiénes pueden entrar en la póliza (Titular, Cónyuge, Hijos…). Cada cobertura se graba una vez por parentesco marcado, con su tabla de precios; un parentesco sin marcar no se puede asegurar con este plan.\nEn Sis2000: mapltarifas_per.cparen · mapledades_per'}
+                error={errorDe('combo-cparen-texto')}
+              >
+                <ParentescosSelector
+                  idPrefix="combo-cparen"
+                  value={parentescosTxt}
+                  onChange={setParentescosTxt}
+                  onCatalogo={setParentescosCat}
+                />
+              </FormField>
+              <FormField
+                label="Sexo"
+                htmlFor="combo-csexo"
+                hint="Normalmente «Ambos»."
+                tooltip={'Se guarda como dato del plan, pero hoy ningún cálculo de cotización ni de emisión lo aplica: no limita quién puede asegurarse.\nEn Sis2000: mapltarifas_per.csexo'}
+              >
+                <Select value={csexo} onValueChange={setCsexo}>
+                  <SelectTrigger id="combo-csexo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SEXOS.map((s) => (
+                      <SelectItem key={s.valor} value={s.valor}>
+                        {s.etiqueta}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  label="Edad mínima *"
+                  htmlFor="combo-edad-min"
+                  hint="En años. Ejemplo: 0."
+                  tooltip={'Edad mínima de entrada para cada parentesco marcado. La valida la cotización; la tabla de precios debe cubrir desde esta edad o esa persona queda con prima 0.\nEn Sis2000: mapledades_per.cemin_ase · mapltarifas_per.nedad_min'}
+                  error={errorDe('combo-edad-min')}
+                >
+                  <Input
+                    id="combo-edad-min"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={edadMin}
+                    onChange={(e) => setEdadMin(e.target.value)}
+                  />
+                </FormField>
+                <FormField
+                  label="Edad máxima *"
+                  htmlFor="combo-edad-max"
+                  hint="En años. Ejemplo: 74."
+                  tooltip={'Edad máxima de entrada para cada parentesco marcado. La valida la cotización; la tabla de precios debe llegar hasta esta edad o esa persona queda con prima 0.\nEn Sis2000: mapledades_per.cemax_ase · mapltarifas_per.nedad_max'}
+                  error={errorDe('combo-edad-max')}
+                >
+                  <Input
+                    id="combo-edad-max"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={edadMax}
+                    onChange={(e) => setEdadMax(e.target.value)}
+                  />
+                </FormField>
+              </div>
+          </FormGrid>
+        )}
       </SectionPanel>
 
       <SectionPanel
@@ -3791,7 +3887,19 @@ export function Sis2000ComboPage() {
             <strong>{textoProductores}</strong>
             {textoCanales ? <> y {textoCanales}</> : null}.
           </p>
-          {personas && (
+          {personas && edadesConservadas && (
+            <p>
+              Asegura a:{' '}
+              {edadesConservadas.map((p, i) => (
+                <span key={`${p.cparen}-${p.csexo}`}>
+                  {i > 0 ? '; ' : ''}
+                  <strong>{nombreParen(p.cparen)}</strong> {textoEdades(p)}
+                </span>
+              ))}
+              . Estas edades por parentesco se conservan como están.
+            </p>
+          )}
+          {personas && !edadesConservadas && (
             <p>
               Asegura a: <strong>{textoParentescos}</strong> ({textoSexo.toLowerCase()}), de <strong>{edadMin || '—'}</strong> a{' '}
               <strong>{edadMax || '—'}</strong> años.

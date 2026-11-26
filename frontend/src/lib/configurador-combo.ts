@@ -120,3 +120,76 @@ export const ETIQUETA_ESTADO: Record<EstadoGrupo, string> = {
   visitado: 'Visitado',
   'sin-visitar': 'Sin visitar',
 };
+
+// ── Editar un plan de personas con edades distintas por parentesco ───────────────────────────────────────────────
+
+/** Un parentesco del plan tal como está en Sis2000 (edades de mapledades_per, sexo de mapltarifas_per). */
+export interface ParentescoDelPlan {
+  cparen: number;
+  csexo: string;
+  nedad_min: number;
+  nedad_max: number;
+}
+
+export interface ParentescosDelPlan {
+  /** Parentescos de la primera cobertura que los tiene, por código (y sexo). */
+  lista: ParentescoDelPlan[];
+  /** Las edades o el sexo no son iguales para todos: el formulario (un solo rango para todos) no puede editarlos. */
+  varian: boolean;
+  /** Todas las coberturas tienen los mismos parentescos, con el mismo sexo y edades. */
+  igualesEnTodas: boolean;
+}
+
+const enteroOCero = (v: unknown) => (v !== null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : 0);
+
+/**
+ * Parentescos de un plan de personas leído de Sis2000 (coberturas de PlanDto). Cuando `varian`, el Combo no los edita:
+ * los devuelve tal cual al guardar y pide a nest-api `conservarEdades` para que mapledades_per no se reescriba.
+ */
+export function parentescosDelPlan(coberturas: Array<Record<string, unknown>>): ParentescosDelPlan {
+  const deCobertura = (c: Record<string, unknown>): ParentescoDelPlan[] =>
+    (Array.isArray(c.parentescos) ? (c.parentescos as Record<string, unknown>[]) : [])
+      .map((p) => ({
+        cparen: Number(p.cparen),
+        csexo: String(p.csexo ?? '').trim().toUpperCase() || 'A',
+        nedad_min: enteroOCero(p.nedad_min),
+        nedad_max: enteroOCero(p.nedad_max),
+      }))
+      .filter((p) => Number.isInteger(p.cparen) && p.cparen > 0)
+      .sort((a, b) => a.cparen - b.cparen || a.csexo.localeCompare(b.csexo));
+  const firma = (ps: ParentescoDelPlan[]) => ps.map((p) => [p.cparen, p.csexo, p.nedad_min, p.nedad_max].join('|')).join(',');
+  const listas = coberturas.map(deCobertura).filter((ps) => ps.length);
+  const lista = listas[0] ?? [];
+  const p0 = lista[0];
+  return {
+    lista,
+    varian: listas.some((ps) => ps.some((p) => p.csexo !== p0.csexo || p.nedad_min !== p0.nedad_min || p.nedad_max !== p0.nedad_max)),
+    igualesEnTodas: listas.every((ps) => firma(ps) === firma(lista)),
+  };
+}
+
+/** «de 0 a 74 años» (o «18 años» si mínima y máxima coinciden). */
+export function textoEdades(p: Pick<ParentescoDelPlan, 'nedad_min' | 'nedad_max'>): string {
+  return p.nedad_min === p.nedad_max ? `${p.nedad_min} años` : `de ${p.nedad_min} a ${p.nedad_max} años`;
+}
+
+// ── Nombre del producto de un plan cuando maproductos no lo tiene en el ramo del plan ────────────────────────────
+
+/**
+ * Solo presentación (no cambia lo que se graba): el producto de un plan que no está en maproductos con el ramo del
+ * plan. Si el código existe en otro ramo se muestra su nombre y dónde está registrado («Viajero Local · registrado en
+ * ramo 5»); si no existe, «Producto 1 (no está en el catálogo)».
+ */
+export function nombreProductoDelPlan(
+  catalogo: Array<{ cproducto: string; cramo: number; nombre: string }>,
+  cproducto: string,
+  cramoPlan: number,
+): string {
+  const codigo = cproducto.trim().toUpperCase();
+  const mismos = catalogo.filter((o) => o.cproducto.trim().toUpperCase() === codigo && o.nombre.trim());
+  const enRamo = mismos.find((o) => o.cramo === cramoPlan);
+  if (enRamo) return enRamo.nombre.trim();
+  const otro = mismos.find((o) => o.cramo > 0) ?? mismos[0];
+  if (!otro) return `Producto ${cproducto.trim()} (no está en el catálogo)`;
+  return otro.cramo > 0 ? `${otro.nombre.trim()} · registrado en ramo ${otro.cramo}` : `${otro.nombre.trim()} · sin ramo en el catálogo`;
+}

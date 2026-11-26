@@ -99,6 +99,8 @@ export interface Sis2000CreatePlanPayload {
   all_canal?: boolean;
   productores?: Array<{ cproductor: number }>;
   canales?: Array<{ ccanalalt: number }>;
+  /** Solo al editar personas: nest-api deja como están las edades por parentesco del plan (mapledades_per). */
+  conservarEdades?: boolean;
 }
 
 export function sis2000PlanMasterId(cramo: number | string, cplan: string): string {
