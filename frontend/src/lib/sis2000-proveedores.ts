@@ -145,6 +145,26 @@ export const ALTA_PROVEEDOR_VACIA = (): AltaProveedorForm => ({
 /** Tipo de servicio efectivo del formulario (un carácter). */
 export const tipoServicioDeAlta = (f: AltaProveedorForm) => (f.tipo === OTRO_TIPO ? f.tipoOtro : f.tipo).trim();
 
+/** RIF/cédula mientras se escribe: letra inicial (V, E, J, G, P, C), dígitos y guiones; máximo 12 caracteres. */
+export function limpiarRifEntrada(texto: string): string {
+  const t = texto.toUpperCase().replace(/[^VEJGPC0-9\s-]/g, '');
+  return t.slice(0, 12);
+}
+
+/** Error del RIF a buscar, o null si sirve: J-12345678-9, V-12345678, 123456789 (6 a 10 dígitos). */
+export function errorRifBusqueda(texto: string): string | null {
+  const t = texto.trim().toUpperCase();
+  if (!t) return null;
+  const m = t.match(/^([VEJGPC])?[\s-]*(\d+)(?:[\s-]+(\d))?$/);
+  if (!m) return 'Formato del RIF: letra y número, por ejemplo J-12345678-9.';
+  const digitos = m[2] + (m[3] ?? '');
+  if (digitos.length < 6 || digitos.length > 10) return 'El RIF debe tener entre 6 y 10 dígitos.';
+  return null;
+}
+
+/** Un carácter de código (tipo de servicio, modalidad): letra o número, en mayúscula. */
+export const limpiarCodigo1 = (texto: string) => texto.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 1);
+
 /** Errores del formulario de alta (vacío = válido). */
 export function validarAltaProveedorForm(f: AltaProveedorForm): string[] {
   const e: string[] = [];
@@ -153,9 +173,12 @@ export function validarAltaProveedorForm(f: AltaProveedorForm): string[] {
   if (!desc) e.push('Escribe la descripción del servicio.');
   else if (desc.length > 120) e.push('La descripción no puede pasar de 120 caracteres.');
   if (tipoServicioDeAlta(f).length !== 1) e.push('Elige el tipo de servicio (un solo carácter).');
-  if (f.mcostoext.trim() !== '' && !(Number(f.mcostoext) >= 0)) e.push('El costo debe ser un número mayor o igual a 0.');
+  const costo = f.mcostoext.trim();
+  if (costo !== '' && !(Number(costo) >= 0)) e.push('El costo debe ser un número mayor o igual a 0.');
+  else if (costo !== '' && !/^\d{1,12}(\.\d{1,2})?$/.test(costo)) e.push('El costo admite hasta 12 dígitos y 2 decimales.');
   if (f.cmoneda.trim().length > 4) e.push('La moneda tiene máximo 4 caracteres.');
   if (f.imodalidad.trim().length > 1) e.push('La modalidad es un solo carácter.');
+  if (tipoServicioDeAlta(f) && !/^[A-Za-z0-9]$/.test(tipoServicioDeAlta(f))) e.push('El tipo de servicio es una letra o un número.');
   return e;
 }
 

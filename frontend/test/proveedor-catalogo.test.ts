@@ -10,6 +10,9 @@ import {
   OTRO_TIPO,
   tipoServicioDeAlta,
   validarAltaProveedorForm,
+  errorRifBusqueda,
+  limpiarRifEntrada,
+  limpiarCodigo1,
 } from '../src/lib/sis2000-proveedores.ts';
 
 const lleno = () => ({ ...ALTA_PROVEEDOR_VACIA(), cci_rif: '9', xdescripcion: ' Grúa urbana 25 km ', tipo: '1', mcostoext: '15' });
@@ -61,5 +64,21 @@ describe('alta de proveedor en el catálogo', () => {
     assert.match(mensajeAltaProveedor(409, ''), /Ya existe/);
     assert.match(mensajeAltaProveedor(400, ''), /cliente en Sis2000/);
     assert.match(mensajeAltaProveedor(403, ''), /permiso/);
+  });
+
+  it('RIF: formato y largo', () => {
+    assert.equal(errorRifBusqueda('J-12345678-9'), null);
+    assert.equal(errorRifBusqueda('V-12345678'), null);
+    assert.equal(errorRifBusqueda('123456789'), null);
+    assert.match(errorRifBusqueda('J-528465115161061691') ?? '', /6 y 10/);
+    assert.match(errorRifBusqueda('J-12AB') ?? '', /Formato|6 y 10/);
+    assert.equal(limpiarRifEntrada('j-5284$65x'), 'J-528465');
+  });
+
+  it('códigos de un carácter y costo con 2 decimales', () => {
+    assert.equal(limpiarCodigo1('g'), 'G');
+    assert.equal(limpiarCodigo1('#'), '');
+    assert.match(validarAltaProveedorForm({ ...lleno(), mcostoext: '10.123' }).join(' '), /2 decimales/);
+    assert.deepEqual(validarAltaProveedorForm({ ...lleno(), mcostoext: '10.50' }), []);
   });
 });
