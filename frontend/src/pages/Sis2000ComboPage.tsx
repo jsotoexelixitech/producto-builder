@@ -4325,7 +4325,7 @@ export function Sis2000ComboPage() {
             tipo: personas ? 'Personas' : automovil ? 'Automóvil' : 'Cosas',
             coberturas: incluidas.length,
             prima: personas ? null : `${cmoneda} ${formatoMonto(resumen.prima)}`,
-            asegurados: personas ? `${textoParentescos}, ${edadMin || '—'} a ${edadMax || '—'} años` : null,
+            asegurados: personas ? textoAsegurados : null,
             plan: xplan.trim(),
           }}
           resumen={{
