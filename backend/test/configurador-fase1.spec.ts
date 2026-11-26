@@ -161,3 +161,13 @@ describe('configurador fase 1: respaldo antes de escribir', () => {
     );
   });
 });
+
+describe('aProveedorCatalogo (alta en maclient_prov)', () => {
+  it('recorta, toma 1 carácter de itiposerv/imodalidad y omite lo vacío', async () => {
+    const { aProveedorCatalogo } = await import('../src/partner-bridge/configurador.mapper');
+    assert.deepEqual(
+      aProveedorCatalogo({ cci_rif: '9', xdescripcion: ' Grúa 25 km ', itiposerv: 12, mcostoext: '15.5', cmoneda: ' $ ', imodalidad: '' }),
+      { cci_rif: 9, xdescripcion: 'Grúa 25 km', itiposerv: '1', mcostoext: 15.5, cmoneda: '$' },
+    );
+  });
+});

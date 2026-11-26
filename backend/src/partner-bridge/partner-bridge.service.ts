@@ -24,6 +24,7 @@ import {
   aEditarProveedorPlan,
   aEditarTarifa,
   aPlan,
+  aProveedorCatalogo,
   aProveedorPlan,
   partirPlanId,
 } from './configurador.mapper';
@@ -621,6 +622,31 @@ export class PartnerBridgeService {
         `/api/v1/configurador/proveedores?q=${encodeURIComponent(q)}`,
       ),
     );
+  }
+
+  /** Empresas de maclient por RIF (solo cci_rif, cid, nombre y tipo de documento). */
+  async buscarSis2000Clientes(rif: string): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', `/api/v1/configurador/clientes?rif=${encodeURIComponent(rif)}`),
+    );
+  }
+
+  /** Tipos de servicio (itiposerv) existentes en el catálogo con su cantidad. */
+  async listSis2000TiposServicio(): Promise<Record<string, unknown>[]> {
+    return this.unwrapDataArray(
+      await this.request<NestEnvelope<unknown[]>>('GET', '/api/v1/configurador/proveedores/tipos-servicio'),
+    );
+  }
+
+  /** Alta en el catálogo de proveedores (maclient_prov). Requiere la bandera de escritura en nest-api. */
+  async crearSis2000ProveedorCatalogo(payload: Record<string, unknown>) {
+    const body = await this.request<NestEnvelope<Record<string, unknown>>>(
+      'POST',
+      '/api/v1/configurador/proveedores',
+      aProveedorCatalogo(payload),
+    );
+    if (!body.data) throw new BadGatewayException('nest-api no devolvió el proveedor creado.');
+    return body.data;
   }
 
   async listSis2000PlanProveedores(

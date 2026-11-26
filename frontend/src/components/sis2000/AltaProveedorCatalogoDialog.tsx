@@ -1,0 +1,273 @@
+import { useEffect, useState } from 'react';
+import { Search, X } from 'lucide-react';
+import { api } from '@/lib/api';
+import {
+  ALTA_PROVEEDOR_VACIA,
+  altaProveedorToPayload,
+  catalogoDesdeAlta,
+  mensajeAltaProveedor,
+  OTRO_TIPO,
+  validarAltaProveedorForm,
+  type AltaProveedorForm,
+  type ClienteBusqueda,
+  type ProveedorCatalogo,
+  type TipoServicioCatalogo,
+} from '@/lib/sis2000-proveedores';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  monedas: Array<{ codigo: string; nombre: string }>;
+  onCerrar: () => void;
+  /** Proveedor creado, ya como entrada del catálogo (con su clave) para dejarlo elegido. */
+  onCreado: (p: ProveedorCatalogo) => void;
+}
+
+/**
+ * Alta de un proveedor de servicio (p. ej. la empresa de grúa) en el catálogo de Sis2000 (maclient_prov). La empresa
+ * debe existir ya como cliente: aquí solo se busca por RIF, nunca se crea. Después se asocia al plan como cualquier otro.
+ */
+export function AltaProveedorCatalogoDialog({ monedas, onCerrar, onCreado }: Props) {
+  const [form, setForm] = useState<AltaProveedorForm>(ALTA_PROVEEDOR_VACIA);
+  const [rif, setRif] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [resultados, setResultados] = useState<ClienteBusqueda[] | null>(null);
+  const [cliente, setCliente] = useState<ClienteBusqueda | null>(null);
+  const [tipos, setTipos] = useState<TipoServicioCatalogo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    api
+      .listSis2000TiposServicio()
+      .then((t) => setTipos(Array.isArray(t) ? t : []))
+      .catch(() => setTipos([]));
+  }, []);
+
+  async function buscar() {
+    if (!rif.trim()) return;
+    setBuscando(true);
+    setError(null);
+    setResultados(null);
+    try {
+      setResultados(await api.buscarSis2000Clientes(rif.trim()));
+    } catch (e) {
+      setError(mensajeError(e, 'No se pudo buscar la empresa.'));
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  function elegirCliente(c: ClienteBusqueda) {
+    setCliente(c);
+    setForm((f) => ({ ...f, cci_rif: String(c.cci_rif) }));
+    setResultados(null);
+  }
+
+  async function crear() {
+    const errores = validarAltaProveedorForm(form);
+    if (errores.length) {
+      setError(errores.join(' '));
+      return;
+    }
+    if (!cliente) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      const creado = await api.crearSis2000ProveedorCatalogo(altaProveedorToPayload(form));
+      onCreado(catalogoDesdeAlta(cliente, creado));
+    } catch (e) {
+      setError(mensajeError(e, 'No se pudo crear el proveedor en el catálogo.'));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const campoTexto = (k: keyof AltaProveedorForm) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Agregar proveedor al catálogo"
+        className="max-h-full w-full max-w-xl space-y-3 overflow-y-auto rounded-xl bg-white p-5 text-xs shadow-2xl"
+      >
+        <header className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-bold text-slate-900">Agregar proveedor al catálogo</h2>
+            <p className="text-muted-foreground">
+              Da de alta el servicio de una empresa que ya es cliente en Sis2000 (grúa, clínica, asistencia…). Luego lo asocias al
+              plan.
+            </p>
+          </div>
+          <button type="button" aria-label="Cerrar" className="rounded p-1 hover:bg-muted" onClick={onCerrar}>
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        {error && <Alert variant="warning">{error}</Alert>}
+
+        <div className="space-y-1.5">
+          <Label htmlFor="alta-rif">Empresa (RIF)</Label>
+          {cliente ? (
+            <p>
+              <strong>{cliente.xcliente}</strong> ({cliente.cid || cliente.cci_rif}){' '}
+              <button type="button" className="underline" onClick={() => setCliente(null)}>
+                cambiar
+              </button>
+            </p>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  id="alta-rif"
+                  placeholder="Ej.: J-12345678-9"
+                  value={rif}
+                  maxLength={40}
+                  onChange={(e) => setRif(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void buscar();
+                    }
+                  }}
+                />
+                <Button type="button" size="sm" variant="outline" disabled={buscando || !rif.trim()} onClick={() => void buscar()}>
+                  <Search className="h-3.5 w-3.5" />
+                  Buscar
+                </Button>
+              </div>
+              {resultados && resultados.length === 0 && (
+                <p className="text-amber-700">
+                  No hay una empresa con ese RIF. Debe existir primero como cliente en Sis2000; aquí no se crean clientes.
+                </p>
+              )}
+              {resultados && resultados.length > 0 && (
+                <ul className="divide-y divide-border/50 rounded-lg border border-border/50">
+                  {resultados.map((c) => (
+                    <li key={c.cci_rif}>
+                      <button type="button" className="w-full p-2 text-left hover:bg-muted/50" onClick={() => elegirCliente(c)}>
+                        {c.xcliente}
+                        <span className="block text-muted-foreground">
+                          {c.cid || c.cci_rif}
+                          {c.tipo_documento ? ` · ${c.tipo_documento}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="alta-desc">Descripción del servicio</Label>
+          <Input
+            id="alta-desc"
+            placeholder="Ej.: Grúa urbana 25 km"
+            maxLength={120}
+            value={form.xdescripcion}
+            onChange={(e) => campoTexto('xdescripcion')(e.target.value)}
+          />
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="alta-tipo">Tipo de servicio</Label>
+            <select
+              id="alta-tipo"
+              className="h-10 w-full rounded-md border border-border bg-background px-2"
+              value={form.tipo}
+              onChange={(e) => campoTexto('tipo')(e.target.value)}
+            >
+              <option value="">Elige…</option>
+              {tipos.map((t) => (
+                <option key={t.itiposerv} value={t.itiposerv}>
+                  {t.itiposerv} ({t.cantidad} en el catálogo)
+                </option>
+              ))}
+              <option value={OTRO_TIPO}>Otro…</option>
+            </select>
+          </div>
+          {form.tipo === OTRO_TIPO && (
+            <div>
+              <Label htmlFor="alta-tipo-otro">Código del tipo (1 carácter)</Label>
+              <Input
+                id="alta-tipo-otro"
+                maxLength={1}
+                value={form.tipoOtro}
+                onChange={(e) => campoTexto('tipoOtro')(e.target.value)}
+              />
+              <p className="mt-1 text-muted-foreground">Código que La Mundial usa para este servicio.</p>
+            </div>
+          )}
+          <div>
+            <Label htmlFor="alta-costo">Costo</Label>
+            <Input
+              id="alta-costo"
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.mcostoext}
+              onChange={(e) => campoTexto('mcostoext')(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="alta-moneda">Moneda</Label>
+            {monedas.length ? (
+              <select
+                id="alta-moneda"
+                className={cn('h-10 w-full rounded-md border border-border bg-background px-2')}
+                value={form.cmoneda}
+                onChange={(e) => campoTexto('cmoneda')(e.target.value)}
+              >
+                {(monedas.some((m) => m.codigo === form.cmoneda) ? monedas : [{ codigo: form.cmoneda, nombre: '' }, ...monedas]).map((m) => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.nombre ? `${m.codigo} · ${m.nombre}` : m.codigo}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input id="alta-moneda" maxLength={4} value={form.cmoneda} onChange={(e) => campoTexto('cmoneda')(e.target.value)} />
+            )}
+          </div>
+          <div>
+            <Label htmlFor="alta-modalidad">Modalidad (opcional, 1 carácter)</Label>
+            <Input
+              id="alta-modalidad"
+              maxLength={1}
+              value={form.imodalidad}
+              onChange={(e) => campoTexto('imodalidad')(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" size="sm" variant="ghost" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button type="button" size="sm" disabled={guardando || !cliente} onClick={() => void crear()}>
+            {guardando ? 'Creando…' : 'Crear proveedor'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mensaje en español del error (nest-api ya responde en español; si no, uno según el código HTTP). */
+function mensajeError(e: unknown, respaldo: string): string {
+  const err = (e ?? {}) as { status?: number; message?: string };
+  const detalle = typeof err.message === 'string' ? err.message : '';
+  // Un texto técnico (HTML, "Failed to fetch", JSON) no sirve al usuario: se usa el mensaje del código HTTP.
+  const util = detalle && !/^(failed to fetch|network|<|\{)/i.test(detalle.trim()) ? detalle : '';
+  return mensajeAltaProveedor(err.status, util) || respaldo;
+}

@@ -112,6 +112,18 @@ export function aEditarProveedorPlan(p: Obj) {
   });
 }
 
+/** Alta de un proveedor en el catálogo (maclient_prov): nest-api POST configurador/proveedores. */
+export function aProveedorCatalogo(p: Obj) {
+  return limpio({
+    cci_rif: num(p.cci_rif),
+    xdescripcion: texto(p.xdescripcion),
+    itiposerv: tipoServicio(p.itiposerv),
+    mcostoext: num(p.mcostoext),
+    cmoneda: texto(p.cmoneda),
+    imodalidad: texto(p.imodalidad).slice(0, 1),
+  });
+}
+
 export function aBajaProveedorPlan(p: Obj) {
   return limpio({ ...claveProveedor(p), fhasta_baja: fecha(p.fhasta_baja) });
 }
