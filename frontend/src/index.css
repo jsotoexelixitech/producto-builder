@@ -924,3 +924,15 @@ body {
   padding-top: 0.85rem;
   border-top: 1px solid hsl(var(--border) / 0.4);
 }
+
+/* Migas de pan (dentro de la barra superior fija) */
+.app-migas { margin-top: 0.4rem; font-size: 0.75rem; }
+.app-migas ol { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.25rem; list-style: none; margin: 0; padding: 0; }
+.app-migas li { min-width: 0; max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-migas a { color: hsl(var(--muted-foreground)); text-decoration: none; }
+.app-migas a:hover { color: hsl(var(--foreground)); text-decoration: underline; }
+.app-migas [aria-current='page'] { font-weight: 600; color: hsl(var(--foreground)); }
+.app-migas-sep { width: 0.8rem; height: 0.8rem; flex-shrink: 0; color: hsl(var(--muted-foreground) / 0.6); }
+.ui-moderna .app-migas a { color: var(--m-apagado); }
+.ui-moderna .app-migas a:hover { color: var(--lm-azul, #2e6dbf); }
+.ui-moderna .app-migas [aria-current='page'] { color: var(--lm-noche); }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
+import { MigasSis2000 } from './MigasSis2000';
 import { cn } from '@/lib/utils';
 import { AyudasToggle } from '@/components/ayudas/AyudasToggle';
 import { BuscadorAyudas } from '@/components/ayudas/BuscadorAyudas';
