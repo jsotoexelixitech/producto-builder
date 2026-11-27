@@ -185,3 +185,11 @@
   .ui-moderna [aria-label='Tipo de plan'] > button:hover { transform: none; }
   .ui-moderna button.bg-gradient-to-br::after { transition: none; }
 }
+
+/* Estimado de prima sobre el panel oscuro: caja de resultado en vidrio y avisos legibles */
+.ui-moderna .cb-panel-caja .bg-slate-50 { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16); }
+.ui-moderna .cb-panel-caja .bg-slate-50 strong { color: #fff; }
+.ui-moderna .cb-panel-caja .text-amber-800, .ui-moderna .cb-panel-caja .text-amber-900 { color: var(--lm-ambar); }
+.ui-moderna .cb-panel-caja .text-emerald-800 { color: var(--lm-verde-claro); }
+.ui-moderna .cb-panel-caja [class*='text-red-'], .ui-moderna .cb-panel-caja [class*='text-rose-'] { color: #ff8f91; }
+.ui-moderna .cb-panel-caja input::placeholder { color: rgba(255, 255, 255, 0.45); }
