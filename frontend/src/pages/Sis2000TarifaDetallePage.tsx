@@ -1,9 +1,11 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, History, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNestRowValue, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import { TablaDatos, VacioConGuia } from '@/components/ui/tabla-datos';
+import { ChipEstado } from '@/components/ui/chip-estado';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
@@ -84,69 +86,75 @@ export function Sis2000TarifaDetallePage() {
         </Alert>
       )}
 
-      {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border border-border/60">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
+            {!loading && !error && (
+        <TablaDatos
+          filas={rows}
+          claveFila={(_r, i) => String(i)}
+          placeholderBusqueda="Buscar en el historial…"
+          contar={(n) => `${n} registro${n === 1 ? '' : 's'}`}
+          textoBusqueda={(r) => JSON.stringify(r)}
+          minWidth={640}
+          vacio={
+            <VacioConGuia
+              icono={<History className="h-8 w-8" />}
+              titulo="Esta tarifa no tiene tasas ni primas"
+              texto="Sin un detalle vigente, Sis2000 no puede cotizar ni emitir con esta tarifa. Agrega la primera tasa o prima."
+              accion={
+                <Link to={newHref}>
+                  <Button type="button" size="sm">
+                    <Plus className="h-3.5 w-3.5" />
+                    Nuevo detalle
+                  </Button>
+                </Link>
+              }
+            />
+          }
+          filaExtra={(r, i) =>
+            editando === i ? (
               <tr>
-                <th className="px-3 py-2">fdesde</th>
-                <th className="px-3 py-2">fhasta</th>
-                <th className="px-3 py-2">mprima</th>
-                <th className="px-3 py-2">pprima</th>
-                <th className="px-3 py-2">Deducible</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2" />
+                <td colSpan={7} className="px-3 py-2">
+                  <DetalleTarifaEditor
+                    cramo={cramo}
+                    ccober={ccobertura}
+                    ctarifa={ctarifa}
+                    detalle={r}
+                    onCancelar={() => setEditando(null)}
+                    onGuardado={() => {
+                      setEditando(null);
+                      setOk('Tasa guardada (lo anterior quedó en el historial de la tarifa).');
+                      void load();
+                    }}
+                  />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <Fragment key={i}>
-                <tr className="border-b border-border/30">
-                  <td className="px-3 py-2 text-xs">{formatNestRowValue(r.fdesde)}</td>
-                  <td className="px-3 py-2 text-xs">{formatNestRowValue(r.fhasta)}</td>
-                  <td className="px-3 py-2 text-xs">{formatNestRowValue(r.mprima)}</td>
-                  <td className="px-3 py-2 text-xs">{formatNestRowValue(r.pprima)}</td>
-                  <td className="px-3 py-2 text-xs">{textoDeducible(deducibleDeFila(r))}</td>
-                  <td className="px-3 py-2 text-xs">{formatNestRowValue(r.iestado)}</td>
-                  <td className="px-3 py-2 text-right text-xs">
-                    <button
-                      type="button"
-                      className="font-medium text-primary underline-offset-2 hover:underline"
-                      onClick={() => {
-                        setOk(null);
-                        setEditando(editando === i ? null : i);
-                      }}
-                    >
-                      {editando === i ? 'Cerrar' : 'Editar'}
-                    </button>
-                  </td>
-                </tr>
-                {editando === i && (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-2">
-                      <DetalleTarifaEditor
-                        cramo={cramo}
-                        ccober={ccobertura}
-                        ctarifa={ctarifa}
-                        detalle={r}
-                        onCancelar={() => setEditando(null)}
-                        onGuardado={() => {
-                          setEditando(null);
-                          setOk('Tasa guardada (lo anterior quedó en el historial de la tarifa).');
-                          void load();
-                        }}
-                      />
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {rows.length} registro{rows.length === 1 ? '' : 's'}
-          </p>
-        </div>
+            ) : null
+          }
+          columnas={[
+            { id: 'fdesde', titulo: 'Desde', valor: (r) => String(r.fdesde ?? ''), celda: (r) => formatNestRowValue(r.fdesde) },
+            { id: 'fhasta', titulo: 'Hasta', valor: (r) => String(r.fhasta ?? ''), celda: (r) => formatNestRowValue(r.fhasta) },
+            { id: 'mprima', titulo: 'Prima', valor: (r) => Number(r.mprima) || 0, celda: (r) => formatNestRowValue(r.mprima) },
+            { id: 'pprima', titulo: 'Tasa', valor: (r) => Number(r.pprima) || 0, celda: (r) => formatNestRowValue(r.pprima) },
+            { id: 'deducible', titulo: 'Deducible', valor: (r) => textoDeducible(deducibleDeFila(r)) },
+            { id: 'iestado', titulo: 'Estado', valor: (r) => String(r.iestado ?? ''), celda: (r) => <ChipEstado valor={r.iestado} /> },
+            {
+              id: 'acciones',
+              titulo: '',
+              alinear: 'derecha',
+              celda: (_r, i) => (
+                <button
+                  type="button"
+                  className="font-medium text-primary underline-offset-2 hover:underline"
+                  onClick={() => {
+                    setOk(null);
+                    setEditando(editando === i ? null : i);
+                  }}
+                >
+                  {editando === i ? 'Cerrar' : 'Editar'}
+                </button>
+              ),
+            },
+          ]}
+        />
       )}
     </AppShell>
   );

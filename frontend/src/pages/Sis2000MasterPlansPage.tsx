@@ -8,6 +8,8 @@ import {
   type Sis2000NestRow,
 } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import { TablaDatos, VacioConGuia } from '@/components/ui/tabla-datos';
+import { ChipEstado } from '@/components/ui/chip-estado';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
@@ -20,7 +22,6 @@ export function Sis2000MasterPlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [busqueda] = useSearchParams();
   const [ramoFilter, setRamoFilter] = useState(() => busqueda.get('cramo')?.trim() || '18');
-  const [search, setSearch] = useState('');
 
   async function load() {
     setLoading(true);
@@ -41,14 +42,12 @@ export function Sis2000MasterPlansPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const ramo = ramoFilter.trim();
     return plans.filter((p) => {
       if (ramo && String(p.cramo ?? '') !== ramo) return false;
-      if (!q) return true;
-      return JSON.stringify(p).toLowerCase().includes(q);
+      return true;
     });
-  }, [plans, search, ramoFilter]);
+  }, [plans, ramoFilter]);
 
   return (
     <AppShell title="Planes maestro Sis2000">
@@ -96,12 +95,6 @@ export function Sis2000MasterPlansPage() {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <Input
-          className="max-w-xs"
-          placeholder="Buscar plan…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Input
           className="max-w-[120px]"
           placeholder="Ramo"
           value={ramoFilter}
@@ -111,65 +104,75 @@ export function Sis2000MasterPlansPage() {
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border border-border/60">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">cplan</th>
-                <th className="px-3 py-2">Nombre</th>
-                <th className="px-3 py-2">Ramo</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p, i) => {
+            {!loading && !error && (
+        <TablaDatos
+          filas={filtered}
+          claveFila={(p, i) => {
+            const cplan = String(p.cplan ?? '');
+            const cramo = String(p.cramo ?? '');
+            return cplan && cramo ? sis2000PlanMasterId(cramo, cplan) : String(i);
+          }}
+          placeholderBusqueda="Buscar plan…"
+          contar={(n) => `${n} plan${n === 1 ? '' : 'es'}`}
+          textoBusqueda={(p) => JSON.stringify(p)}
+          vacio={
+            <VacioConGuia
+              icono={<Layers className="h-8 w-8" />}
+              titulo={ramoFilter.trim() ? `No hay planes en el ramo ${ramoFilter.trim()}` : 'Aún no hay planes'}
+              texto="Un plan junta coberturas, tarifas y formas de pago de un ramo. Créalo con el formulario guiado de combos de coberturas; también puedes probar otro ramo en el filtro."
+              accion={
+                <Link to="/sis2000/combos">
+                  <Button type="button" size="sm">
+                    <Plus className="h-3.5 w-3.5" />
+                    Nuevo plan
+                  </Button>
+                </Link>
+              }
+            />
+          }
+          columnas={[
+            { id: 'cplan', titulo: 'Código', valor: (p) => String(p.cplan ?? ''), celda: (p) => <span className="font-mono">{String(p.cplan ?? '') || '—'}</span> },
+            { id: 'xplan', titulo: 'Nombre', valor: (p) => formatNestRowValue(p.xplan) },
+            { id: 'cramo', titulo: 'Ramo', valor: (p) => Number(p.cramo) || 0, celda: (p) => String(p.cramo ?? '') || '—' },
+            { id: 'iestado', titulo: 'Estado', valor: (p) => String(p.iestado ?? ''), celda: (p) => <ChipEstado valor={p.iestado} /> },
+            {
+              id: 'acciones',
+              titulo: 'Acciones',
+              alinear: 'derecha',
+              celda: (p) => {
                 const cplan = String(p.cplan ?? '');
                 const cramo = String(p.cramo ?? '');
-                const id = cplan && cramo ? sis2000PlanMasterId(cramo, cplan) : String(i);
+                if (!cplan || !cramo) return null;
+                const id = sis2000PlanMasterId(cramo, cplan);
                 return (
-                  <tr key={id} className="border-b border-border/30">
-                    <td className="px-3 py-2 font-mono text-xs">{cplan || '—'}</td>
-                    <td className="px-3 py-2 text-xs">{formatNestRowValue(p.xplan)}</td>
-                    <td className="px-3 py-2 text-xs">{cramo || '—'}</td>
-                    <td className="px-3 py-2 text-xs">{formatNestRowValue(p.iestado)}</td>
-                    <td className="px-3 py-2 text-right">
-                      {cplan && cramo && (
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Link
-                            to={`/sis2000/plans/${encodeURIComponent(id)}/configurar`}
-                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                            title="Ficha completa del plan: coberturas, tarifas, deducibles, formas de pago, quién lo vende, comisiones y la revisión «¿se puede emitir?»"
-                          >
-                            Ficha
-                          </Link>
-                          <Link
-                            to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
-                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                            title="Cambiar nombre, montos o coberturas con el formulario guiado"
-                          >
-                            Editar
-                          </Link>
-                          <Link
-                            to={`/sis2000/plans/${encodeURIComponent(id)}/json`}
-                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                            title="Editor en JSON, solo para casos que el formulario no cubre"
-                          >
-                            Modo avanzado
-                          </Link>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Link
+                      to={`/sis2000/plans/${encodeURIComponent(id)}/configurar`}
+                      className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      title="Ficha completa del plan: coberturas, tarifas, deducibles, formas de pago, quién lo vende, comisiones y la revisión «¿se puede emitir?»"
+                    >
+                      Ficha
+                    </Link>
+                    <Link
+                      to={`/sis2000/plans/${encodeURIComponent(id)}/edit`}
+                      className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      title="Cambiar nombre, montos o coberturas con el formulario guiado"
+                    >
+                      Editar
+                    </Link>
+                    <Link
+                      to={`/sis2000/plans/${encodeURIComponent(id)}/json`}
+                      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      title="Editor en JSON, solo para casos que el formulario no cubre"
+                    >
+                      Modo avanzado
+                    </Link>
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {filtered.length} plan{filtered.length === 1 ? '' : 'es'}
-          </p>
-        </div>
+              },
+            },
+          ]}
+        />
       )}
     </AppShell>
   );

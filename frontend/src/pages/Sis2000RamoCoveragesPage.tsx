@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, RefreshCw, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNestRowValue, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import { TablaDatos, VacioConGuia } from '@/components/ui/tabla-datos';
+import { ChipEstado } from '@/components/ui/chip-estado';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
@@ -16,7 +17,6 @@ export function Sis2000RamoCoveragesPage() {
   const [rows, setRows] = useState<Sis2000NestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const aviso = (useLocation().state as { aviso?: string } | null)?.aviso ?? null;
 
   async function load() {
@@ -37,11 +37,6 @@ export function Sis2000RamoCoveragesPage() {
     void load();
   }, [cramo]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => JSON.stringify(r).toLowerCase().includes(q));
-  }, [rows, search]);
 
   return (
     <AppShell title="Coberturas Sis2000">
@@ -83,67 +78,55 @@ export function Sis2000RamoCoveragesPage() {
         </Alert>
       )}
 
-      <div className="mb-4 max-w-md">
-        <Input
-          placeholder="Buscar cobertura…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      {!loading && !error && (
-        <div className="tabla-cabecera-fija rounded-xl border border-border/60">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">ccobertura</th>
-                <th className="px-3 py-2">Descripción</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row, i) => {
-                const ccob = String(row.ccobertura ?? '');
-                const rowKey = ccob
-                  ? `${ccob}-${String(row.iestado ?? '')}-${String(row.u_version ?? '')}-${i}`
-                  : `row-${i}`;
-                return (
-                  <tr key={rowKey} className="border-b border-border/30">
-                    <td className="px-3 py-2 font-mono text-xs">{ccob || '—'}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {formatNestRowValue(row.xdescripcion_l ?? row.xcobertura)}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{formatNestRowValue(row.iestado)}</td>
-                    <td className="px-3 py-2 text-right">
-                      {ccob && (
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Link
-                            to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/edit`}
-                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                          >
-                            Editar
-                          </Link>
-                          <Link
-                            to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/tarifas`}
-                            className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-                          >
-                            Tarifas
-                          </Link>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {filtered.length} cobertura{filtered.length === 1 ? '' : 's'}
-          </p>
-        </div>
+            {!loading && !error && (
+        <TablaDatos
+          filas={rows}
+          claveFila={(r, i) => `${String(r.ccobertura ?? '')}-${String(r.iestado ?? '')}-${String(r.u_version ?? '')}-${i}`}
+          placeholderBusqueda="Buscar cobertura…"
+          contar={(n) => `${n} cobertura${n === 1 ? '' : 's'}`}
+          textoBusqueda={(r) => JSON.stringify(r)}
+          vacio={
+            <VacioConGuia
+              icono={<Shield className="h-8 w-8" />}
+              titulo={`El ramo ${cramo} aún no tiene coberturas`}
+              texto="Crea la primera cobertura con su tarifa (suma asegurada y tasa o prima); después cualquier plan del ramo podrá usarla."
+              accion={
+                <Link to={`/sis2000/ramo/${cramo}/coberturas/new`}>
+                  <Button type="button" size="sm">
+                    <Plus className="h-3.5 w-3.5" />
+                    Nueva cobertura
+                  </Button>
+                </Link>
+              }
+            />
+          }
+          columnas={[
+            { id: 'ccobertura', titulo: 'Código', valor: (r) => String(r.ccobertura ?? ''), celda: (r) => <span className="font-mono">{String(r.ccobertura ?? '') || '—'}</span> },
+            { id: 'descripcion', titulo: 'Descripción', valor: (r) => formatNestRowValue(r.xdescripcion_l ?? r.xcobertura) },
+            { id: 'iestado', titulo: 'Estado', valor: (r) => String(r.iestado ?? ''), celda: (r) => <ChipEstado valor={r.iestado} /> },
+            {
+              id: 'acciones',
+              titulo: 'Acciones',
+              alinear: 'derecha',
+              celda: (r) => {
+                const ccob = String(r.ccobertura ?? '');
+                return ccob ? (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Link to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/edit`} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
+                      Editar
+                    </Link>
+                    <Link to={`/sis2000/ramo/${cramo}/coberturas/${encodeURIComponent(ccob)}/tarifas`} className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline">
+                      Tarifas
+                    </Link>
+                  </div>
+                ) : null;
+              },
+            },
+          ]}
+        />
       )}
     </AppShell>
   );

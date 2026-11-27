@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Layers, Plus, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNestRowValue, formatTarifaDescripcion, type Sis2000NestRow } from '@/lib/sis2000-nest-api';
 import { AppShell } from '@/components/layout/AppShell';
+import { TablaDatos, VacioConGuia } from '@/components/ui/tabla-datos';
+import { ChipEstado } from '@/components/ui/chip-estado';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
@@ -78,56 +80,53 @@ export function Sis2000TarifasPage() {
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border border-border/60">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-border/50 bg-muted/30 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">ctarifa</th>
-                <th className="px-3 py-2">xtarifam</th>
-                <th className="px-3 py-2">Moneda</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tarifas.map((t, i) => {
+            {!loading && !error && (
+        <TablaDatos
+          filas={tarifas}
+          claveFila={(t, i) => String(t.ctarifa ?? '') || String(i)}
+          placeholderBusqueda="Buscar tarifa…"
+          contar={(n) => `${n} tarifa${n === 1 ? '' : 's'}`}
+          textoBusqueda={(t) => JSON.stringify(t)}
+          vacio={
+            <VacioConGuia
+              icono={<Layers className="h-8 w-8" />}
+              titulo="Esta cobertura aún no tiene tarifas"
+              texto="Sin una tarifa vigente la cobertura no se puede usar en un plan. Crea la primera con su suma asegurada y su tasa o prima."
+              accion={
+                <Link to={`${basePath}/tarifas/new`}>
+                  <Button type="button" size="sm">
+                    <Plus className="h-3.5 w-3.5" />
+                    Nueva tarifa
+                  </Button>
+                </Link>
+              }
+            />
+          }
+          columnas={[
+            { id: 'ctarifa', titulo: 'Código', valor: (t) => String(t.ctarifa ?? ''), celda: (t) => <span className="font-mono">{formatNestRowValue(t.ctarifa)}</span> },
+            { id: 'xtarifam', titulo: 'Nombre', valor: (t) => formatTarifaDescripcion(t) },
+            { id: 'cmoneda', titulo: 'Moneda', valor: (t) => String(t.cmoneda ?? ''), celda: (t) => formatNestRowValue(t.cmoneda) },
+            { id: 'iestado', titulo: 'Estado', valor: (t) => String(t.iestado ?? ''), celda: (t) => <ChipEstado valor={t.iestado} /> },
+            {
+              id: 'acciones',
+              titulo: 'Acciones',
+              alinear: 'derecha',
+              celda: (t) => {
                 const ct = String(t.ctarifa ?? '');
-                return (
-                  <tr key={ct || i} className="border-b border-border/30">
-                    <td className="px-3 py-2 font-mono text-xs">{formatNestRowValue(t.ctarifa)}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {formatTarifaDescripcion(t)}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{formatNestRowValue(t.cmoneda)}</td>
-                    <td className="px-3 py-2 text-xs">{formatNestRowValue(t.iestado)}</td>
-                    <td className="px-3 py-2 text-right">
-                      {ct && (
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Link
-                            to={`${basePath}/tarifas/${encodeURIComponent(ct)}/edit`}
-                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                          >
-                            Editar
-                          </Link>
-                          <Link
-                            to={`${basePath}/tarifas/${encodeURIComponent(ct)}/detalles`}
-                            className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-                          >
-                            Detalles
-                          </Link>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {tarifas.length} tarifa{tarifas.length === 1 ? '' : 's'}
-          </p>
-        </div>
+                return ct ? (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Link to={`${basePath}/tarifas/${encodeURIComponent(ct)}/edit`} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
+                      Editar
+                    </Link>
+                    <Link to={`${basePath}/tarifas/${encodeURIComponent(ct)}/detalles`} className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline">
+                      Detalles
+                    </Link>
+                  </div>
+                ) : null;
+              },
+            },
+          ]}
+        />
       )}
     </AppShell>
   );
