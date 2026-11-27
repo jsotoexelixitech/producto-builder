@@ -4,7 +4,17 @@ import { branchLabel } from '@/lib/flow-step-features';
 import { calculatePlanPremiumTotal } from '@/lib/product-plans';
 import { ClipboardList } from 'lucide-react';
 
+/** Dato que falta o está mal: lleva al paso y al campo. */
+export interface DatoFaltante {
+  label: string;
+  mensaje: string;
+  step: number;
+  id?: string;
+}
+
 interface ActivationSummaryProps {
+  faltan?: DatoFaltante[];
+  onIrADato?: (d: DatoFaltante) => void;
   product: Product | null;
   commercialName: string;
   branch: Product['branch'];
@@ -30,6 +40,8 @@ export function ActivationSummary({
   requiredDocuments,
   emissionStepCount,
   commercialPremium,
+  faltan = [],
+  onIrADato,
 }: ActivationSummaryProps) {
   const activePlans = plans.filter((p) => p.isActive !== false);
   const name = product?.commercialName ?? commercialName;
@@ -41,6 +53,30 @@ export function ActivationSummary({
       title="Resumen del producto"
       description="Revisa cómo quedará configurado antes de activar o enviar a revisión."
     >
+      {faltan.length > 0 ? (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" role="status">
+          <p className="font-semibold">
+            {faltan.length === 1 ? 'Falta 1 dato' : 'Faltan ' + faltan.length + ' datos'} antes de activar
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {faltan.map((d, i) => (
+              <li key={d.label + '-' + i}>
+                <button
+                  type="button"
+                  className="text-left underline decoration-rose-300 underline-offset-2 hover:decoration-rose-700"
+                  onClick={() => onIrADato?.(d)}
+                >
+                  <strong>{d.label}:</strong> {d.mensaje}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800" role="status">
+          No falta ningún dato
+        </p>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3 rounded-xl border border-border/60 bg-muted/15 p-4">
           <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">

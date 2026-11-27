@@ -38,6 +38,7 @@ import { BandaPagina } from '@/components/ayudas/BandaPagina';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InfoTip } from '@/components/ui/info-tip';
+import { validarJsonObjeto } from '@/lib/validar-json';
 import { useAvisoSinGuardar, useCambiosSinGuardar } from '@/components/ui/aviso-sin-guardar';
 import {
   Select,
@@ -78,6 +79,7 @@ export function Sis2000PlanFormPage() {
   const [loadingFrec, setLoadingFrec] = useState(false);
   const [loadingInit, setLoadingInit] = useState(!isEdit);
   const [saving, setSaving] = useState(false);
+  const [errorCampoJson, setErrorCampoJson] = useState<string | null>(null);
   const cambios = useCambiosSinGuardar(jsonText, !loadingInit);
   const { dialogo: dialogoSalida, permitirSalida } = useAvisoSinGuardar(cambios.sucio);
   const [error, setError] = useState<string | null>(null);
@@ -238,6 +240,19 @@ export function Sis2000PlanFormPage() {
       setError(e instanceof Error ? e.message : 'No se pudieron cargar frecuencias');
     } finally {
       setLoadingFrec(false);
+    }
+  }
+
+  /** Al salir del JSON: sintaxis y las mismas reglas del plan que al guardar. */
+  function validarJsonAlSalir() {
+    const sintaxis = validarJsonObjeto(jsonText);
+    if (sintaxis) return setErrorCampoJson(sintaxis);
+    try {
+      const payload = normalizePlanPayloadForApi(JSON.parse(jsonText) as Record<string, unknown>, isEdit ? 'update' : 'create');
+      const errores = validatePlanPayload(payload);
+      setErrorCampoJson(errores.length ? errores.join(' ') : null);
+    } catch (e) {
+      setErrorCampoJson(e instanceof Error ? e.message : 'No se pudo revisar el plan.');
     }
   }
 
@@ -481,9 +496,19 @@ export function Sis2000PlanFormPage() {
         <textarea
           className="mb-4 min-h-[420px] w-full rounded-lg border border-border bg-background p-3 font-mono text-xs"
           value={jsonText}
-          onChange={(e) => setJsonText(e.target.value)}
+          onChange={(e) => {
+            setJsonText(e.target.value);
+            if (errorCampoJson) setErrorCampoJson(null);
+          }}
+          onBlur={validarJsonAlSalir}
+          aria-invalid={errorCampoJson ? true : undefined}
           spellCheck={false}
         />
+      )}
+      {errorCampoJson && (
+        <p role="alert" className="-mt-3 mb-4 text-xs font-semibold text-rose-600">
+          {errorCampoJson}
+        </p>
       )}
 
       <div className="mb-3 max-w-xl">

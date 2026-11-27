@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, FileJson, Save } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { validarJsonObjeto } from '@/lib/validar-json';
 import { BandaPagina } from '@/components/ayudas/BandaPagina';
 import { useAvisoSinGuardar, useCambiosSinGuardar } from '@/components/ui/aviso-sin-guardar';
 
@@ -56,6 +57,8 @@ export function Sis2000NestJsonForm({
   const cambios = useCambiosSinGuardar(jsonText, !loading);
   const { dialogo, permitirSalida } = useAvisoSinGuardar(cambios.sucio);
   const { marcarGuardado } = cambios;
+  // Validación al salir del campo, con la misma comprobación que al guardar.
+  const [errorJson, setErrorJson] = useState<string | null>(null);
   useEffect(() => {
     if (success) marcarGuardado();
   }, [success, marcarGuardado]);
@@ -108,9 +111,19 @@ export function Sis2000NestJsonForm({
         <textarea
           className="mb-4 min-h-[420px] w-full rounded-lg border border-border bg-background p-3 font-mono text-xs"
           value={jsonText}
-          onChange={(e) => onJsonChange(e.target.value)}
+          onChange={(e) => {
+            onJsonChange(e.target.value);
+            if (errorJson) setErrorJson(null);
+          }}
+          onBlur={() => setErrorJson(validarJsonObjeto(jsonText))}
+          aria-invalid={errorJson ? true : undefined}
           spellCheck={false}
         />
+      )}
+      {errorJson && (
+        <p role="alert" className="-mt-3 mb-4 text-xs font-semibold text-rose-600">
+          {errorJson}
+        </p>
       )}
 
       {onMotivoChange && (

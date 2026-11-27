@@ -38,10 +38,12 @@ import { EmissionConfigStep } from '@/components/wizard/EmissionConfigStep';
 import { PlansStep } from '@/components/wizard/PlansStep';
 import { CoveragesStep } from '@/components/wizard/CoveragesStep';
 import { CoreIntegrationPanel } from '@/components/wizard/CoreIntegrationPanel';
-import { ActivationSummary } from '@/components/wizard/ActivationSummary';
+import { ActivationSummary, type DatoFaltante } from '@/components/wizard/ActivationSummary';
 import { WizardStickyAlert } from '@/components/wizard/WizardStickyAlert';
 import { ExclusionHtmlPreview } from '@/components/legal/ExclusionPreview';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAvisoSinGuardar } from '@/components/ui/aviso-sin-guardar';
+import { irACampo } from '@/components/ui/errores';
 import { Alert } from '@/components/ui/alert';
 import {
   BRANCH_OPTIONS,
@@ -210,6 +212,17 @@ export function ProductWizardPage() {
     ] as RatingVariable[],
   });
 
+  // Aviso al salir con cambios sin guardar: formulario del paso 1 (react-hook-form) + datos actuariales.
+  // Coberturas, planes y exclusiones se guardan con sus propios botones y se recargan solos, no se vigilan.
+  const [actuarialBase, setActuarialBase] = useState<string | null>(null);
+  useEffect(() => {
+    setActuarialBase(JSON.stringify(actuarial));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product]);
+  const sinGuardar =
+    coreForm.formState.isDirty || (actuarialBase !== null && JSON.stringify(actuarial) !== actuarialBase);
+  const { dialogo: dialogoSalida, permitirSalida } = useAvisoSinGuardar(sinGuardar);
+
   const loadProduct = useCallback(async (pid: string) => {
     const p = await api.getProduct(pid);
     setProduct(p);
@@ -302,6 +315,10 @@ export function ProductWizardPage() {
   })();
 
   async function saveStep() {
+    return permitirSalida(saveStepInterno);
+  }
+
+  async function saveStepInterno() {
     setSaving(true);
     setError(null);
     try {
@@ -511,6 +528,49 @@ export function ProductWizardPage() {
     { icon: Scale, title: 'Activación del producto', desc: 'Verificación final y publicación en catálogo' },
   ][step];
 
+  /** Valida un solo campo al salir de él, con las mismas reglas que al guardar el paso. */
+  function validarCampoCore(campo: keyof CoreForm) {
+    const v = validateCoreForm(prepareCoreFormForSubmit(coreForm.getValues()));
+    setFieldErrors((prev) => ({ ...prev, [campo]: v.fieldErrors[campo] }));
+  }
+  function validarCampoActuarial(campo: keyof typeof actuarialFieldErrors) {
+    const v = validateActuarialForm(prepareActuarialForSubmit(actuarial));
+    setActuarialFieldErrors((prev) => ({ ...prev, [campo]: v.fieldErrors[campo] }));
+  }
+
+  /** Datos que faltan o están mal (mismas reglas que al guardar), para el contador del Resumen. */
+  const faltan: DatoFaltante[] = (() => {
+    const out: DatoFaltante[] = [];
+    const core = validateCoreForm(prepareCoreFormForSubmit(coreForm.getValues())).fieldErrors;
+    if (core.commercialName) out.push({ label: 'Nombre comercial', mensaje: core.commercialName, step: 0, id: 'pw-commercialName' });
+    if (core.internalCode) out.push({ label: 'Código interno', mensaje: core.internalCode, step: 0, id: 'pw-internalCode' });
+    if (!coverages.some((c) => c.name?.trim())) {
+      out.push({ label: 'Coberturas', mensaje: 'agrega al menos una cobertura con nombre.', step: 1 });
+    }
+    const act = validateActuarialForm(prepareActuarialForSubmit(actuarial)).fieldErrors;
+    const etiquetas: Record<string, string> = {
+      purePremium: 'Prima pura',
+      administrativeExpenses: 'Gastos administrativos',
+      commissions: 'Comisiones',
+      profitMargin: 'Utilidad',
+      actuaryName: 'Nombre del actuario',
+      actuaryCedula: 'Cédula del actuario',
+      actuarySudeasegNumber: 'Registro SUDEASEG',
+      technicalNoteUrl: 'URL nota técnica',
+    };
+    for (const [k, m] of Object.entries(act)) {
+      if (m) out.push({ label: etiquetas[k] ?? k, mensaje: m, step: 3, id: 'pw-' + k });
+    }
+    return out;
+  })();
+  function irADato(d: DatoFaltante) {
+    setStep(d.step);
+    if (d.id) {
+      const id = d.id;
+      window.setTimeout(() => irACampo(id), 400);
+    }
+  }
+
   const actuarialStickyMessage =
     step === 3
       ? [
@@ -577,6 +637,7 @@ export function ProductWizardPage() {
         </div>
       }
     >
+      {dialogoSalida}
       <div className="animate-slide-up">
         <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="lg:sticky lg:top-24 lg:self-start">
@@ -642,9 +703,11 @@ export function ProductWizardPage() {
                       span={2}
                       hint="Mínimo 3 caracteres, máximo 200. Visible para clientes y canales."
                       tooltip="Nombre del producto para clientes y canales. Al publicarlo en Sis2000 pasa a ser el nombre largo (xdescripcion_l), que admite 120 caracteres: lo que pase de ahí se corta."
+                      htmlFor="pw-commercialName"
                       error={fieldErrors.commercialName}
                     >
                       <Input
+                        id="pw-commercialName"
                         maxLength={FIELD_LIMITS.product.commercialName}
                         {...coreForm.register('commercialName', {
                           onChange: () => {
@@ -652,6 +715,7 @@ export function ProductWizardPage() {
                               setFieldErrors((e) => ({ ...e, commercialName: undefined }));
                             }
                           },
+                          onBlur: () => validarCampoCore('commercialName'),
                         })}
                         placeholder="Ej. Combinado Residencial I"
                       />
@@ -660,9 +724,12 @@ export function ProductWizardPage() {
                       label="Código interno"
                       hint={productId ? 'No editable tras crear el producto.' : 'Mayúsculas, números y guiones. Máximo 50 caracteres.'}
                       tooltip="Código único del producto en el configurador. Al publicarlo en Sis2000, sus primeros 5 caracteres (sin guiones) forman la abreviatura (xabreviatura)."
+                      htmlFor="pw-internalCode"
                       error={fieldErrors.internalCode}
                     >
                       <Input
+                        id="pw-internalCode"
+                        onBlur={() => validarCampoCore('internalCode')}
                         maxLength={FIELD_LIMITS.product.internalCode}
                         value={coreForm.watch('internalCode')}
                         onChange={(e) => {
@@ -992,9 +1059,12 @@ export function ProductWizardPage() {
                       span={2}
                       hint="Mínimo 3, máximo 150 caracteres."
                       tooltip="Actuario que firma la nota técnica del producto ante SUDEASEG."
+                      htmlFor="pw-actuaryName"
                       error={actuarialFieldErrors.actuaryName}
                     >
                       <Input
+                        id="pw-actuaryName"
+                        onBlur={() => validarCampoActuarial('actuaryName')}
                         maxLength={FIELD_LIMITS.actuarial.actuaryName}
                         value={actuarial.actuaryName}
                         onChange={(e) => {
@@ -1009,9 +1079,11 @@ export function ProductWizardPage() {
                       label="Cédula del actuario"
                       hint="Formato V-12345678 (V, E, J, G o P)."
                       tooltip="Documento de identidad del actuario responsable."
+                      htmlFor="pw-actuaryCedula"
                       error={actuarialFieldErrors.actuaryCedula}
                     >
                       <Input
+                        id="pw-actuaryCedula"
                         maxLength={FIELD_LIMITS.actuarial.actuaryCedula}
                         value={actuarial.actuaryCedula}
                         placeholder="V-12345678"
@@ -1024,21 +1096,25 @@ export function ProductWizardPage() {
                             setActuarialFieldErrors((prev) => ({ ...prev, actuaryCedula: undefined }));
                           }
                         }}
-                        onBlur={() =>
+                        onBlur={() => {
                           setActuarial((prev) => ({
                             ...prev,
                             actuaryCedula: normalizeCedula(prev.actuaryCedula),
-                          }))
-                        }
+                          }));
+                          validarCampoActuarial('actuaryCedula');
+                        }}
                       />
                     </FormField>
                     <FormField
                       label="Registro SUDEASEG del actuario"
                       hint="Mayúsculas, números y guiones. Máximo 50 (ej. ACT-2024-001)."
                       tooltip="Número de inscripción del actuario en el registro de SUDEASEG."
+                      htmlFor="pw-actuarySudeasegNumber"
                       error={actuarialFieldErrors.actuarySudeasegNumber}
                     >
                       <Input
+                        id="pw-actuarySudeasegNumber"
+                        onBlur={() => validarCampoActuarial('actuarySudeasegNumber')}
                         maxLength={FIELD_LIMITS.actuarial.actuarySudeasegNumber}
                         value={actuarial.actuarySudeasegNumber}
                         onChange={(e) => {
@@ -1388,6 +1464,8 @@ export function ProductWizardPage() {
                   requiredDocuments={requiredDocs}
                   emissionStepCount={emissionActiveCount}
                   commercialPremium={commercialPremium}
+                  faltan={faltan}
+                  onIrADato={irADato}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-border/60 bg-muted/20 p-5">
