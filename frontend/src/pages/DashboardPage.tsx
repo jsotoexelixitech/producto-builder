@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
 import type { Product, ProductBranch } from '@/types/product';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
-import { Badge, statusBadgeVariant } from '@/components/ui/badge';
+import { ChipEstado } from '@/components/ui/chip-estado';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { BRANCH_META, DEFAULT_DOCUMENTS_BY_BRANCH, STATUS_LABELS } from '@/lib/constants';
@@ -315,11 +315,9 @@ export function DashboardPage() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                       {p.catalogVisible === false && (
-                        <Badge variant="rejected">Desactivado</Badge>
+                        <ChipEstado estado="inactivo" texto="Desactivado" />
                       )}
-                      <Badge variant={statusBadgeVariant(p.status)}>
-                        {STATUS_LABELS[p.status] ?? p.status}
-                      </Badge>
+                      <ChipEstado valor={p.status} texto={STATUS_LABELS[p.status] ?? p.status} />
                     </div>
                   </div>
 

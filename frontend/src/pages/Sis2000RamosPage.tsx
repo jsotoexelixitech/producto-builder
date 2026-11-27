@@ -13,6 +13,8 @@ import {
 } from '@/lib/configurador-fase2';
 import { entenderError, type ErrorEntendible } from '@/lib/errores';
 import { AppShell } from '@/components/layout/AppShell';
+import { ChipEstado } from '@/components/ui/chip-estado';
+import type { EstadoChip } from '@/lib/estado-chip';
 import { AlertaError } from '@/components/ui/errores';
 import { Button } from '@/components/ui/button';
 import { InfoTip } from '@/components/ui/info-tip';
@@ -28,10 +30,10 @@ const FILTROS = [
   { id: 'fianzas', titulo: 'Fianzas' },
 ];
 
-const ESTADO: Record<string, { texto: string; clase: string }> = {
-  activo: { texto: 'Activo', clase: 'bg-emerald-50 text-emerald-800' },
-  'sin-planes': { texto: 'Sin planes', clase: 'bg-amber-50 text-amber-900' },
-  inactivo: { texto: 'Inactivo', clase: 'bg-slate-100 text-slate-600' },
+const ESTADO: Record<string, { texto: string; estado: EstadoChip }> = {
+  activo: { texto: 'Activo', estado: 'activo' },
+  'sin-planes': { texto: 'Sin planes', estado: 'borrador' },
+  inactivo: { texto: 'Inactivo', estado: 'inactivo' },
 };
 
 /**
@@ -147,7 +149,7 @@ export function Sis2000RamosPage() {
                     </td>
                     <td className="px-3 py-2">{NOMBRE_FAMILIA[r.familia]}</td>
                     <td className="px-3 py-2">
-                      {estado ? <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', estado.clase)}>{estado.texto}</span> : '—'}
+                      {estado ? <ChipEstado estado={estado.estado} texto={estado.texto} /> : '—'}
                     </td>
                     <td className="px-3 py-2">{r.emisionNexus ? NOMBRE_EMISION[r.emisionNexus] ?? r.emisionNexus : <span className="text-slate-500">Ninguna</span>}</td>
                     <td className="px-3 py-2 text-right">{num(r.planes)}</td>
