@@ -46,6 +46,13 @@ function Anillo({ porcentaje }: { porcentaje: number }) {
   return (
     <div className="cb-anillo" role="progressbar" aria-valuenow={porcentaje} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del plan">
       <svg viewBox="0 0 80 80" aria-hidden>
+        <defs>
+          <linearGradient id="cb-anillo-neon" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a98bff" />
+            <stop offset="55%" stopColor="#6fb1ff" />
+            <stop offset="100%" stopColor="#ff8f91" />
+          </linearGradient>
+        </defs>
         <circle cx="40" cy="40" r={r} className="cb-anillo-fondo" />
         <circle cx="40" cy="40" r={r} className="cb-anillo-valor" strokeDasharray={c} strokeDashoffset={c - (c * porcentaje) / 100} />
       </svg>
@@ -113,7 +120,7 @@ export function PanelAyudas({
               <div><dt>Producto</dt><dd>{datos.producto || '—'}</dd></div>
               <div><dt>Tipo</dt><dd>{datos.tipo}</dd></div>
               <div><dt>Coberturas</dt><dd>{datos.coberturas}</dd></div>
-              {datos.prima && <div><dt>Prima de referencia</dt><dd>{datos.prima}</dd></div>}
+              {datos.prima && <div><dt>Prima de referencia</dt><dd className="cb-dato-neon">{datos.prima}</dd></div>}
               {datos.asegurados && <div><dt>Asegurados</dt><dd>{datos.asegurados}</dd></div>}
               <div><dt>Plan</dt><dd>{datos.plan || '—'}</dd></div>
             </dl>

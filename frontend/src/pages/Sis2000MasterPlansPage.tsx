@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 export function Sis2000MasterPlansPage() {
   const [plans, setPlans] = useState<Sis2000NestRow[]>([]);
@@ -51,7 +52,7 @@ export function Sis2000MasterPlansPage() {
 
   return (
     <AppShell title="Planes maestro Sis2000">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <BandaPagina className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link
             to="/sis2000"
@@ -91,7 +92,7 @@ export function Sis2000MasterPlansPage() {
             </Button>
           </Link>
         </div>
-      </div>
+      </BandaPagina>
 
       <div className="mb-4 flex flex-wrap gap-3">
         <Input

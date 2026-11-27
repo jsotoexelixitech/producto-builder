@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { InfoTip } from '@/components/ui/info-tip';
 import { SeccionPlan } from '@/components/configurador/SeccionPlan';
 import { cn } from '@/lib/utils';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 type Fila = Record<string, unknown>;
 const txt = (v: unknown) => (v == null ? '' : String(v).trim());
@@ -118,7 +119,7 @@ export function Sis2000PlanFichaPage() {
 
   return (
     <AppShell title={`Plan ${cplan}`}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <BandaPagina className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link to="/sis2000/plans" className="mb-2 inline-block text-xs text-muted-foreground hover:text-foreground">
             ← Planes de Sis2000
@@ -167,7 +168,7 @@ export function Sis2000PlanFichaPage() {
             )
           )}
         </div>
-      </div>
+      </BandaPagina>
 
       <AlertaError error={errorPlan} onReintentar={cargarPlan} className="mb-3" />
       {errorRamo && (

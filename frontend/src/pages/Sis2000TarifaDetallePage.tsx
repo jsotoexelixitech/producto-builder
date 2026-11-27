@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { deducibleDeFila, textoDeducible } from '@/lib/configurador';
 import { DetalleTarifaEditor } from '@/components/configurador/DetalleTarifaEditor';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 export function Sis2000TarifaDetallePage() {
   const { cramo: cramoParam, ccobertura = '', ctarifa = '' } = useParams<{
@@ -54,7 +55,7 @@ export function Sis2000TarifaDetallePage() {
         Tarifas {ccobertura}
       </Link>
 
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <BandaPagina className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold">Historial · tarifa {ctarifa}</h1>
           <p className="text-xs text-muted-foreground">
@@ -74,7 +75,7 @@ export function Sis2000TarifaDetallePage() {
             </Button>
           </Link>
         </div>
-      </div>
+      </BandaPagina>
 
       {error && <Alert variant="error">{error}</Alert>}
       {ok && (

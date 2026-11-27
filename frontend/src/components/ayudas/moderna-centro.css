@@ -1,0 +1,187 @@
+/* =====================================================================================================
+   Segunda pasada Moderna: efecto «centro de mando» del tablero Perfil Comercial (bandas medianoche con auroras,
+   vidrio oscuro, neón, halos). Todo cuelga de .ui-moderna: la vista Clásica no cambia. Se carga al final.
+   ===================================================================================================== */
+.ui-moderna {
+  --lm-vidrio: linear-gradient(160deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+  --lm-neon: #a98bff;
+  --lm-ambar: #ffc46b;
+  --lm-verde-claro: #5fe0c6;
+}
+
+/* ---------- 6. Fondo general: niebla con dos auroras fijas en las esquinas (sin costo de scroll) ---------- */
+.ui-moderna.app-shell { position: relative; background: #f4f5f8; }
+.ui-moderna.app-shell::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(40rem 28rem at 100% 0%, rgba(102, 58, 243, 0.10), transparent 70%),
+    radial-gradient(38rem 26rem at 0% 100%, rgba(46, 109, 191, 0.09), transparent 70%);
+}
+.ui-moderna .app-shell-main, .ui-moderna .app-sidebar { position: relative; z-index: 1; }
+.ui-moderna .app-shell-main { background: transparent; }
+
+/* ---------- 1. Banda de encabezado (BandaMando) ---------- */
+.ui-moderna .lm-banda {
+  position: relative; overflow: hidden; isolation: isolate;
+  padding: 1.25rem 1.5rem; border-radius: 1.25rem; color: #fff;
+  background:
+    radial-gradient(60% 120% at 0% 0%, rgba(102, 58, 243, 0.55), transparent 60%),
+    radial-gradient(50% 120% at 100% 20%, rgba(46, 109, 191, 0.5), transparent 65%),
+    radial-gradient(40% 100% at 55% 130%, rgba(232, 79, 81, 0.32), transparent 70%),
+    linear-gradient(120deg, #05060f 0%, #0f1a5a 100%);
+  box-shadow: 0 18px 40px -22px rgba(15, 26, 90, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: lm-aparecer 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.ui-moderna .lm-banda::before { /* retícula sutil */
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0.5;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(70% 100% at 50% 0%, #000, transparent 85%);
+  mask-image: radial-gradient(70% 100% at 50% 0%, #000, transparent 85%);
+}
+.ui-moderna .lm-banda::after { /* línea de escaneo que va y viene */
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 22%; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(169, 139, 255, 0.28), rgba(111, 177, 255, 0.18), transparent);
+  animation: lm-escaneo 6.5s ease-in-out infinite alternate;
+}
+@keyframes lm-escaneo { from { transform: translateX(-30%); } to { transform: translateX(450%); } }
+.ui-moderna .lm-banda h1 { color: #fff; text-shadow: 0 0 24px rgba(169, 139, 255, 0.45); }
+.ui-moderna .lm-banda h1 svg, .ui-moderna .lm-banda h1 .text-primary { color: var(--lm-neon); filter: drop-shadow(0 0 8px rgba(169, 139, 255, 0.8)); }
+.ui-moderna .lm-banda h1 .text-muted-foreground { color: rgba(255, 255, 255, 0.7); }
+.ui-moderna .lm-banda p, .ui-moderna .lm-banda .text-muted-foreground, .ui-moderna .lm-banda .text-slate-500,
+.ui-moderna .lm-banda .cb-plegable-corto { color: rgba(255, 255, 255, 0.72); }
+.ui-moderna .lm-banda a, .ui-moderna .lm-banda .cb-plegable-corto button { color: #cdbcff; }
+.ui-moderna .lm-banda a:hover { color: #fff; }
+.ui-moderna .lm-banda [class*='text-slate-'], .ui-moderna .lm-banda .text-sky-800 { color: rgba(255, 255, 255, 0.72); }
+/* botones secundarios en vidrio claro (el primario conserva su degradado) */
+.ui-moderna .lm-banda button:not([class*='bg-gradient']):not([class*='bg-primary']) {
+  background: rgba(255, 255, 255, 0.10); color: #fff; border: 1px solid rgba(255, 255, 255, 0.22); box-shadow: none;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.ui-moderna .lm-banda button:not([class*='bg-gradient']):not([class*='bg-primary']):hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2); color: #fff; border-color: rgba(255, 255, 255, 0.4);
+}
+.ui-moderna .lm-banda .lm-orbita { border-color: rgba(255, 255, 255, 0.25); border-top-color: #fff; }
+.ui-moderna .lm-banda .lm-esqueleto { background-color: rgba(255, 255, 255, 0.12); background-image: linear-gradient(100deg, transparent 42%, rgba(255, 255, 255, 0.28) 50%, transparent 58%); }
+.ui-moderna .lm-banda .lm-progreso { background: rgba(255, 255, 255, 0.15); }
+
+/* ---------- 2. Panel Resumen / Checklist: vidrio oscuro ---------- */
+.ui-moderna .cb-panel-caja {
+  position: relative; overflow: hidden; color: #e8ebfa; border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(80% 50% at 0% 0%, rgba(102, 58, 243, 0.42), transparent 65%),
+    radial-gradient(70% 50% at 100% 100%, rgba(46, 109, 191, 0.38), transparent 70%),
+    linear-gradient(170deg, #05060f 0%, #0f1a5a 100%);
+  box-shadow: 0 22px 46px -24px rgba(15, 26, 90, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.ui-moderna .cb-panel-caja h3 { color: #fff; }
+.ui-moderna .cb-panel-caja [class*='text-slate-'], .ui-moderna .cb-panel-caja .text-muted-foreground { color: rgba(255, 255, 255, 0.68); }
+.ui-moderna .cb-panel-caja .text-slate-900, .ui-moderna .cb-panel-caja .text-slate-800 { color: #fff; }
+.ui-moderna .cb-panel-caja .text-emerald-700, .ui-moderna .cb-panel-caja .text-emerald-600 { color: var(--lm-verde-claro); }
+.ui-moderna .cb-panel-caja .text-amber-700, .ui-moderna .cb-panel-caja .text-amber-600 { color: var(--lm-ambar); }
+.ui-moderna .cb-panel-caja .cb-tabs { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.14); }
+.ui-moderna .cb-panel-caja .cb-tab { color: rgba(255, 255, 255, 0.72); }
+.ui-moderna .cb-panel-caja .cb-tab[data-state='active'] { background: rgba(255, 255, 255, 0.16); color: #fff; box-shadow: 0 0 18px -4px rgba(169, 139, 255, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.ui-moderna .cb-panel-caja .cb-tab[data-state='active']::after { background: linear-gradient(90deg, #a98bff, #6fb1ff, #ff8f91); }
+.ui-moderna .cb-anillo-fondo { stroke: rgba(255, 255, 255, 0.14); }
+.ui-moderna .cb-anillo-valor { stroke: url(#cb-anillo-neon); filter: drop-shadow(0 0 5px rgba(169, 139, 255, 0.9)); }
+.ui-moderna .cb-anillo span { color: #fff; font-family: var(--m-display); text-shadow: 0 0 14px rgba(169, 139, 255, 0.8); }
+.ui-moderna .cb-resumen-estado { color: #fff; }
+.ui-moderna .cb-datos > div { border-bottom-color: rgba(255, 255, 255, 0.1); }
+.ui-moderna .cb-datos dt { color: rgba(255, 255, 255, 0.62); }
+.ui-moderna .cb-datos dd { color: #fff; font-variant-numeric: tabular-nums; }
+.ui-moderna .cb-datos dd.cb-dato-neon { color: var(--lm-neon); font-family: var(--m-display); text-shadow: 0 0 14px rgba(169, 139, 255, 0.7); }
+.ui-moderna .cb-proximos li { background: var(--lm-vidrio); border: 1px solid rgba(255, 196, 107, 0.35); box-shadow: inset 3px 0 0 var(--lm-ambar); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.ui-moderna .cb-proximos li strong { color: #fff; }
+.ui-moderna .cb-proximos li span span { color: rgba(255, 255, 255, 0.68); }
+.ui-moderna .cb-proximos li button { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.25); color: #fff; }
+.ui-moderna .cb-proximos li button:hover { background: rgba(255, 255, 255, 0.2); }
+.ui-moderna .cb-antes, .ui-moderna .cb-panel-acciones { border-top-color: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.78); }
+.ui-moderna .cb-lista-check button { color: #fff; }
+.ui-moderna .cb-lista-check button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.ui-moderna .cb-lista-check button.is-actual { background: rgba(169, 139, 255, 0.2); box-shadow: inset 3px 0 0 var(--lm-neon); }
+.ui-moderna .cb-panel-caja button.border-slate-200, .ui-moderna .cb-panel-acciones button {
+  background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.24);
+}
+.ui-moderna .cb-panel-caja button.border-slate-200:hover:not(:disabled), .ui-moderna .cb-panel-acciones button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); color: #fff; border-color: rgba(255, 255, 255, 0.4); }
+.ui-moderna .cb-panel-caja .cb-campo-sim, .ui-moderna .cb-panel-caja input { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.25); }
+.ui-moderna .cb-panel-caja .lm-esqueleto { background-color: rgba(255, 255, 255, 0.12); background-image: linear-gradient(100deg, transparent 42%, rgba(255, 255, 255, 0.28) 50%, transparent 58%); }
+.ui-moderna .cb-panel-caja .lm-orbita { border-color: rgba(255, 255, 255, 0.25); border-top-color: #fff; }
+
+/* ---------- 3. Rail de pasos ---------- */
+.ui-moderna .cb-rail-barra { height: 0.5rem; background: rgba(15, 26, 90, 0.1); }
+.ui-moderna .cb-rail-barra span { position: relative; background: var(--lm-marca); box-shadow: 0 0 14px rgba(102, 58, 243, 0.7); }
+.ui-moderna .cb-rail-barra span::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%); background-size: 200% 100%;
+  animation: lm-shimmer 2.4s linear infinite;
+}
+@keyframes lm-shimmer { from { background-position: 200% 0; } to { background-position: -100% 0; } }
+.ui-moderna .cb-rail li[data-estado='actual'] .cb-rail-marca { animation: lm-halo 2.4s ease-in-out infinite; }
+@keyframes lm-halo {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(102, 58, 243, 0.16), 0 0 12px rgba(102, 58, 243, 0.6); }
+  50% { box-shadow: 0 0 0 7px rgba(102, 58, 243, 0.08), 0 0 22px rgba(46, 109, 191, 0.85); }
+}
+.ui-moderna .cb-rail li[data-estado='hecho'] .cb-rail-marca { box-shadow: 0 0 10px rgba(43, 179, 155, 0.55); }
+.ui-moderna .cb-rail li[data-estado='bloqueado'] button { opacity: 0.55; }
+
+/* ---------- 4. Tarjetas de selección (violeta / azul / esmeralda) ---------- */
+.ui-moderna [aria-label='Tipo de plan'] > button { --tono: 102, 58, 243; transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color var(--m-trans), box-shadow var(--m-trans), background-color var(--m-trans); }
+.ui-moderna [aria-label='Tipo de plan'] > button:nth-child(2) { --tono: 46, 109, 191; }
+.ui-moderna [aria-label='Tipo de plan'] > button:nth-child(3) { --tono: 43, 179, 155; }
+.ui-moderna [aria-label='Tipo de plan'] > button:hover { transform: translateY(-3px); border-color: rgb(var(--tono)); box-shadow: 0 16px 30px -18px rgba(var(--tono), 0.7); }
+.ui-moderna [aria-label='Tipo de plan'] > button[aria-checked='true'] {
+  border-color: rgb(var(--tono)); background: linear-gradient(160deg, rgba(var(--tono), 0.12), #fff 70%);
+  box-shadow: 0 0 0 1px rgb(var(--tono)), 0 0 0 5px rgba(var(--tono), 0.12), 0 18px 34px -16px rgba(var(--tono), 0.75);
+}
+.ui-moderna [aria-label='Tipo de plan'] .cb-tipo-icono { background: linear-gradient(135deg, rgba(var(--tono), 0.16), rgba(var(--tono), 0.05)); color: rgb(var(--tono)); }
+.ui-moderna [aria-label='Tipo de plan'] [aria-checked='true'] .cb-tipo-icono, .ui-moderna [aria-label='Tipo de plan'] > button[aria-checked='true'] .cb-tipo-icono { background: #fff; box-shadow: 0 0 22px rgba(var(--tono), 0.6); }
+.ui-moderna [aria-label='Tipo de plan'] .cb-tipo-check { background: rgb(var(--tono)); box-shadow: 0 0 10px rgba(var(--tono), 0.8); animation: lm-marca 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* ---------- 5. Tarjetas de contenido y cajas informativas ---------- */
+.ui-moderna section.rounded-2xl { position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 26, 90, 0.05), 0 14px 34px -20px rgba(15, 26, 90, 0.4); }
+.ui-moderna section.rounded-2xl::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--lm-marca); opacity: 0.9; pointer-events: none; z-index: 1; }
+.ui-moderna details.border-sky-200, .ui-moderna .alert-banner.border-sky-200, .ui-moderna div.rounded-2xl.border-indigo-100 {
+  border-color: rgba(102, 58, 243, 0.16); border-left: 4px solid #663af3; color: var(--lm-noche);
+  background: linear-gradient(90deg, rgba(102, 58, 243, 0.07), rgba(46, 109, 191, 0.05));
+}
+.ui-moderna .alert-banner.border-sky-200 { border-left-color: #2e6dbf; }
+.ui-moderna details.border-sky-200 .text-sky-600, .ui-moderna .alert-banner.border-sky-200 svg { color: var(--lm-violeta); }
+.ui-moderna .text-sky-800, .ui-moderna .text-sky-900, .ui-moderna .text-sky-950 { color: var(--lm-noche); }
+.ui-moderna .alert-banner.border-amber-200 { border-left: 4px solid #e8a33d; }
+.ui-moderna .alert-banner.border-red-200 { border-left: 4px solid var(--lm-rojo); }
+
+/* ---------- 7. Botón primario ---------- */
+.ui-moderna button.bg-gradient-to-br:not(.from-rose-500) {
+  position: relative; overflow: hidden;
+  box-shadow: 0 8px 20px -8px rgba(102, 58, 243, 0.8), 0 0 18px -6px rgba(46, 109, 191, 0.6);
+}
+.ui-moderna button.bg-gradient-to-br:not(.from-rose-500)::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%); transition: transform 0.7s ease;
+}
+.ui-moderna button.bg-gradient-to-br:not(.from-rose-500):hover:not(:disabled)::after { transform: translateX(120%); }
+.ui-moderna button.bg-gradient-to-br:not(.from-rose-500):hover:not(:disabled) { box-shadow: 0 12px 26px -8px rgba(102, 58, 243, 0.85), 0 0 24px -4px rgba(46, 109, 191, 0.7); }
+.ui-moderna button.bg-gradient-to-br:disabled { box-shadow: none; }
+.ui-moderna [data-nav-pasos] button.border-slate-200 { background: rgba(244, 245, 248, 0.8); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+
+/* ---------- 8. Barra superior: buscar e interruptor Moderna/Clásica (.lm-segmento) ---------- */
+.ui-moderna .app-topbar { box-shadow: 0 1px 0 var(--m-borde), 0 8px 24px -20px rgba(15, 26, 90, 0.5); }
+.ui-moderna .app-topbar [role='radiogroup'] { background: #f4f5f8; border-color: var(--m-borde); }
+.ui-moderna .app-topbar [role='radio'] { color: var(--m-apagado); transition: background-color var(--m-trans), color var(--m-trans), box-shadow var(--m-trans); }
+.ui-moderna .app-topbar [role='radio'][aria-checked='true'] { background: var(--lm-noche); color: #fff; box-shadow: 0 4px 12px -4px rgba(15, 26, 90, 0.7); }
+.ui-moderna .app-topbar button[aria-label^='Buscar'] { background: #f4f5f8; border-color: var(--m-borde); color: var(--lm-noche); }
+.ui-moderna .app-topbar button[aria-label^='Buscar']:hover { border-color: #b9a5fb; background: #fff; }
+.ui-moderna .app-topbar kbd { background: #e9ecf4; color: var(--lm-noche); }
+
+/* ---------- Teléfono y movimiento reducido ---------- */
+@media (max-width: 640px) {
+  .ui-moderna .lm-banda { padding: 1rem; border-radius: 1rem; }
+  .ui-moderna .lm-banda::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-moderna .lm-banda, .ui-moderna .lm-banda::after, .ui-moderna .cb-rail-barra span::after,
+  .ui-moderna .cb-rail li[data-estado='actual'] .cb-rail-marca, .ui-moderna [aria-label='Tipo de plan'] .cb-tipo-check { animation: none !important; }
+  .ui-moderna [aria-label='Tipo de plan'] > button:hover { transform: none; }
+  .ui-moderna button.bg-gradient-to-br::after { transition: none; }
+}

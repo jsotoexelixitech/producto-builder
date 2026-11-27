@@ -133,6 +133,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 /** Peticiones de tarifas en vuelo a la vez (una por cobertura del ramo). */
 const TARIFAS_EN_PARALELO = 5;
@@ -2370,7 +2371,7 @@ export function Sis2000ComboPage() {
   // ──────────────────────────────── Render ────────────────────────────────
 
   const encabezado = (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <BandaPagina className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <Link
           to={modoEdicion ? '/sis2000/plans' : '/sis2000'}
@@ -2442,7 +2443,7 @@ export function Sis2000ComboPage() {
           Recargar
         </Button>
       </div>
-    </div>
+    </BandaPagina>
   );
 
   // ── Paso 1: Producto ──

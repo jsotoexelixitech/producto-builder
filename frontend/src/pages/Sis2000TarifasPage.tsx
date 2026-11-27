@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 export function Sis2000TarifasPage() {
   const { cramo: cramoParam, ccobertura = '' } = useParams<{
@@ -52,7 +53,7 @@ export function Sis2000TarifasPage() {
         Coberturas ramo {cramo}
       </Link>
 
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <BandaPagina className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold">Tarifas · {ccobertura}</h1>
           {maestro && (
@@ -73,7 +74,7 @@ export function Sis2000TarifasPage() {
             </Button>
           </Link>
         </div>
-      </div>
+      </BandaPagina>
 
       {error && <Alert variant="error">{error}</Alert>}
 

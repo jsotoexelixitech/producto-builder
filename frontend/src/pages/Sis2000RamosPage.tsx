@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { InfoTip } from '@/components/ui/info-tip';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 const FILTROS = [
   { id: 'todas', titulo: 'Todas' },
@@ -65,7 +66,7 @@ export function Sis2000RamosPage() {
 
   return (
     <AppShell title="Ramos de Sis2000">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <BandaPagina className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-bold">
             <Shapes className="h-5 w-5 text-primary" />
@@ -81,7 +82,7 @@ export function Sis2000RamosPage() {
           <RefreshCw className={cn('h-3.5 w-3.5', ramos === null && 'animate-spin')} />
           Recargar
         </Button>
-      </div>
+      </BandaPagina>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <nav aria-label="Familias" className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">

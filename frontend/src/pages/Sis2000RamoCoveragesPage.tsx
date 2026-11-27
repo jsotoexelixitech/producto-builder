@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 export function Sis2000RamoCoveragesPage() {
   const { cramo: cramoParam } = useParams<{ cramo: string }>();
@@ -44,7 +45,7 @@ export function Sis2000RamoCoveragesPage() {
 
   return (
     <AppShell title="Coberturas Sis2000">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <BandaPagina className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
             to="/sis2000"
@@ -74,7 +75,7 @@ export function Sis2000RamoCoveragesPage() {
             </Button>
           </Link>
         </div>
-      </div>
+      </BandaPagina>
 
       {aviso && (
         <Alert variant="success" className="mb-4">
