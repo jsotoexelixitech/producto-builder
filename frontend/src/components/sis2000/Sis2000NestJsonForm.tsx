@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, FileJson, Save } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { BandaPagina } from '@/components/ayudas/BandaPagina';
+import { useAvisoSinGuardar, useCambiosSinGuardar } from '@/components/ui/aviso-sin-guardar';
 
 interface Sis2000NestJsonFormProps {
   title: string;
@@ -50,8 +52,17 @@ export function Sis2000NestJsonForm({
   onMotivoChange,
   children,
 }: Sis2000NestJsonFormProps) {
+  // Aviso al salir con cambios sin guardar: la base es el JSON ya cargado (o la plantilla inicial).
+  const cambios = useCambiosSinGuardar(jsonText, !loading);
+  const { dialogo, permitirSalida } = useAvisoSinGuardar(cambios.sucio);
+  const { marcarGuardado } = cambios;
+  useEffect(() => {
+    if (success) marcarGuardado();
+  }, [success, marcarGuardado]);
+
   return (
     <AppShell title={title}>
+      {dialogo}
       <Link
         to={backHref}
         className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -117,7 +128,7 @@ export function Sis2000NestJsonForm({
         </div>
       )}
 
-      <Button type="button" onClick={onSave} disabled={saving || loading}>
+      <Button type="button" onClick={() => void permitirSalida(onSave)} disabled={saving || loading}>
         <Save className="h-4 w-4" />
         {saving ? 'Guardando…' : saveLabel}
       </Button>

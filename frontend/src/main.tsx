@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { RouterProvider, createBrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductWizardPage } from './pages/ProductWizardPage';
 import { EmissionFlowPreviewPage } from './pages/EmissionFlowPreviewPage';
@@ -65,8 +65,16 @@ function Root() {
   return (
     <>
       {showSplash && <SplashScreen onFinish={finishSplash} />}
-      <BrowserRouter basename={ROUTER_BASENAME}>
-        <TrailingSlashOnRoot />
+      <RouterProvider router={router} />
+    </>
+  );
+}
+
+/** Todas las rutas de la app (dentro del router de datos, necesario para useBlocker). */
+function AppRoutes() {
+  return (
+    <>
+      <TrailingSlashOnRoot />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -262,10 +270,12 @@ function Root() {
             }
           />
         </Routes>
-      </BrowserRouter>
     </>
   );
 }
+
+// Router de datos (en vez de BrowserRouter): hace falta para avisar al salir con cambios sin guardar.
+const router = createBrowserRouter([{ path: '*', element: <AppRoutes /> }], { basename: ROUTER_BASENAME });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

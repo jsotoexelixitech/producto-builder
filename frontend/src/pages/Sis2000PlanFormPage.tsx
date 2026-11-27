@@ -38,6 +38,7 @@ import { BandaPagina } from '@/components/ayudas/BandaPagina';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InfoTip } from '@/components/ui/info-tip';
+import { useAvisoSinGuardar, useCambiosSinGuardar } from '@/components/ui/aviso-sin-guardar';
 import {
   Select,
   SelectContent,
@@ -77,6 +78,8 @@ export function Sis2000PlanFormPage() {
   const [loadingFrec, setLoadingFrec] = useState(false);
   const [loadingInit, setLoadingInit] = useState(!isEdit);
   const [saving, setSaving] = useState(false);
+  const cambios = useCambiosSinGuardar(jsonText, !loadingInit);
+  const { dialogo: dialogoSalida, permitirSalida } = useAvisoSinGuardar(cambios.sucio);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [monedas, setMonedas] = useState<Array<Record<string, unknown>>>([]);
@@ -265,6 +268,7 @@ export function Sis2000PlanFormPage() {
       }
       setMotivo('');
       setVersion((v) => v + 1);
+      cambios.marcarGuardado();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar plan');
     } finally {
@@ -332,6 +336,7 @@ export function Sis2000PlanFormPage() {
 
   return (
     <AppShell title={isEdit ? 'Editar plan Sis2000' : 'Nuevo plan Sis2000'}>
+      {dialogoSalida}
       <Link
         to="/sis2000/plans"
         className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -487,7 +492,7 @@ export function Sis2000PlanFormPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={save} disabled={saving || loadingInit}>
+        <Button type="button" onClick={() => void permitirSalida(save)} disabled={saving || loadingInit}>
           <Save className="h-4 w-4" />
           {saving ? 'Guardando…' : isEdit ? 'Actualizar plan' : 'Crear plan'}
         </Button>
@@ -544,7 +549,10 @@ export function Sis2000PlanFormPage() {
             entidad="PLAN"
             clave={claveHistorial.plan(planId.split('-')[0], planId.split('-').slice(1).join('-'))}
             recargar={version}
-            onRestaurado={() => setRecargarDatos((n) => n + 1)}
+            onRestaurado={() => {
+              cambios.adoptarProximoCambio();
+              setRecargarDatos((n) => n + 1);
+            }}
           />
           <HistorialPanel
             titulo="Historial de proveedores"

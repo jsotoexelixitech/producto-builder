@@ -24,6 +24,7 @@ import { AlertaError, ResumenErrores, type ErrorDeCampo } from '@/components/ui/
 import { entenderError, type ErrorEntendible } from '@/lib/errores';
 import { textoDeducible } from '@/lib/configurador';
 import { DeducibleCampos } from '@/components/configurador/DeducibleCampos';
+import { useAvisoSinGuardar } from '@/components/ui/aviso-sin-guardar';
 import { LISTA_CONTRATOS_REASEGURO, LISTA_RAMOS_REASEGURO, ReaseguroListas } from '@/components/configurador/ReaseguroListas';
 
 const ETIQUETA_OPCION =
@@ -114,6 +115,9 @@ export function Sis2000NuevaCoberturaForm({
   const [sumaGrabada, setSumaGrabada] = useState<CoberturaSumaConfig | null>(null);
   /** Pide confirmación antes de escribir en Sis2000. */
   const [confirmando, setConfirmando] = useState(false);
+  // Aviso al salir con cambios sin guardar: se compara con el formulario inicial (los códigos sugeridos no cuentan).
+  const [formInicial] = useState(() => JSON.stringify(form));
+  const { dialogo: dialogoSalida, permitirSalida } = useAvisoSinGuardar(JSON.stringify(form) !== formInicial);
 
   useEffect(() => {
     api
@@ -193,7 +197,11 @@ export function Sis2000NuevaCoberturaForm({
     setConfirmando(true);
   }
 
-  async function crear() {
+  function crear() {
+    return permitirSalida(crearInterno);
+  }
+
+  async function crearInterno() {
     setConfirmando(false);
     setErrorServidor(null);
     setAviso(null);
@@ -267,6 +275,7 @@ export function Sis2000NuevaCoberturaForm({
       className="space-y-5"
       onBlurCapture={(e) => marcarTocado((e.target as HTMLElement).id)}
     >
+      {dialogoSalida}
       <p className="text-xs text-muted-foreground">
         Crea en Sis2000 la cobertura de este ramo junto con su tarifa (suma asegurada y tasa o prima). Una cobertura sin
         tarifa vigente no se puede usar en un plan; en personas, incluso desaparece de la póliza al emitir. Los códigos
