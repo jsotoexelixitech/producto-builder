@@ -34,6 +34,7 @@ import { claveHistorial } from '@/lib/sis2000-historial';
 import { parentescoParaCotizar } from '@/lib/configurador';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InfoTip } from '@/components/ui/info-tip';
@@ -339,9 +340,11 @@ export function Sis2000PlanFormPage() {
         Planes maestro
       </Link>
 
-      <h1 className="mb-1 text-lg font-bold">
-        {isEdit ? `Editar plan ${id} (modo avanzado, JSON)` : 'Crear plan maestro (modo avanzado, JSON)'}
-      </h1>
+      <BandaPagina className="mb-4">
+        <h1 className="text-lg font-bold">
+          {isEdit ? `Editar plan ${id} (modo avanzado, JSON)` : 'Crear plan maestro (modo avanzado, JSON)'}
+        </h1>
+      </BandaPagina>
       <Alert variant="info" className="mb-3">
         {isEdit && id ? (
           <>

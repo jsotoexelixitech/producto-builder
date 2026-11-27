@@ -1,0 +1,228 @@
+/* =====================================================================================================
+   Tercera pasada Moderna: CONTENIDO (tarjetas de sección, campos, avisos, tablas, resumen de revisión,
+   diálogos y barra inferior). Mismo lenguaje que el tablero Perfil Comercial. Todo cuelga de .ui-moderna
+   (y de los diálogos, que viven fuera del shell, vía body.lm-moderna). La vista Clásica no cambia.
+   Se carga al final de las hojas de la vista moderna.
+   ===================================================================================================== */
+body.lm-moderna {
+  --lc-niebla: #f4f5f8;
+  --lc-campo: #f7f8fb;
+  --lc-borde: #e3e5ec;
+  --lc-gris: #5e6275;
+  --lc-noche: #0f1a5a;
+  --lc-violeta: #663af3;
+  --lc-azul: #2e6dbf;
+  --lc-rojo: #e84f51;
+  --lc-rojo-txt: #b4282b;
+  --lc-marca: linear-gradient(90deg, #663af3, #2e6dbf, #e84f51);
+  --lc-anillo: 0 0 0 3px rgba(102, 58, 243, 0.22), 0 0 18px -4px rgba(46, 109, 191, 0.5);
+  --lc-display: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
+}
+
+/* ---------- 1. Tarjetas de sección: cabecera como franja de marca ---------- */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl { --tono: 102, 58, 243; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl:nth-of-type(3n + 2) { --tono: 46, 109, 191; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl:nth-of-type(3n) { --tono: 43, 179, 155; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl:has(> .border-b)::before { display: none; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b {
+  position: relative; align-items: center; gap: 1rem; padding: 1.3rem 1.75rem 1.4rem; border-bottom: 0;
+  background:
+    radial-gradient(60% 160% at 0% 0%, rgba(var(--tono), 0.12), transparent 70%),
+    linear-gradient(135deg, #f4f5f8 0%, #fff 78%);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--lc-marca); opacity: 0.9;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b > div.h-10 {
+  width: 2.9rem; height: 2.9rem; margin-top: 0; border-radius: 0.95rem;
+  background-image: linear-gradient(135deg, rgb(var(--tono)), rgba(var(--tono), 0.7));
+  box-shadow: 0 0 0 5px rgba(var(--tono), 0.12), 0 10px 22px -8px rgba(var(--tono), 0.9), 0 0 26px -4px rgba(var(--tono), 0.55);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b > div.h-10 svg { width: 1.3rem; height: 1.3rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b h4 { font-size: 1.22rem; line-height: 1.6rem; color: var(--lc-noche); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b p { font-size: 0.8125rem; line-height: 1.25rem; color: var(--lc-gris); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .p-5 { padding: 1.6rem 1.75rem 1.75rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .coverage-card-header { background: linear-gradient(135deg, #f4f5f8, #fff 78%); border-bottom: 2px solid transparent; border-image: var(--lc-marca) 1; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .coverage-card { border-radius: 1rem; }
+
+/* ---------- 2. Campos ---------- */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='submit'], [type='button'], [type='hidden'], [type='color']), select, textarea, button[role='combobox']):not(.cb-panel-caja *, .lm-banda *, [cmdk-input]) {
+  min-height: 2.75rem; border: 1px solid var(--lc-borde); border-radius: 12px; background-color: var(--lc-campo);
+  color: #0b1030; box-shadow: inset 0 1px 2px rgba(15, 26, 90, 0.04);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) textarea:not(.cb-panel-caja *) { min-height: 6.25rem; padding-top: 0.7rem; padding-bottom: 0.7rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='submit'], [type='button'], [type='hidden'], [type='color']), select, textarea, button[role='combobox']):not(.cb-panel-caja *, .lm-banda *, [cmdk-input]):hover:not(:disabled) {
+  border-color: #c3b5f7; background-color: #fff;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='submit'], [type='button'], [type='hidden'], [type='color']), select, textarea):not(.cb-panel-caja *, .lm-banda *, [cmdk-input]):focus,
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) button[role='combobox']:not(.cb-panel-caja *, .lm-banda *):is(:focus-visible, [data-state='open']) {
+  outline: none; border-color: var(--lc-violeta); background-color: #fff; box-shadow: var(--lc-anillo);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(input, select, textarea, button[role='combobox']):not(.cb-panel-caja *):disabled {
+  background-color: #eceef4; color: #5b6275; cursor: not-allowed; box-shadow: none;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(input, select, textarea, button[role='combobox'])[aria-invalid='true']:not(.cb-panel-caja *) {
+  border-color: var(--lc-rojo); box-shadow: inset 4px 0 0 var(--lc-rojo);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.relative > svg.pointer-events-none.text-slate-400, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.relative > svg.pointer-events-none.text-muted-foreground { color: var(--lc-violeta); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) input[type='checkbox'], :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) input[type='radio'] { accent-color: var(--lc-violeta); width: 1.1rem; height: 1.1rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) input[type='range'] { accent-color: var(--lc-violeta); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [role='switch'][aria-checked='true'] { background-image: linear-gradient(135deg, #663af3, #2e6dbf); box-shadow: 0 6px 16px -6px rgba(102, 58, 243, 0.8); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [role='switch'][aria-checked='false'] { background-color: #c3c8da; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [role='switch']:focus-visible { outline: none; box-shadow: var(--lc-anillo); }
+
+/* Etiquetas, ayudas y errores */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) label[class*='text-[0.78rem]']:not(.cb-panel-caja *), :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) label.leading-none:not(.cb-panel-caja *), :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .field-label:not(.cb-panel-caja *) {
+  font-size: 0.72rem; font-weight: 700; line-height: 1.2; text-transform: uppercase; letter-spacing: 0.07em; color: var(--lc-noche);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.flex-col.gap-1\.5 > p.text-slate-500 { font-size: 0.75rem; line-height: 1.15rem; color: var(--lc-gris); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.flex-col.gap-1\.5 > p.text-rose-500 {
+  font-size: 0.78rem; font-weight: 600; color: var(--lc-rojo-txt); background: rgba(232, 79, 81, 0.08);
+  border-left: 3px solid var(--lc-rojo); border-radius: 0 0.5rem 0.5rem 0; padding: 0.3rem 0.6rem;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.flex-col.gap-1\.5 > p.text-rose-500 > span.rounded-full { display: none; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) td p.text-red-700 { border-left: 3px solid var(--lc-rojo); padding-left: 0.4rem; color: var(--lc-rojo-txt); }
+
+/* Botones secundarios: chip con borde degradado */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(button, a).border-slate-200.bg-white:not(.cb-panel-caja *, .lm-banda *, [data-nav-pasos] *, .cb-panel-acciones *, table *) {
+  border: 1px solid transparent; border-radius: 9999px; color: var(--lc-noche); font-weight: 700; box-shadow: none;
+  background: linear-gradient(#fff, #fff) padding-box, var(--lc-marca) border-box;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(button, a).border-slate-200.bg-white:not(.cb-panel-caja *, .lm-banda *, [data-nav-pasos] *, .cb-panel-acciones *, table *):hover:not(:disabled) {
+  color: var(--lc-violeta); box-shadow: 0 8px 18px -10px rgba(102, 58, 243, 0.7);
+  background: linear-gradient(#f4f0ff, #f4f0ff) padding-box, var(--lc-marca) border-box;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) :is(button, a).border-slate-200.bg-white:focus-visible { outline: none; box-shadow: var(--lc-anillo); }
+
+/* ---------- 3. «¿Cómo se usa?», «Detalles técnicos» y avisos ---------- */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.border-sky-200 {
+  border: 0; border-left: 4px solid transparent; border-radius: 0.95rem; color: var(--lc-noche);
+  background:
+    linear-gradient(180deg, #663af3, #2e6dbf, #e84f51) left top / 4px 100% no-repeat,
+    linear-gradient(90deg, rgba(102, 58, 243, 0.08), rgba(46, 109, 191, 0.04) 60%, #fff);
+  background-origin: border-box;
+  box-shadow: 0 1px 2px rgba(15, 26, 90, 0.05), 0 10px 24px -18px rgba(15, 26, 90, 0.35);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group > summary {
+  gap: 0.65rem; padding-top: 0.8rem; padding-bottom: 0.8rem; color: var(--lc-noche); font-weight: 700; list-style: none;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group > summary::-webkit-details-marker { display: none; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group > summary > svg:first-child {
+  box-sizing: border-box; width: 1.85rem; height: 1.85rem; padding: 0.4rem; flex-shrink: 0; border-radius: 0.6rem;
+  color: var(--lc-violeta); background: rgba(102, 58, 243, 0.12); box-shadow: 0 0 14px -4px rgba(102, 58, 243, 0.6);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group > summary > svg:last-child { color: var(--lc-violeta); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group > summary:focus-visible { outline: none; box-shadow: var(--lc-anillo); border-radius: 0.95rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group[open] > :not(summary) { animation: lc-abre 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes lc-abre { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group .text-slate-600, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group .text-slate-500 { color: var(--lc-gris); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .alert-banner {
+  border-left-width: 4px; border-radius: 0.95rem; animation: lc-abre 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  box-shadow: 0 1px 2px rgba(15, 26, 90, 0.04);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .alert-banner.border-emerald-200 { border-left-color: #2bb39b; background: linear-gradient(90deg, rgba(43, 179, 155, 0.1), #fff 85%); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .alert-banner.border-amber-200 { background: linear-gradient(90deg, rgba(232, 163, 61, 0.12), #fff 85%); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .alert-banner.border-red-200 { background: linear-gradient(90deg, rgba(232, 79, 81, 0.1), #fff 85%); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .alert-banner.border-sky-200 { background: linear-gradient(90deg, rgba(102, 58, 243, 0.08), rgba(46, 109, 191, 0.04) 70%, #fff); }
+
+/* ---------- 4. Tablas ---------- */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.overflow-x-auto { border-radius: 0.95rem; border-color: var(--lc-borde); background: #fff; box-shadow: 0 1px 2px rgba(15, 26, 90, 0.04), 0 10px 24px -20px rgba(15, 26, 90, 0.4); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table thead, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table thead[class*='bg-slate-50'] {
+  background: linear-gradient(90deg, #eceef7, #f4f5f8); color: var(--lc-noche); border-bottom: 2px solid #d6d9ea;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table th { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--lc-noche); padding-top: 0.7rem; padding-bottom: 0.7rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table tbody tr { border-color: #eceef4; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table tbody tr:hover { background: #f6f3ff; box-shadow: inset 3px 0 0 var(--lc-violeta); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table :is(input:not([type='checkbox'], [type='radio']), select):not(.cb-panel-caja *) { min-height: 2.25rem; border-radius: 10px; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table tfoot td, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table tfoot th {
+  font-weight: 700; color: var(--lc-noche); border-top: 2px solid #b9a5fb;
+  background: linear-gradient(90deg, rgba(102, 58, 243, 0.1), rgba(46, 109, 191, 0.06));
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table tr.font-bold, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table tr.font-semibold { background: linear-gradient(90deg, rgba(102, 58, 243, 0.08), rgba(46, 109, 191, 0.04)); }
+
+/* ---------- 5. Resumen final de revisión: tarjetas lm-kpi-claro ---------- */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) dl.lm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.85rem; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem;
+  padding: 1.05rem 1.1rem 0.9rem; border: 1px solid var(--lc-borde); border-radius: 1rem; background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 26, 90, 0.04), 0 8px 24px -16px rgba(15, 26, 90, 0.25);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  animation: lc-abre 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--lm-acento, #2e6dbf), transparent); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro:nth-child(4n + 1) { --lm-acento: #2e6dbf; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro:nth-child(4n + 2) { --lm-acento: #2bb39b; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro:nth-child(4n + 3) { --lm-acento: #663af3; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro:nth-child(4n + 4) { --lm-acento: #f2a93b; }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(15, 26, 90, 0.45); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro dt { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--lc-gris); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro dd { width: 100%; justify-content: space-between; font-family: var(--lc-display); font-size: 1.02rem; line-height: 1.4rem; color: var(--lc-noche); }
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro dd button { font-family: inherit; font-size: 0.72rem; font-weight: 700; color: var(--lc-violeta); }
+
+/* ---------- 8. Barra inferior Atrás / Siguiente ---------- */
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [data-nav-pasos] {
+  position: sticky; bottom: 0.75rem; z-index: 20; border: 1px solid rgba(255, 255, 255, 0.85); border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.8); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 -2px 24px -12px rgba(15, 26, 90, 0.25), 0 20px 44px -20px rgba(15, 26, 90, 0.6), inset 0 0 0 1px rgba(15, 26, 90, 0.06);
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [data-nav-pasos] button.border-slate-200 {
+  background: transparent; border: 1px solid transparent; box-shadow: none; color: var(--lc-gris); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+:is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [data-nav-pasos] button.border-slate-200:hover:not(:disabled) { background: rgba(102, 58, 243, 0.08); color: var(--lc-violeta); border-color: transparent; }
+
+/* ---------- 7. Diálogos (inline y Radix/cmdk) ---------- */
+body.lm-moderna .lm-overlay,
+body.lm-moderna div.fixed.inset-0:has(> [role='dialog']),
+body.lm-moderna div.fixed.inset-0:has(> * > [role='dialog']),
+body.lm-moderna div[role='dialog'].fixed.inset-0 {
+  background: rgba(5, 6, 15, 0.58); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+body.lm-moderna :is([role='dialog'] > div.rounded-2xl.bg-white, div[role='dialog'].rounded-xl.bg-white, aside[role='dialog'], .lm-dialogo) {
+  --lc-pad: 1.25rem; position: relative; overflow-x: hidden; border: 1px solid rgba(102, 58, 243, 0.18);
+  box-shadow: 0 34px 80px -30px rgba(5, 6, 15, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+}
+body.lm-moderna .lm-dialogo { position: fixed; }
+body.lm-moderna :is([role='dialog'] > div.rounded-2xl.bg-white, div[role='dialog'].rounded-xl.bg-white, .lm-dialogo)::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--lc-marca); z-index: 2;
+}
+body.lm-moderna [role='dialog'] > div.rounded-2xl.bg-white[class~='p-4'] { --lc-pad: 1rem; }
+@media (min-width: 640px) { body.lm-moderna [role='dialog'] > div.rounded-2xl.bg-white[class~='sm:p-5'] { --lc-pad: 1.25rem; } }
+body.lm-moderna .lm-dialogo[class~='p-4'] { --lc-pad: 1rem; }
+body.lm-moderna :is([role='dialog'] > div.rounded-2xl.bg-white, div[role='dialog'].rounded-xl.bg-white) > :is(header, h3:first-child, div.mb-3.flex:first-child) {
+  margin: calc(var(--lc-pad) * -1) calc(var(--lc-pad) * -1) 1rem; padding: calc(var(--lc-pad) + 0.35rem) var(--lc-pad) 1rem;
+  background:
+    radial-gradient(60% 200% at 0% 0%, rgba(102, 58, 243, 0.12), transparent 70%),
+    linear-gradient(135deg, #f4f5f8, #fff 80%);
+  border-bottom: 2px solid transparent; border-image: var(--lc-marca) 1;
+}
+body.lm-moderna :is([role='dialog'] > div.rounded-2xl.bg-white, div[role='dialog'].rounded-xl.bg-white) :is(h2, h3) { font-family: var(--lc-display); color: var(--lc-noche); letter-spacing: -0.01em; }
+body.lm-moderna aside[role='dialog'] > header { background: linear-gradient(135deg, #f4f5f8, #fff 80%); border-bottom: 2px solid transparent; border-image: var(--lc-marca) 1; }
+body.lm-moderna aside[role='dialog'] > header h2 { font-family: var(--lc-display); color: var(--lc-noche); }
+body.lm-moderna .lm-dialogo-titulo { font-family: var(--lc-display); font-size: 1.1rem; color: var(--lc-noche); letter-spacing: -0.01em; }
+body.lm-moderna .lm-dialogo [cmdk-input] {
+  background: var(--lc-campo); color: #0b1030; border-bottom: 2px solid transparent; border-image: var(--lc-marca) 1; font-size: 0.95rem; padding: 0.95rem 1.1rem;
+}
+body.lm-moderna .lm-dialogo [cmdk-input]:focus { background: #fff; outline: none; }
+body.lm-moderna .lm-dialogo [cmdk-item][aria-selected='true'] { background: linear-gradient(90deg, #f1edff, #eef4fc); color: var(--lc-noche); box-shadow: inset 3px 0 0 var(--lc-violeta); }
+body.lm-moderna [role='dialog'] button.bg-gradient-to-br:not(.from-rose-500),
+body.lm-moderna .lm-dialogo button.bg-gradient-to-br:not(.from-rose-500) {
+  background-image: linear-gradient(135deg, #663af3 0%, #2e6dbf 100%); box-shadow: 0 8px 20px -8px rgba(102, 58, 243, 0.8), 0 0 18px -6px rgba(46, 109, 191, 0.6);
+}
+body.lm-moderna [role='dialog'] button.bg-gradient-to-br:not(.from-rose-500):hover:not(:disabled) { background-image: linear-gradient(135deg, #7550f5 0%, #3a7acc 100%); transform: none; }
+
+/* ---------- Teléfono y movimiento reducido ---------- */
+@media (max-width: 640px) {
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b { padding: 1rem 1.1rem 1.1rem; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .border-b > div.h-10 { width: 2.5rem; height: 2.5rem; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) section.rounded-2xl > .p-5 { padding: 1.1rem 1rem 1.25rem; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) table:not(.overflow-x-auto > table) { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) div.overflow-x-auto > table { min-width: 34rem; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) [data-nav-pasos] { bottom: 0.5rem; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) dl.lm-kpis { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) details.group[open] > :not(summary), :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .alert-banner, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro { animation: none !important; }
+  :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro, :is(.ui-moderna, body.lm-moderna :is([role='dialog'], .lm-dialogo)) .lm-kpi-claro:hover { transition: none; transform: none; }
+}
+.ui-moderna .lm-banda .text-amber-800 { color: #ffc46b; }

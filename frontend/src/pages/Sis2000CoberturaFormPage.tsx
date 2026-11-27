@@ -14,6 +14,7 @@ import { claveHistorial } from '@/lib/sis2000-historial';
 import { Sis2000NuevaCoberturaForm } from '@/components/sis2000/Sis2000NuevaCoberturaForm';
 import { AppShell } from '@/components/layout/AppShell';
 import { Alert } from '@/components/ui/alert';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 import { SectionPanel } from '@/components/ui/section-panel';
 
 /** Nueva cobertura: formulario. Editar: JSON (como antes). */
@@ -52,15 +53,17 @@ function NuevaCoberturaPage({ cramo }: { cramo: number }) {
         <ArrowLeft className="h-3.5 w-3.5" />
         Coberturas ramo {cramo}
       </Link>
-      <h1 className="mb-1 text-lg font-bold">Nueva cobertura en el ramo {cramo}</h1>
-      <p className="mb-4 text-xs text-muted-foreground">
-        Crea la cobertura en el ramo con su tarifa (suma asegurada y tasa o prima vigentes). Para usarla en un
-        plan, ve a{' '}
-        <Link to="/sis2000/combos" className="text-primary underline-offset-2 hover:underline">
-          Combos de coberturas
-        </Link>
-        .
-      </p>
+      <BandaPagina className="mb-4">
+        <h1 className="text-lg font-bold">Nueva cobertura en el ramo {cramo}</h1>
+        <p className="text-xs text-muted-foreground">
+          Crea la cobertura en el ramo con su tarifa (suma asegurada y tasa o prima vigentes). Para usarla en un
+          plan, ve a{' '}
+          <Link to="/sis2000/combos" className="text-primary underline-offset-2 hover:underline">
+            Combos de coberturas
+          </Link>
+          .
+        </p>
+      </BandaPagina>
       {!ramoValido ? (
         <Alert variant="error">Ramo inválido.</Alert>
       ) : error ? (

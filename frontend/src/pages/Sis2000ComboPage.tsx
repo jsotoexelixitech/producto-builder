@@ -4043,7 +4043,7 @@ export function Sis2000ComboPage() {
           </Alert>
         )}
 
-        <dl className="mt-4 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+        <dl className="lm-kpis mt-4 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
           {(
             [
               ['Producto', nombreProducto || '—', 'producto'],
@@ -4055,7 +4055,7 @@ export function Sis2000ComboPage() {
               ['Productores mancomunados', resumenMancomunado(mancPend), 'datos'],
             ] as Array<[string, string, PasoId]>
           ).map(([etiqueta, valor, p]) => (
-            <div key={etiqueta} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-1">
+            <div key={etiqueta} className="lm-kpi-claro flex items-baseline justify-between gap-3 border-b border-border/40 py-1">
               <dt className="text-muted-foreground">{etiqueta}</dt>
               <dd className="flex items-baseline gap-2 text-right font-medium">
                 <span className="break-words">{valor}</span>

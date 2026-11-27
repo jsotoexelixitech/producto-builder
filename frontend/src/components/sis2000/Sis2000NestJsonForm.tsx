@@ -3,6 +3,7 @@ import { ArrowLeft, FileJson, Save } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 interface Sis2000NestJsonFormProps {
   title: string;
@@ -59,11 +60,13 @@ export function Sis2000NestJsonForm({
         {backLabel}
       </Link>
 
-      <h1 className="mb-1 text-lg font-bold">{title}</h1>
-      <p className="mb-1 text-xs text-muted-foreground">{subtitle}</p>
-      <p className="mb-4 text-xs text-amber-800 dark:text-amber-200">
-        Mantenimiento de catálogo Sis2000 — no emite pólizas.
-      </p>
+      <BandaPagina className="mb-4">
+        <h1 className="text-lg font-bold">{title}</h1>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <p className="text-xs text-amber-800 dark:text-amber-200">
+          Mantenimiento de catálogo Sis2000 — no emite pólizas.
+        </p>
+      </BandaPagina>
 
       {error && <Alert variant="error" className="mb-3">{error}</Alert>}
       {success && <Alert variant="success" className="mb-3">{success}</Alert>}

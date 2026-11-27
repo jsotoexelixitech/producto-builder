@@ -20,11 +20,11 @@ export function BotonMapa({ datos }: { datos: DatosMapa }) {
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[110] bg-slate-900/40" />
-        <Dialog.Content className="ayuda-contenido fixed left-1/2 top-1/2 z-[120] flex h-[min(34rem,calc(100vh-2rem))] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-2xl bg-white p-4 shadow-2xl outline-none">
+        <Dialog.Overlay className="lm-overlay fixed inset-0 z-[110] bg-slate-900/40" />
+        <Dialog.Content className="lm-dialogo ayuda-contenido fixed left-1/2 top-1/2 z-[120] flex h-[min(34rem,calc(100vh-2rem))] w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-2xl bg-white p-4 shadow-2xl outline-none">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <Dialog.Title className="text-sm font-bold text-slate-900">Mapa del plan</Dialog.Title>
+              <Dialog.Title className="lm-dialogo-titulo text-sm font-bold text-slate-900">Mapa del plan</Dialog.Title>
               <Dialog.Description className="text-xs text-slate-500">Producto, plan, coberturas y cómo se cobra cada una.</Dialog.Description>
             </div>
             <Dialog.Close

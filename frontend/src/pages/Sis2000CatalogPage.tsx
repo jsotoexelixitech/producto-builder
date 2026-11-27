@@ -12,6 +12,7 @@ import { Sis2000ProductDetailPanel } from '@/components/sis2000/Sis2000ProductDe
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -83,6 +84,15 @@ export function Sis2000CatalogPage() {
       }
     >
       <div className="animate-slide-up space-y-6">
+        <BandaPagina className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-lg font-bold">
+              <Database className="h-5 w-5 text-primary" />
+              Catálogo Sis2000 (QA)
+            </h1>
+            <p className="max-w-3xl text-sm text-muted-foreground">Productos de Sis2000 con todos sus campos. Consulta, abre la ficha o edita.</p>
+          </div>
+        </BandaPagina>
         <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
           <div className="flex items-start gap-3">
             <Database className="mt-0.5 h-5 w-5 shrink-0 text-primary" />

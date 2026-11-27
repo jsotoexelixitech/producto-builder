@@ -21,8 +21,8 @@ export default function BuscadorDialogo({ abierto, onCambio }: { abierto: boolea
       open={abierto}
       onOpenChange={onCambio}
       label="Buscar pantallas y pasos"
-      overlayClassName="fixed inset-0 z-[110] bg-slate-900/40"
-      contentClassName="ayuda-contenido fixed left-1/2 top-[15vh] z-[120] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl outline-none"
+      overlayClassName="lm-overlay fixed inset-0 z-[110] bg-slate-900/40"
+      contentClassName="lm-dialogo ayuda-contenido fixed left-1/2 top-[15vh] z-[120] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl outline-none"
     >
       <Command.Input
         placeholder="Buscar una pantalla, un paso o un ramo…"

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { AYUDAS_DISPONIBLES } from '@/lib/ayudas/flag';
 import { guardarPreferenciaAyudas, leerPreferenciaAyudas } from '@/lib/ayudas/preferencia';
@@ -6,6 +6,7 @@ import './ayudas.css';
 import './moderna.css';
 import './moderna-lm.css';
 import './moderna-centro.css';
+import './moderna-contenido.css';
 
 interface ValorAyudas {
   /** false = apagado en el build (VITE_UI_AYUDAS=0): no hay interruptor ni nada nuevo. */
@@ -36,6 +37,11 @@ export function AyudasProvider({ children }: { children: ReactNode }) {
     () => (AYUDAS_DISPONIBLES ? { disponible: true, activas, setActivas } : SIN_AYUDAS),
     [activas, setActivas],
   );
+  // Marca el body en Moderna: los diálogos (portales) viven fuera del shell y toman su estilo de esta clase.
+  useEffect(() => {
+    document.body.classList.toggle('lm-moderna', valor.activas);
+    return () => document.body.classList.remove('lm-moderna');
+  }, [valor.activas]);
   return (
     <Contexto.Provider value={valor}>
       {children}

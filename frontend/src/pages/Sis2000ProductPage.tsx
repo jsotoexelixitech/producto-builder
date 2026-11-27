@@ -8,6 +8,7 @@ import { Sis2000ProductPlansPanel } from '@/components/sis2000/Sis2000ProductPla
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { BandaPagina } from '@/components/ayudas/BandaPagina';
 
 export function Sis2000ProductPage() {
   const { cproducto: routeCode } = useParams<{ cproducto: string }>();
@@ -91,6 +92,14 @@ export function Sis2000ProductPage() {
       }
     >
       <form id="sis2000-form" onSubmit={handleSave} className="animate-slide-up space-y-6">
+        <BandaPagina className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-bold">{isNew ? 'Nuevo producto Sis2000' : `Editar ${code}`}</h1>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              {isNew ? 'Crea el producto en Sis2000 · los campos con * son obligatorios' : 'Todos los datos del producto. El código y el ramo no se cambian después de crearlo.'}
+            </p>
+          </div>
+        </BandaPagina>
         {error && <Alert variant="error">{error}</Alert>}
         {success && <Alert variant="success">{success}</Alert>}
 
