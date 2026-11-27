@@ -72,7 +72,7 @@ export function construirMigas(pathname: string, nombres: NombresMigas = {}): Mi
           const baseTar = `${baseCob}/tarifas/${encodeURIComponent(ctarifa)}`;
           push(nombres.tarifa ? nombres.tarifa : `Tarifa ${ctarifa}`, `${baseTar}/detalles`);
         }
-      } else {
+      } else if (ccobertura === 'new') {
         push('Coberturas', `${baseRamo}/coberturas`);
       }
     }
@@ -87,8 +87,6 @@ export function construirMigas(pathname: string, nombres: NombresMigas = {}): Mi
       migas.push({ label: 'Detalles' });
     } else if (ult === 'tarifas') {
       migas.push({ label: 'Tarifas' });
-    } else if (ult === 'coberturas') {
-      migas.push({ label: 'Coberturas' });
     }
   } else if (partes[0] === 'new') {
     push('Nuevo producto', p);

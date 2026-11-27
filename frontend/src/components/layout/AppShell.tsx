@@ -74,6 +74,9 @@ export function AppShell({
               {actions}
             </div>
           </div>
+          <div className={cn('mx-auto w-full px-6', widthClass)}>
+            <MigasSis2000 />
+          </div>
         </header>
 
         <main className={cn('app-content', widthClass, 'mx-auto w-full px-6 py-6')}>
