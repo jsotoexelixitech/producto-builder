@@ -512,14 +512,12 @@ export class PartnerBridgeService {
     return body.data ?? {};
   }
 
-  // ── nest-api partner:starter — maplanes (spMantPlanes) ──────────────────
+  // ── Planes maestro (maplanes / maplanes_per; escritura con spMantPlanes) ──
 
+  /** Catálogo de planes: ruta propia de nest-api (sin el paquete partner starter). */
   async listSis2000MasterPlans(): Promise<Record<string, unknown>[]> {
     return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/partner/starter/plan',
-      ),
+      await this.requestPropio<NestEnvelope<unknown[]>>('GET', '/api/v1/configurador/planes', undefined, 60_000),
     );
   }
 
