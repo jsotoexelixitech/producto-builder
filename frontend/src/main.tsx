@@ -1,30 +1,34 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, Suspense, lazy, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createBrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { DashboardPage } from './pages/DashboardPage';
-import { ProductWizardPage } from './pages/ProductWizardPage';
-import { EmissionFlowPreviewPage } from './pages/EmissionFlowPreviewPage';
-import { EmissionLauncherPage } from './pages/EmissionLauncherPage';
-import { EmissionLivePage } from './pages/EmissionLivePage';
 import { LoginPage } from './pages/LoginPage';
-import { Sis2000CatalogPage } from './pages/Sis2000CatalogPage';
-import { Sis2000ProductPage } from './pages/Sis2000ProductPage';
-import { Sis2000RamoCoveragesPage } from './pages/Sis2000RamoCoveragesPage';
-import { Sis2000TarifasPage } from './pages/Sis2000TarifasPage';
-import { Sis2000MasterPlansPage } from './pages/Sis2000MasterPlansPage';
-import { Sis2000PlanFormPage } from './pages/Sis2000PlanFormPage';
-import { Sis2000CoberturaFormPage } from './pages/Sis2000CoberturaFormPage';
-import { Sis2000TarifaFormPage } from './pages/Sis2000TarifaFormPage';
-import { Sis2000TarifaDetallePage } from './pages/Sis2000TarifaDetallePage';
-import { Sis2000TarifaDetalleFormPage } from './pages/Sis2000TarifaDetalleFormPage';
-import { Sis2000ComboPage, Sis2000PlanEditarPage } from './pages/Sis2000ComboPage';
-import { Sis2000PlanFichaPage } from './pages/Sis2000PlanFichaPage';
-import { Sis2000RamosPage } from './pages/Sis2000RamosPage';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthGate } from './components/AuthGate';
 import { AyudasProvider } from './components/ayudas/AyudasProvider';
+import { CargandoModerna } from './components/ayudas/CargandoModerna';
 import { ensureTrailingSlashOnRoot, routerBase } from './lib/app-base';
 import './index.css';
+
+// Cada pantalla es un paquete aparte: el principal solo trae lo común (login, router, sesión).
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const ProductWizardPage = lazy(() => import('./pages/ProductWizardPage').then((m) => ({ default: m.ProductWizardPage })));
+const EmissionFlowPreviewPage = lazy(() => import('./pages/EmissionFlowPreviewPage').then((m) => ({ default: m.EmissionFlowPreviewPage })));
+const EmissionLauncherPage = lazy(() => import('./pages/EmissionLauncherPage').then((m) => ({ default: m.EmissionLauncherPage })));
+const EmissionLivePage = lazy(() => import('./pages/EmissionLivePage').then((m) => ({ default: m.EmissionLivePage })));
+const Sis2000CatalogPage = lazy(() => import('./pages/Sis2000CatalogPage').then((m) => ({ default: m.Sis2000CatalogPage })));
+const Sis2000ProductPage = lazy(() => import('./pages/Sis2000ProductPage').then((m) => ({ default: m.Sis2000ProductPage })));
+const Sis2000RamoCoveragesPage = lazy(() => import('./pages/Sis2000RamoCoveragesPage').then((m) => ({ default: m.Sis2000RamoCoveragesPage })));
+const Sis2000TarifasPage = lazy(() => import('./pages/Sis2000TarifasPage').then((m) => ({ default: m.Sis2000TarifasPage })));
+const Sis2000MasterPlansPage = lazy(() => import('./pages/Sis2000MasterPlansPage').then((m) => ({ default: m.Sis2000MasterPlansPage })));
+const Sis2000PlanFormPage = lazy(() => import('./pages/Sis2000PlanFormPage').then((m) => ({ default: m.Sis2000PlanFormPage })));
+const Sis2000CoberturaFormPage = lazy(() => import('./pages/Sis2000CoberturaFormPage').then((m) => ({ default: m.Sis2000CoberturaFormPage })));
+const Sis2000TarifaFormPage = lazy(() => import('./pages/Sis2000TarifaFormPage').then((m) => ({ default: m.Sis2000TarifaFormPage })));
+const Sis2000TarifaDetallePage = lazy(() => import('./pages/Sis2000TarifaDetallePage').then((m) => ({ default: m.Sis2000TarifaDetallePage })));
+const Sis2000TarifaDetalleFormPage = lazy(() => import('./pages/Sis2000TarifaDetalleFormPage').then((m) => ({ default: m.Sis2000TarifaDetalleFormPage })));
+const Sis2000ComboPage = lazy(() => import('./pages/Sis2000ComboPage').then((m) => ({ default: m.Sis2000ComboPage })));
+const Sis2000PlanEditarPage = lazy(() => import('./pages/Sis2000ComboPage').then((m) => ({ default: m.Sis2000PlanEditarPage })));
+const Sis2000PlanFichaPage = lazy(() => import('./pages/Sis2000PlanFichaPage').then((m) => ({ default: m.Sis2000PlanFichaPage })));
+const Sis2000RamosPage = lazy(() => import('./pages/Sis2000RamosPage').then((m) => ({ default: m.Sis2000RamosPage })));
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then((regs) => {
@@ -52,6 +56,18 @@ function TrailingSlashOnRoot() {
   return null;
 }
 
+/** Mientras se baja el código de la pantalla (cada una es un paquete aparte). */
+function CargandoPantalla() {
+  return (
+    <div className="mx-auto max-w-3xl p-8">
+      <CargandoModerna
+        texto="Cargando la pantalla…"
+        clasica={<p className="text-sm text-muted-foreground">Cargando…</p>}
+      />
+    </div>
+  );
+}
+
 function Root() {
   const [showSplash, setShowSplash] = useState(
     () => sessionStorage.getItem(SPLASH_KEY) !== '1',
@@ -75,6 +91,7 @@ function AppRoutes() {
   return (
     <>
       <TrailingSlashOnRoot />
+      <Suspense fallback={<CargandoPantalla />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -270,6 +287,7 @@ function AppRoutes() {
             }
           />
         </Routes>
+      </Suspense>
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import {
@@ -40,7 +40,6 @@ import { CoveragesStep } from '@/components/wizard/CoveragesStep';
 import { CoreIntegrationPanel } from '@/components/wizard/CoreIntegrationPanel';
 import { ActivationSummary, type DatoFaltante } from '@/components/wizard/ActivationSummary';
 import { WizardStickyAlert } from '@/components/wizard/WizardStickyAlert';
-import { ExclusionHtmlPreview } from '@/components/legal/ExclusionPreview';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAvisoSinGuardar } from '@/components/ui/aviso-sin-guardar';
 import { irACampo } from '@/components/ui/errores';
@@ -114,6 +113,11 @@ function normalizeDocumentKey(value: string): string {
 function isCatalogDocumentKey(key: string): boolean {
   return DOCUMENT_CATALOG.some((d) => d.key === key);
 }
+
+// El motor PDF (@react-pdf) pesa más de 1 MB: se baja solo al abrir la vista previa de exclusiones.
+const ExclusionHtmlPreview = lazy(() =>
+  import('@/components/legal/ExclusionPreview').then((m) => ({ default: m.ExclusionHtmlPreview })),
+);
 
 export function ProductWizardPage() {
   const { id } = useParams();
@@ -1196,7 +1200,9 @@ export function ProductWizardPage() {
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Vista previa
                   </p>
-                  <ExclusionHtmlPreview exclusions={exclusions} />
+                  <Suspense fallback={<p className="text-xs text-muted-foreground">Cargando vista previa…</p>}>
+                    <ExclusionHtmlPreview exclusions={exclusions} />
+                  </Suspense>
                 </div>
               </div>
 
