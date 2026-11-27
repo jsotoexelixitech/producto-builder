@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  NotImplementedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
@@ -72,6 +73,8 @@ import { leerSobre, respuestaEscritura } from './configurador-fase2.mapper';
 import { filasCotizacion, listaDe } from './cotizacion.mapper';
 import {
   inferBranchFromPartnerRow,
+  payloadACrearConfigurador,
+  payloadAEditarConfigurador,
   PartnerProductPayload,
 } from './partner-product.mapper';
 
@@ -100,32 +103,28 @@ export class PartnerBridgeService {
     return Boolean(this.nestApiKey);
   }
 
-  /**
-   * Productos de maproductos: primero nest-api propio (v1/configurador/productos, mismas columnas); si responde 404
-   * (nest-api sin ese endpoint) cae al paquete partner como antes.
-   */
+  /** Productos de maproductos desde nest-api propio (GET v1/configurador/productos). */
   async listProducts(): Promise<Array<Record<string, unknown>>> {
-    const body = await this.getConfiguradorOPartner<NestEnvelope<Array<Record<string, unknown>>>>(
-      '/api/v1/configurador/productos',
-      '/api/v1/partner/products/list',
-      false,
-    );
+    const body = await this.requestPropio<NestEnvelope<Array<Record<string, unknown>>>>('GET', '/api/v1/configurador/productos');
     return Array.isArray(body.data) ? body.data : [];
   }
 
   /**
-   * GET al configurador y, si responde 404, al partner. Con soloRutaInexistente solo cae cuando el 404 es de ruta
-   * («Cannot GET …»); un 404 de «producto no existe» se propaga (el partner lee la misma tabla).
+   * Request a una ruta propia del configurador de nest-api. Un 404 de ruta («Cannot GET …») significa que el nest-api
+   * desplegado no tiene esa versión del módulo configurador: error claro (502), no lista vacía ni caída a paquetes partner.
+   * Un 404 de negocio (producto inexistente) se propaga tal cual.
    */
-  private async getConfiguradorOPartner<T>(configurador: string, partner: string, soloRutaInexistente: boolean): Promise<T> {
+  private async requestPropio<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
     try {
-      return await this.request<T>('GET', configurador);
+      return await this.request<T>(method, path, body, timeoutMs);
     } catch (err) {
-      if (!(err instanceof HttpException) || err.getStatus() !== 404) throw err;
-      if (soloRutaInexistente && !/^cannot get\b/i.test(this.httpExceptionMessage(err).trim())) throw err;
-      this.logger.warn(`${configurador} respondió 404; se usa ${partner} (paquete partner).`);
+      if (err instanceof HttpException && err.getStatus() === 404 && /^cannot (get|post|put|patch|delete)/i.test(this.httpExceptionMessage(err).trim())) {
+        throw new BadGatewayException(
+          `nest-api no tiene la ruta ${method} ${path.split('?')[0]}: despliega nest-api con el módulo configurador actualizado (feat/intermediarios-comisiones).`,
+        );
+      }
+      throw err;
     }
-    return this.request<T>('GET', partner);
   }
 
   async listCoreProductSummaries(branch?: string) {
@@ -146,7 +145,7 @@ export class PartnerBridgeService {
     return mapped;
   }
 
-  /** Existe en maproductos (mismo origen que getProductDetail: configurador y, sin ese endpoint, partner). */
+  /** Existe en maproductos (mismo origen que getProductDetail: nest-api configurador). */
   async productExists(cproducto: string): Promise<boolean> {
     try {
       await this.getProductDetail(cproducto);
@@ -158,11 +157,9 @@ export class PartnerBridgeService {
   }
 
   async getProductDetail(cproducto: string): Promise<Record<string, unknown>> {
-    const codigo = encodeURIComponent(cproducto);
-    const body = await this.getConfiguradorOPartner<NestEnvelope<Record<string, unknown>>>(
-      `/api/v1/configurador/productos/${codigo}`,
-      `/api/v1/partner/products/detail/${codigo}`,
-      true,
+    const body = await this.requestPropio<NestEnvelope<Record<string, unknown>>>(
+      'GET',
+      `/api/v1/configurador/productos/${encodeURIComponent(cproducto)}`,
     );
     if (!body.data) {
       throw new BadGatewayException(`Producto Sis2000 ${cproducto} sin detalle.`);
@@ -170,19 +167,17 @@ export class PartnerBridgeService {
     return body.data;
   }
 
+  /** Alta en nest-api propio (POST v1/configurador/productos; requiere CONFIGURADOR_PRODUCTOS_ESCRITURA=1 en nest-api). */
   async createProduct(payload: PartnerProductPayload): Promise<void> {
-    await this.request('POST', '/api/v1/partner/products/create', payload);
+    await this.requestPropio('POST', '/api/v1/configurador/productos', payloadACrearConfigurador(payload));
   }
 
-  async updateProduct(
-    cproducto: string,
-    payload: PartnerProductPayload,
-  ): Promise<void> {
-    const { cproducto: _ignored, ...body } = payload;
-    await this.request(
-      'PUT',
-      `/api/v1/partner/products/update/${encodeURIComponent(cproducto)}`,
-      body,
+  /** Edición en nest-api propio (PATCH v1/configurador/productos/:cproducto; mismo flag de escritura). */
+  async updateProduct(cproducto: string, payload: PartnerProductPayload): Promise<void> {
+    await this.requestPropio(
+      'PATCH',
+      `/api/v1/configurador/productos/${encodeURIComponent(cproducto)}`,
+      payloadAEditarConfigurador(payload),
     );
   }
 
@@ -242,40 +237,30 @@ export class PartnerBridgeService {
 
   // ── nest-api catalog:sis2000 — catálogos auxiliares ───────────────────────
 
+  /** Monedas (mamonedas) desde nest-api GET configurador/catalogos/monedas: { cmoneda, xdescripcion_l, …, ptasamon }. */
   async listCatalogMonedas(): Promise<Record<string, unknown>[]> {
     return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/catalogos/monedas',
-      ),
+      await this.requestPropio<NestEnvelope<unknown[]>>('GET', '/api/v1/configurador/catalogos/monedas'),
+    );
+  }
+
+  /** Sin equivalente propio en nest-api (origen de datos no identificado): error claro, no lista vacía silenciosa. */
+  private catalogoInternoNoDisponible(nombre: string): never {
+    throw new NotImplementedException(
+      `El catálogo ${nombre} no tiene ruta propia en nest-api (antes venía del paquete partner, que no está instalado).`,
     );
   }
 
   async listCatalogRamosInternos(): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/catalogos/ramos-internos',
-      ),
-    );
+    return this.catalogoInternoNoDisponible('ramos-internos');
   }
 
   async listCatalogCoberturasInternas(): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/catalogos/coberturas-internas',
-      ),
-    );
+    return this.catalogoInternoNoDisponible('coberturas-internas');
   }
 
   async listCatalogTarifasInternas(): Promise<Record<string, unknown>[]> {
-    return this.unwrapDataArray(
-      await this.request<NestEnvelope<unknown[]>>(
-        'GET',
-        '/api/v1/catalogos/tarifas-internas',
-      ),
-    );
+    return this.catalogoInternoNoDisponible('tarifas-internas');
   }
 
   /** Contratos de reaseguro (macontratos) desde nest-api GET configurador/reaseguro: { ccont, xdescripcion, iestado }. */

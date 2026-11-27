@@ -209,3 +209,32 @@ export function inferBranchFromPartnerRow(row: Record<string, unknown>): Product
   if (cram === 9 || cram === 7) return 'SALUD';
   return null;
 }
+
+const sinNulos = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null));
+const MAX_NOMBRE = 60;
+
+/** Cuerpo del alta de nest-api propio (POST v1/configurador/productos): solo los campos que ese DTO acepta. */
+export function payloadACrearConfigurador(p: PartnerProductPayload): Record<string, unknown> {
+  return sinNulos({
+    cproducto: p.cproducto,
+    cramo: p.cramo,
+    xdescripcion_l: p.xdescripcion_l.trim().slice(0, MAX_NOMBRE),
+    xdescripcion_c: p.xdescripcion_c?.slice(0, 15),
+    xabreviatura: p.xabreviatura?.slice(0, 5),
+    iproductor: p.iproductor,
+    icanal: p.icanal,
+    xdescripcion_prod: p.xdescripcion_prod?.slice(0, 150),
+    ctiporamo: p.ctiporamo,
+    xform: p.xform,
+    mmonto_inicial: p.mmonto_inicial,
+    norden: p.norden,
+    xfraccionamiento: p.xfraccionamiento?.slice(0, 200),
+    xurl_presentacion: p.xurl_presentacion?.slice(0, 200),
+  });
+}
+
+/** Cuerpo de la edición (PATCH v1/configurador/productos/:cproducto): cramo identifica la fila; no cambia cproducto. */
+export function payloadAEditarConfigurador(p: PartnerProductPayload): Record<string, unknown> {
+  const { cproducto: _c, ctiporamo: _t, ...resto } = payloadACrearConfigurador(p);
+  return resto;
+}
