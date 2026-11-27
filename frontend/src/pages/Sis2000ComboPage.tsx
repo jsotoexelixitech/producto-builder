@@ -132,6 +132,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
 
 /** Peticiones de tarifas en vuelo a la vez (una por cobertura del ramo). */
 const TARIFAS_EN_PARALELO = 5;
@@ -2470,7 +2471,7 @@ export function Sis2000ComboPage() {
 
       {modoEdicion ? (
         <SectionPanel title="Producto del plan" description="En un plan que ya existe, el ramo, el producto y el tipo no se cambian desde aquí: las pólizas emitidas dependen de ellos." icon={Package}>
-          {cargandoPlan && <div className="h-24 animate-pulse rounded-xl bg-muted/60" />}
+          {cargandoPlan && <CargandoModerna texto="Leyendo el plan de Sis2000…" clasica={<div className="h-24 animate-pulse rounded-xl bg-muted/60" />} />}
           {errorPlan && (
             <>
               <AlertaError

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type { TablaEdad, TablaEdadResumen } from './TablaEdadDialog';
+import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
 
 const formato = (v: unknown, max = 6) =>
   Number(v ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: max });
@@ -191,7 +192,7 @@ export function TablaEdadBuscador({ destino, valorActual = '', permitirTodas = f
             {!elegida ? (
               <p className="py-6 text-center text-xs text-slate-500">Elige una tabla de la lista para ver sus tramos.</p>
             ) : cargandoVista ? (
-              <p className="py-6 text-center text-xs text-slate-500">Cargando tramos de {elegida}…</p>
+              <CargandoModerna texto={`Cargando tramos de ${elegida}…`} clasica={<p className="py-6 text-center text-xs text-slate-500">Cargando tramos de {elegida}…</p>} />
             ) : errorVista ? (
               <AlertaError error={errorVista} />
             ) : vista ? (

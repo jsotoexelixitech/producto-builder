@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { DeducibleCampos } from './DeducibleCampos';
 import { DeducibleDescuentoAuto } from './AutoConfigurable';
+import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
 
 type Fila = Record<string, unknown>;
 
@@ -195,7 +196,7 @@ function DeducibleCobertura({
         </Alert>
       )}
       {cargando ? (
-        <p className="text-slate-500">Leyendo la tarifa…</p>
+        <CargandoModerna texto="Leyendo la tarifa…" clasica={<p className="text-slate-500">Leyendo la tarifa…</p>} />
       ) : (
         <div className="space-y-4">
           <div className="space-y-2">

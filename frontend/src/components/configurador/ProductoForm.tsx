@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
+import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
 
 type Obj = Record<string, unknown>;
 type CampoTexto = 'cproducto' | 'xdescripcion_l' | 'xdescripcion_c' | 'xabreviatura' | 'xform' | 'xdescripcion_prod' | 'mmonto_inicial' | 'norden' | 'xfraccionamiento' | 'xurl_presentacion';
@@ -176,7 +177,7 @@ export function ProductoForm({
             </ul>
           </Alert>
         )}
-        {cargando && <p className="text-slate-500">Leyendo el producto…</p>}
+        {cargando && <CargandoModerna texto="Leyendo el producto…" clasica={<p className="text-slate-500">Leyendo el producto…</p>} />}
 
         <div className="grid gap-3 sm:grid-cols-3">
           {campo('cproducto', 'Código', 'Código con el que los planes y las pólizas identifican el producto. Para usarlo en planes debe tener 6 caracteres o menos: el alta de planes no acepta más. Ejemplo: RCG01.\nEn Sis2000: maproductos.cproducto', {

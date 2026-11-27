@@ -14,6 +14,7 @@ import { AlertaError } from '@/components/ui/errores';
 import { Button } from '@/components/ui/button';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
+import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
 
 const ESTILO: Record<NivelRevision, { icono: typeof AlertCircle; clase: string; texto: string }> = {
   error: { icono: AlertCircle, clase: 'border-red-200 bg-red-50 text-red-800', texto: 'Impide emitir' },
@@ -79,7 +80,7 @@ export function RevisionPlanPanel({
             <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">{cuenta.ok} bien</span>
           </div>
         )}
-        {cargando && !revision && <p className="text-slate-500">Revisando el plan…</p>}
+        {cargando && !revision && <CargandoModerna texto="Revisando el plan…" clasica={<p className="text-slate-500">Revisando el plan…</p>} />}
 
         {items.length > 0 && (
           <ul className="space-y-2">

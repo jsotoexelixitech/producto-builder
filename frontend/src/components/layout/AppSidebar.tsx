@@ -5,6 +5,8 @@ import { getStoredUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
 import { cn } from '@/lib/utils';
+import { publicAsset } from '@/lib/app-base';
+import { useAyudas } from '@/components/ayudas/AyudasProvider';
 
 const NAV = [
   { href: '/', label: 'Productos', icon: Layers, match: (p: string) => p === '/' },
@@ -39,12 +41,17 @@ export function AppSidebar() {
   const pathname = useLocation().pathname;
   const isPreview = pathname.includes('/preview');
   const user = getStoredUser();
+  const moderna = useAyudas().activas;
 
   return (
     <aside className="app-sidebar">
       <Link to="/" className="app-sidebar-brand">
         <div className="app-sidebar-logo">
-          <Shield className="h-5 w-5 text-white" />
+          {moderna ? (
+            <img src={publicAsset('logo-isotipo-transparente.png')} alt="La Mundial" />
+          ) : (
+            <Shield className="h-5 w-5 text-white" />
+          )}
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-bold tracking-tight">Product Builder</p>

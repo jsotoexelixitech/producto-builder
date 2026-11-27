@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SectionPanel } from '@/components/ui/section-panel';
 import { cn } from '@/lib/utils';
+import { CargandoModerna } from '@/components/ayudas/CargandoModerna';
 
 interface Props {
   entidad: EntidadHistorial;
@@ -149,7 +150,7 @@ export function HistorialPanel({ entidad, clave, recargar = 0, onRestaurado, tit
           </Alert>
         )}
 
-        {cargando && !datos && <div className="h-16 animate-pulse rounded-lg bg-muted/60" />}
+        {cargando && !datos && <CargandoModerna texto="Leyendo el historial…" filas={2} clasica={<div className="h-16 animate-pulse rounded-lg bg-muted/60" />} />}
 
         {datos && !respaldo && (
           <p className="text-xs text-muted-foreground">
